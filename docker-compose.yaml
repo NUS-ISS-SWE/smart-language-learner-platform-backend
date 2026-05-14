@@ -1,0 +1,126 @@
+services:
+  postgres-db:
+    image: postgres:18
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: sllp_main_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/18/docker
+    ports:
+      - "5432:5432"
+    volumes:
+      - sllp-data:/var/lib/postgresql
+    networks:
+      - sllp-network
+
+  liquibase-service:
+    build:
+      context: ./sllp-liquibase-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-liquibase-service:v1
+    container_name: liquibase-service
+    environment:
+      POSTGRES_DB: sllp_main_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      SPRING_PROFILES_ACTIVE: uat
+    depends_on:
+      - postgres-db
+    ports:
+      - "8081:8081"
+    networks:
+      - sllp-network
+
+  kafka-service:
+    image: apache/kafka:4.2.0
+    container_name: kafka-service
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-service:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-service:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    ports:
+      - "9092:9092"
+    networks:
+      - sllp-network
+
+  user-service:
+    build:
+      context: ./sllp-user-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-user-service:v1
+    container_name: user-service
+    ports:
+      - "8082:8082"
+    networks:
+      - sllp-network
+    depends_on:
+      - liquibase-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+
+  composition-service:
+    build:
+      context: ./sllp-composition-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-composition-service:v1
+    container_name: composition-service
+    ports:
+      - "8083:8083"
+    networks:
+      - sllp-network
+    depends_on:
+      - user-service
+      - kafka-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+
+  evaluation-service:
+    build:
+      context: ./sllp-evaluation-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-evaluation-service:v1
+    container_name: evaluation-service
+    ports:
+      - "8085:8085"
+    networks:
+      - sllp-network
+    depends_on:
+      - user-service
+      - kafka-service
+      - composition-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+
+  api-gateway:
+    image: 961125mingwei/sllp-api-gateway:v1
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - sllp-network
+    depends_on:
+      - liquibase-service
+      - user-service
+      - composition-service
+      - evaluation-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+
+networks:
+  sllp-network:
+    driver: bridge
+
+volumes:
+  sllp-data:

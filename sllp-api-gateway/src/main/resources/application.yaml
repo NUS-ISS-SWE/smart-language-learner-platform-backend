@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: sllp-api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:*"
+#              - "http://127.0.0.1:*"
+              - "http://*.docker.internal:*"
+#              - "http://*.local:*"
+              - "https://nusmtechswe.com"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+sllp:
+  security:
+    jwt:
+      issuer: nus-iss-smart-language-learner-platform
+      secret: bnVzLWlzcy1jb2RlY29ubmVjdC1qd3Qtc2VjcmV0LXRva2Vu
+      expirationTimeMillis: 86400000

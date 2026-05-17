@@ -13,4 +13,5 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class SllpProperties {
     public String userService;
+    public String compositionService;
 }

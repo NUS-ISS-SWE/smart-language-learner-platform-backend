@@ -23,7 +23,7 @@ spring:
 
 sllp:
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:29092
     group-id: sllp-composition-service
     auto-offset-reset: earliest
     topics:

@@ -29,11 +29,9 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
     )
     public void consumeCompositionGradingCompletedEvent(String payload) {
         try {
-            CompositionGradingCompletedEvent event = objectMapper.readValue(
-                    payload, CompositionGradingCompletedEvent.class);
+            CompositionGradingCompletedEvent event = objectMapper.readValue(payload, CompositionGradingCompletedEvent.class);
             compositionService.completeCompositionGrading(event);
-            log.info("Consumed composition grading completed event for compositionId: {}",
-                    event.getCompositionId());
+            log.info("Consumed composition grading completed event for compositionId: {}", event.getCompositionId());
         } catch (JacksonException ex) {
             throw new IllegalArgumentException("Failed to deserialize composition grading completed event", ex);
         }
@@ -46,11 +44,9 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
     )
     public void consumeCompositionGenerationCompletedEvent(String payload) {
         try {
-            CompositionGenerationCompletedEvent event = objectMapper.readValue(
-                    payload, CompositionGenerationCompletedEvent.class);
+            CompositionGenerationCompletedEvent event = objectMapper.readValue(payload, CompositionGenerationCompletedEvent.class);
             compositionService.completeCompositionGeneration(event);
-            log.info("Consumed composition generation completed event for compositionId: {}",
-                    event.getCompositionId());
+            log.info("Consumed composition generation completed event for compositionId: {}", event.getCompositionId());
         } catch (JacksonException ex) {
             throw new IllegalArgumentException("Failed to deserialize composition generation completed event", ex);
         }

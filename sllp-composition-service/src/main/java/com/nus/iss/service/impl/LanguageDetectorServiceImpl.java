@@ -4,10 +4,12 @@ import com.github.pemistahl.lingua.api.LanguageDetector;
 import com.github.pemistahl.lingua.api.LanguageDetectorBuilder;
 import com.nus.iss.enums.Language;
 import com.nus.iss.service.LanguageDetectorService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class LanguageDetectorServiceImpl implements LanguageDetectorService {
 
@@ -26,6 +28,7 @@ public class LanguageDetectorServiceImpl implements LanguageDetectorService {
         }
 
         com.github.pemistahl.lingua.api.Language detectedLanguage = detector.detectLanguageOf(text);
+        log.info("Detected language is {}", detectedLanguage.name());
         return mapToSupportedLanguage(detectedLanguage);
     }
 

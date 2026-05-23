@@ -166,8 +166,7 @@ public class CompositionServiceImpl implements CompositionService {
     public void completeCompositionGrading(CompositionGradingCompletedEvent event) {
         validateGradingCompletedEvent(event);
 
-        Composition composition = compositionRepository.findByIdAndUsername(
-                        event.getCompositionId(), event.getUsername())
+        Composition composition = compositionRepository.findByIdAndUsername(event.getCompositionId(), event.getUsername())
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         if (event.isSuccess()) {
@@ -328,7 +327,7 @@ public class CompositionServiceImpl implements CompositionService {
                 .language(composition.getLanguage())
                 .compositionStatus(composition.getCompositionStatus())
                 .systemFeedback(composition.getSystemFeedback())
-                .storagePath(composition.getStoragePath())
+//                .storagePath(composition.getStoragePath())
                 .createdAt(composition.getCreatedAt())
                 .updatedAt(composition.getUpdatedAt())
                 .build();

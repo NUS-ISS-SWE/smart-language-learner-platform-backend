@@ -28,7 +28,6 @@ public class CompositionController {
     public ResponseEntity<CompositionDTO> createNewComposition(@RequestHeader("X-Sllp-Username") String username,
                                                                @RequestHeader("X-Sllp-Role") String role,
                                                                @RequestBody CompositionDTO compositionDTO) {
-
         log.info("Creating new composition for user: {} with role: {}, title: {}, contentPreview: {}",
                 username, role, compositionDTO.getTitle(), getContentPreview(compositionDTO.getContent()));
         CompositionDTO createdComposition = compositionService.createNewComposition(username, compositionDTO);
@@ -68,17 +67,17 @@ public class CompositionController {
 
     @DeleteMapping("/composition/{id}")
     public ResponseEntity<CompositionDTO> deleteComposition(@RequestHeader("X-Sllp-Username") String username,
-                                               @RequestHeader("X-Sllp-Role") String role,
-                                               @PathVariable Long id) {
+                                                            @RequestHeader("X-Sllp-Role") String role,
+                                                            @PathVariable Long id) {
         log.info("Deleting composition with ID: {} for user: {} with role: {}", id, username, role);
         compositionService.deleteComposition(username, id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/composition/{id}/grading")
-    public ResponseEntity<?> requestToGradeComposition(@RequestHeader("X-Sllp-Username") String username,
-                                                       @RequestHeader("X-Sllp-Role") String role,
-                                                       @PathVariable Long id) {
+    public ResponseEntity<CompositionDTO> requestToGradeComposition(@RequestHeader("X-Sllp-Username") String username,
+                                                                    @RequestHeader("X-Sllp-Role") String role,
+                                                                    @PathVariable Long id) {
         log.info("Requesting grading for composition with ID: {} for user: {} with role: {}", id, username, role);
         CompositionDTO composition = compositionService.requestToGradeComposition(username, id);
         return ResponseEntity.ok(composition);

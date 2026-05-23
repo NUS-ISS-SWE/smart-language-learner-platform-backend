@@ -1,0 +1,8 @@
+spring:
+  ai:
+    ollama:
+      base-url: http://ollama-service:11434
+
+sllp:
+  kafka:
+    bootstrap-servers: kafka-service:9092

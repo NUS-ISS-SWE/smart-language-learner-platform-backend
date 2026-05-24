@@ -29,6 +29,7 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
     )
     public void consumeCompositionGradingCompletedEvent(String payload) {
         try {
+            log.info("CompositionGradingCompletedEvent: {}", payload);
             CompositionGradingCompletedEvent event = objectMapper.readValue(payload, CompositionGradingCompletedEvent.class);
             compositionService.completeCompositionGrading(event);
             log.info("Consumed composition grading completed event for compositionId: {}", event.getCompositionId());
@@ -44,6 +45,7 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
     )
     public void consumeCompositionGenerationCompletedEvent(String payload) {
         try {
+            log.info("CompositionGenerationCompletedEvent: {}", payload);
             CompositionGenerationCompletedEvent event = objectMapper.readValue(payload, CompositionGenerationCompletedEvent.class);
             compositionService.completeCompositionGeneration(event);
             log.info("Consumed composition generation completed event for compositionId: {}", event.getCompositionId());

@@ -1,0 +1,35 @@
+server:
+  port: 8089
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: sllp-document-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sllp_document_db
+    username: postgres
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:sllp-uploads-dev}
+    region: ${AWS_REGION:ap-southeast-1}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+
+application:
+  jwt:
+    secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
+  file:
+    max-size: 52428800
+    allowed-types: pdf,docx,pptx,txt

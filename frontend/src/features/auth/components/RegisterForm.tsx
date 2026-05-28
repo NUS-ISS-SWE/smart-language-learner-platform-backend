@@ -27,7 +27,7 @@ export function RegisterForm() {
   const mutation = useMutation({
     mutationFn: register,
     onSuccess: () => {
-      navigate("/login", { replace: true });
+      navigate("/register/success", { replace: true, state: { email: form.email } });
     },
   });
 

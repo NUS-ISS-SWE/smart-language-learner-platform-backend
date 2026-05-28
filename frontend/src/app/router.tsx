@@ -5,6 +5,7 @@ import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { ForgotPasswordPage } from "@/features/auth/pages/ForgotPasswordPage";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/auth/pages/RegisterPage";
+import { RegisterSuccessPage } from "@/features/auth/pages/RegisterSuccessPage";
 import { CompositionDetailPage } from "@/features/compositions/pages/CompositionDetailPage";
 import { CompositionEditorPage } from "@/features/compositions/pages/CompositionEditorPage";
 import { CompositionListPage } from "@/features/compositions/pages/CompositionListPage";
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/login", element: <LoginPage /> },
           { path: "/register", element: <RegisterPage /> },
+          { path: "/register/success", element: <RegisterSuccessPage /> },
           { path: "/forgot-password", element: <ForgotPasswordPage /> },
         ],
       },

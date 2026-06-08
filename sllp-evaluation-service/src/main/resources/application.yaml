@@ -10,7 +10,7 @@ spring:
     ollama:
       base-url: http://localhost:11434
       chat:
-        model: gemma4:e4b-it-q4_K_M
+        model: qwen3:0.6b
         temperature: 0.3
 
 sllp:

@@ -39,12 +39,16 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-service:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-service:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+#      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-service:29092,PLAINTEXT_HOST://localhost:9092
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-service:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -52,6 +56,37 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     ports:
       - "9092:9092"
+      - "29092:29092"
+    networks:
+      - sllp-network
+
+  ollama-service:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      - sllp-network
+
+  ollama-model-pull:
+    image: ollama/ollama:latest
+    container_name: ollama-model-pull
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama-service:11434
+    command: ["pull", "qwen3:0.6b"]
+    depends_on:
+      ollama-service:
+        condition: service_healthy
     networks:
       - sllp-network
 
@@ -97,9 +132,14 @@ services:
     networks:
       - sllp-network
     depends_on:
-      - user-service
-      - kafka-service
-      - composition-service
+      user-service:
+        condition: service_started
+      kafka-service:
+        condition: service_started
+      composition-service:
+        condition: service_started
+      ollama-model-pull:
+        condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
@@ -118,9 +158,23 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-frontend:v1
+    container_name: frontend
+    ports:
+      - "80:80"
+    networks:
+      - sllp-network
+    depends_on:
+      - api-gateway
+
 networks:
   sllp-network:
     driver: bridge
 
 volumes:
   sllp-data:
+  ollama-data:

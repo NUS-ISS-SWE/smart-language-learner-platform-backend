@@ -1,0 +1,26 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: sllp-evaluation-service
+  ai:
+    model:
+      chat: ollama
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: qwen3:0.6b
+        temperature: 0.3
+
+sllp:
+  kafka:
+    bootstrap-servers: localhost:29092
+    group-id: sllp-evaluation-group
+    auto-offset-reset: earliest
+    topics:
+      composition-grading-requested: SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC
+      composition-grading-completed: SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
+    retry-backoff-ms: 1000
+    request-timeout-ms: 30000
+    default-api-timeout-ms: 60000

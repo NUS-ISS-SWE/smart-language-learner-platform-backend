@@ -1,0 +1,36 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: sllp-composition-service
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: sa
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+
+sllp:
+  kafka:
+    bootstrap-servers: localhost:29092
+    group-id: sllp-composition-service
+    auto-offset-reset: earliest
+    topics:
+      composition-grading-requested: SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC
+      composition-grading-completed: SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
+      composition-generation-requested: SLLP_COMPOSITION_GENERATION_REQUESTED_TOPIC
+      composition-generation-completed: SLLP_COMPOSITION_GENERATION_COMPLETED_TOPIC
+    retry-backoff-ms: 1000
+    request-timeout-ms: 30000
+    default-api-timeout-ms: 60000

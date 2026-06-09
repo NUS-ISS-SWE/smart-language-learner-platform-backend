@@ -1,0 +1,3 @@
+sllp:
+  user-service: http://user-service:8082
+  composition-service: http://composition-service:8083

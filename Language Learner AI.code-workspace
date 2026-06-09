@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "smart-language-learner-platform-frontend",
+			"path": "../smart-language-learner-platform-frontend"
+		}
+	],
+	"settings": {}
+}

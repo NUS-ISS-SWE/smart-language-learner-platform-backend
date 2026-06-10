@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        jdk   'jdk-25'
+        maven 'maven-3.9'
+    }
+
     environment {
         GIT_CREDENTIALS_ID = 'github-pat'
     }
@@ -33,6 +38,33 @@ pipeline {
             }
         }
 
+        // Build JARs so Dockerfiles have something to COPY
+        stage('Build JARs') {
+            when { expression { return params.DEPLOY_MODE == 'deploy' } }
+            steps {
+                dir('source') {
+                    script {
+                        // Only build modules that have a Java service (skip frontend)
+                        def mavenModules = [
+                            'all'            : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                            'user-service'   : 'sllp-user-service',
+                            'liquibase-service'  : 'sllp-liquibase-service',
+                            'composition-service': 'sllp-composition-service',
+                            'evaluation-service' : 'sllp-evaluation-service',
+                            'api-gateway'        : 'sllp-api-gateway',
+                            'frontend'           : null
+                        ]
+                        def modules = mavenModules[params.MICROSERVICE_NAME]
+                        if (modules) {
+                            sh "mvn package -DskipTests -pl ${modules} -am --no-transfer-progress"
+                        } else {
+                            echo "Frontend has no Maven build — skipping."
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Deploy full stack ─────────────────────────────────────────────────
         stage('Deploy Full Stack') {
             when {
@@ -44,11 +76,8 @@ pipeline {
             steps {
                 dir('source') {
                     sh '''
-                        echo "Pulling latest images..."
-                        docker compose pull --ignore-pull-failures || true
-
-                        echo "Deploying full stack..."
-                        docker compose up -d
+                        echo "Building images and deploying full stack..."
+                        docker compose up -d --build
 
                         echo "Service status:"
                         docker compose ps
@@ -68,11 +97,8 @@ pipeline {
             steps {
                 dir('source') {
                     sh """
-                        echo "Pulling latest image for ${params.MICROSERVICE_NAME}..."
-                        docker compose pull ${params.MICROSERVICE_NAME} || true
-
                         echo "Restarting ${params.MICROSERVICE_NAME}..."
-                        docker compose up -d ${params.MICROSERVICE_NAME}
+                        docker compose up -d --build ${params.MICROSERVICE_NAME}
 
                         echo "Service status:"
                         docker compose ps ${params.MICROSERVICE_NAME}

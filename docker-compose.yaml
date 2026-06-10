@@ -19,7 +19,7 @@ services:
     build:
       context: ./sllp-liquibase-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-liquibase-service:v1
+    image: maxin0525/sllp-liquibase-service:v1
     container_name: liquibase-service
     environment:
       POSTGRES_DB: sllp_main_db
@@ -94,7 +94,7 @@ services:
     build:
       context: ./sllp-user-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-user-service:v1
+    image: maxin0525/sllp-user-service:v1
     container_name: user-service
     ports:
       - "8082:8082"
@@ -109,7 +109,7 @@ services:
     build:
       context: ./sllp-composition-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-composition-service:v1
+    image: maxin0525/sllp-composition-service:v1
     container_name: composition-service
     ports:
       - "8083:8083"
@@ -125,7 +125,7 @@ services:
     build:
       context: ./sllp-evaluation-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-evaluation-service:v1
+    image: maxin0525/sllp-evaluation-service:v1
     container_name: evaluation-service
     ports:
       - "8085:8085"
@@ -144,7 +144,7 @@ services:
       - SPRING_PROFILES_ACTIVE=uat
 
   api-gateway:
-    image: 961125mingwei/sllp-api-gateway:v1
+    image: maxin0525/sllp-api-gateway:v1
     container_name: api-gateway
     ports:
       - "8080:8080"
@@ -162,7 +162,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-frontend:v1
+    image: maxin0525/sllp-frontend:v1
     container_name: frontend
     ports:
       - "80:80"

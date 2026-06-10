@@ -20,7 +20,7 @@ pipeline {
             'evaluation-service',
             'api-gateway',
             'frontend'
-        ], description: 'Service to deploy (all = full stack via docker-compose up)')
+        ], description: 'Service to deploy (all = full stack via docker compose up)')
         choice(name: 'DEPLOY_MODE', choices: [
             'deploy',
             'cleanup'
@@ -77,10 +77,10 @@ pipeline {
                 dir('source') {
                     sh '''
                         echo "Building images and deploying full stack..."
-                        docker-compose up -d --build
+                        docker compose up -d --build
 
                         echo "Service status:"
-                        docker-compose ps
+                        docker compose ps
                     '''
                 }
             }
@@ -98,10 +98,10 @@ pipeline {
                 dir('source') {
                     sh """
                         echo "Restarting ${params.MICROSERVICE_NAME}..."
-                        docker-compose up -d --build ${params.MICROSERVICE_NAME}
+                        docker compose up -d --build ${params.MICROSERVICE_NAME}
 
                         echo "Service status:"
-                        docker-compose ps ${params.MICROSERVICE_NAME}
+                        docker compose ps ${params.MICROSERVICE_NAME}
                     """
                 }
             }
@@ -114,7 +114,7 @@ pipeline {
                 dir('source') {
                     sh '''
                         echo "Tearing down all services and volumes..."
-                        docker-compose down -v --remove-orphans
+                        docker compose down -v --remove-orphans
                         echo "Cleanup complete."
                     '''
                 }

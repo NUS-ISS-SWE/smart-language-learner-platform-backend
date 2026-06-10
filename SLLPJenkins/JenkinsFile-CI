@@ -9,16 +9,18 @@ pipeline {
     environment {
         DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
         GIT_CREDENTIALS_ID    = 'github-pat'
-        DOCKER_IMAGE          = "maxin0525/sllp-${params.MICROSERVICE_NAME}"
+        DOCKER_HUB_USER       = 'maxin0525'
+        ALL_SERVICES          = 'user-service document-service liquibase-service'
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cicd_branch', description: 'Git branch to build')
         choice(name: 'MICROSERVICE_NAME', choices: [
+            'all',
             'user-service',
             'document-service',
             'liquibase-service'
-        ], description: 'Select microservice to build')
+        ], description: 'Select microservice to build (all = build & push all three)')
         booleanParam(name: 'RUN_TESTS',          defaultValue: true, description: 'Run unit tests')
         booleanParam(name: 'UPLOAD_DOCKER_HUB',  defaultValue: true, description: 'Push image to Docker Hub')
     }
@@ -37,17 +39,19 @@ pipeline {
         stage('Build & Test') {
             steps {
                 dir('source') {
-                    sh """
-                        mvn clean ${params.RUN_TESTS ? 'verify' : 'package -DskipTests'} \
-                            -pl sllp-${params.MICROSERVICE_NAME} -am \
-                            --no-transfer-progress
-                    """
+                    script {
+                        def modules = params.MICROSERVICE_NAME == 'all'
+                            ? ALL_SERVICES.split(' ').collect { "sllp-${it}" }.join(',')
+                            : "sllp-${params.MICROSERVICE_NAME}"
+                        def goal = params.RUN_TESTS ? 'verify' : 'package -DskipTests'
+                        sh "mvn clean ${goal} -pl ${modules} -am --no-transfer-progress"
+                    }
                 }
             }
             post {
                 always {
                     junit allowEmptyResults: true,
-                          testResults: "source/sllp-${params.MICROSERVICE_NAME}/target/surefire-reports/*.xml"
+                          testResults: 'source/**/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -58,18 +62,26 @@ pipeline {
                 DOCKER_BUILDKIT = '1'
             }
             steps {
-                dir("source/sllp-${params.MICROSERVICE_NAME}") {
-                    withCredentials([usernamePassword(
-                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh """
-                            echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
-                            docker build -t ${DOCKER_IMAGE}:latest -t ${DOCKER_IMAGE}:v1 .
-                            docker push ${DOCKER_IMAGE}:latest
-                            docker push ${DOCKER_IMAGE}:v1
-                        """
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+
+                    script {
+                        def targets = params.MICROSERVICE_NAME == 'all'
+                            ? ALL_SERVICES.split(' ') as List
+                            : [params.MICROSERVICE_NAME]
+
+                        targets.each { svc ->
+                            def img = "${DOCKER_HUB_USER}/sllp-${svc}"
+                            sh """
+                                docker build -t ${img}:latest -t ${img}:v1 source/sllp-${svc}/
+                                docker push ${img}:latest
+                                docker push ${img}:v1
+                            """
+                        }
                     }
                 }
             }
@@ -77,7 +89,7 @@ pipeline {
     }
 
     post {
-        success { echo "✅ CI complete — ${DOCKER_IMAGE}:latest pushed to Docker Hub" }
-        failure { echo "❌ CI failed for sllp-${params.MICROSERVICE_NAME}" }
+        success { echo "✅ CI complete — ${params.MICROSERVICE_NAME} built & pushed" }
+        failure { echo "❌ CI failed for ${params.MICROSERVICE_NAME}" }
     }
 }

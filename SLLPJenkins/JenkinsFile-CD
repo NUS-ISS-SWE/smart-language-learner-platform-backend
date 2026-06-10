@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_CREDENTIALS_ID = 'github-pat'
+        JWT_SECRET         = credentials('sllp-jwt-secret')
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to deploy')
+        choice(name: 'DEPLOY_TARGET', choices: [
+            'phase3-only',
+            'full'
+        ], description: 'phase3-only: user-service + document-service only; full: all services')
+        choice(name: 'DEPLOY_MODE', choices: [
+            'deploy',
+            'cleanup'
+        ], description: 'Deploy or tear down')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Pull Latest Images') {
+            when { expression { return params.DEPLOY_MODE == 'deploy' } }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Pulling latest images from Docker Hub..."
+                        docker compose pull --ignore-pull-failures || true
+                    '''
+                }
+            }
+        }
+
+        // Phase 3 only: user-service + document-service (+ their infra deps)
+        stage('Deploy Phase 3 Services') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.DEPLOY_TARGET == 'phase3-only' }
+                }
+            }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Deploying Phase 3: user-service + document-service..."
+                        docker compose up user-service document-service -d --wait
+
+                        echo "Service status:"
+                        docker compose ps user-service document-service
+                    '''
+                }
+            }
+        }
+
+        // Full stack (includes Kafka, Ollama, frontend etc.)
+        stage('Deploy Full Stack') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.DEPLOY_TARGET == 'full' }
+                }
+            }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Deploying full stack..."
+                        docker compose up -d
+
+                        echo "Service status:"
+                        docker compose ps
+                    '''
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            when { expression { return params.DEPLOY_MODE == 'cleanup' } }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Tearing down all services and volumes..."
+                        docker compose down -v --remove-orphans
+                        echo "✅ Cleanup complete."
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "✅ CD complete — ${params.DEPLOY_MODE} (${params.DEPLOY_TARGET})" }
+        failure { echo "❌ CD failed — ${params.DEPLOY_MODE} (${params.DEPLOY_TARGET})" }
+    }
+}

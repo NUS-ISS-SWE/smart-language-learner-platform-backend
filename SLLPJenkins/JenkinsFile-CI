@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk   'jdk-25'
+        maven 'maven-3.9'
+    }
+
+    environment {
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
+        GIT_CREDENTIALS_ID    = 'github-pat'
+        DOCKER_IMAGE          = "961125mingwei/sllp-${params.MICROSERVICE_NAME}"
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'user-service',
+            'document-service',
+            'liquibase-service'
+        ], description: 'Select microservice to build')
+        booleanParam(name: 'RUN_TESTS',          defaultValue: true, description: 'Run unit tests')
+        booleanParam(name: 'UPLOAD_DOCKER_HUB',  defaultValue: true, description: 'Push image to Docker Hub')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                dir('source') {
+                    sh """
+                        mvn clean ${params.RUN_TESTS ? 'verify' : 'package -DskipTests'} \
+                            -pl sllp-${params.MICROSERVICE_NAME} -am \
+                            --no-transfer-progress
+                    """
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: "source/sllp-${params.MICROSERVICE_NAME}/target/surefire-reports/*.xml"
+                }
+            }
+        }
+
+        stage('Docker Build & Push') {
+            when { expression { return params.UPLOAD_DOCKER_HUB } }
+            environment {
+                DOCKER_BUILDKIT = '1'
+            }
+            steps {
+                dir("source/sllp-${params.MICROSERVICE_NAME}") {
+                    withCredentials([usernamePassword(
+                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
+                            docker build -t ${DOCKER_IMAGE}:latest -t ${DOCKER_IMAGE}:v1 .
+                            docker push ${DOCKER_IMAGE}:latest
+                            docker push ${DOCKER_IMAGE}:v1
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "✅ CI complete — ${DOCKER_IMAGE}:latest pushed to Docker Hub" }
+        failure { echo "❌ CI failed for sllp-${params.MICROSERVICE_NAME}" }
+    }
+}

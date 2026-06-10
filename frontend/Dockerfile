@@ -3,10 +3,17 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install
+
+RUN npm ci --include=dev
+
+RUN echo "Checking installed build tools..." && \
+    ls -la node_modules/.bin && \
+    npm list typescript vite
 
 COPY . .
+
 RUN npm run build
+
 
 FROM nginx:1.27-alpine AS runtime
 

@@ -4,12 +4,9 @@ WORKDIR /app
 
 ENV CI=true
 
-RUN npm install -g npm@10
-
 COPY package.json package-lock.json ./
 
-RUN npm cache clean --force && \
-    npm ci --include=dev --no-audit --no-fund && \
+RUN npm ci --include=dev --no-audit --no-fund && \
     test -x node_modules/.bin/tsc && \
     test -x node_modules/.bin/vite
 

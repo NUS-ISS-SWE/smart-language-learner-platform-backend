@@ -1,0 +1,193 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'feature/sprint11/maxin-CDCNT-290', description: 'Git branch to build')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'admin-management-service',
+            'user-management-service',
+            'interview-prep-service',
+            'job-management-service',
+            'profile-management-service',
+            'api-gateway',
+            'postgresql',
+            'loadbalancer',
+            'liquibase-service',
+        ], description: 'Select microservice to build')
+        choice(name: 'DEPLOY_MODE', choices: [
+            'deploy',
+            'cleanup'
+        ], description: 'Deployment mode')
+    }
+
+    stages {
+        stage('Update kubeconfig & Verify Cluster') {
+            steps {
+                sh '''
+                    echo "🔄 Updating kubeconfig..."
+                    aws eks update-kubeconfig --region ap-southeast-1 --name example
+
+                    echo "✅ Verifying cluster nodes..."
+                    kubectl get nodes
+                '''
+            }
+        }
+
+        stage('Checkout K8s Manifests') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "github-pat",
+                        url: 'https://github.com/NUS-ISS-SWE/code-connect-backend.git'
+                }
+            }
+        }
+
+        // 🐘 PostgreSQL
+        stage('Deploy PostgreSQL') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.MICROSERVICE_NAME == 'postgresql' }
+                }
+            }
+            steps {
+                dir('source/postgresql/kubernetes') {
+                    sh '''
+                        echo "🐘 Deploying PostgreSQL..."
+                        kubectl apply -f kube.yaml
+                        kubectl wait --for=condition=Ready pod -l app=postgres-db -n default --timeout=300s || true
+                        kubectl get pods
+                        echo "✅ PostgreSQL deployment complete!"
+                    '''
+                }
+            }
+        }
+
+        // 🗄️ Liquibase
+        stage('Deploy Liquibase Service') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.MICROSERVICE_NAME == 'liquibase-service' }
+                }
+            }
+            steps {
+                dir('source/codeconnect-liquibase-service/kubernetes') {
+                    sh '''
+                        echo "🗄️ Deploying Liquibase..."
+                        kubectl apply -f kube.yaml
+                        kubectl wait --for=condition=complete --timeout=300s job -l app=liquibase-service || true
+                        kubectl get pods
+
+                        POSTGRES_POD=$(kubectl get pods | grep postgres-db | grep Running | awk '{print $1}' | head -n 1)
+                        if [ -z "$POSTGRES_POD" ]; then
+                            echo "❌ PostgreSQL pod not found!"
+                            exit 1
+                        fi
+
+                        echo "Found PostgreSQL pod: $POSTGRES_POD"
+                        kubectl exec $POSTGRES_POD -- psql -U postgres -d cdcnt_main_db -c "SELECT COUNT(*) FROM app_user;"
+                        echo "✅ Liquibase deployment verified!"
+                    '''
+                }
+            }
+        }
+
+        // 🌐 LoadBalancer
+        stage('Deploy Load Balancer') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.MICROSERVICE_NAME == 'loadbalancer' }
+                }
+            }
+            steps {
+                dir('source/loadbalancer/kubernetes') {
+                    sh '''
+                        echo "🌐 Deploying LoadBalancer..."
+                        kubectl apply -f kube.yaml
+                        sleep 10
+                        
+                        echo "📊 Checking ingress status..."
+                        kubectl get ingress ingress-alb -n default
+                        
+                        echo "⏳ Waiting for ALB address..."
+                        TIMEOUT=300
+                        ELAPSED=0
+                        while [ $ELAPSED -lt $TIMEOUT ]; do
+                            ADDRESS=$(kubectl get ingress ingress-alb -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                            if [ -n "$ADDRESS" ]; then
+                                echo "✅ ALB ready at: $ADDRESS"
+                                break
+                            fi
+                            echo "Still waiting for ALB address... ($ELAPSED/$TIMEOUT seconds)"
+                            sleep 10
+                            ELAPSED=$((ELAPSED + 10))
+                        done
+
+                        kubectl get ingress
+                        echo "✅ LoadBalancer deployment complete!"
+                    '''
+                }
+            }
+        }
+
+        // ⚙️ Other backend microservices
+        stage('Deploy Backend Microservice') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    not {
+                        anyOf {
+                            expression { params.MICROSERVICE_NAME == 'postgresql' }
+                            expression { params.MICROSERVICE_NAME == 'liquibase-service' }
+                            expression { params.MICROSERVICE_NAME == 'loadbalancer' }
+                        }
+                    }
+                }
+            }
+            steps {
+                dir("source/codeconnect-${params.MICROSERVICE_NAME}/kubernetes") {
+                    sh '''
+                        echo "📦 Deploying ${MICROSERVICE_NAME}..."
+                        kubectl apply -f kube.yaml
+
+                        DEPLOY=$(kubectl get deploy -o name | grep ${MICROSERVICE_NAME} || true)
+                        if [ -z "$DEPLOY" ]; then
+                            echo "⚠️ No deployment found for ${MICROSERVICE_NAME}, skipping rollout check."
+                        else
+                            kubectl rollout status $DEPLOY --timeout=180s || exit 1
+                            echo "✅ ${MICROSERVICE_NAME} successfully rolled out!"
+                        fi
+                        kubectl get pods
+                    '''
+                }
+            }
+        }
+
+        // 🧹 Cleanup
+        stage('Cleanup Resources') {
+            when {
+                expression { params.DEPLOY_MODE == 'cleanup' }
+            }
+            steps {
+                sh '''
+                    echo "🧹 Cleaning up all resources..."
+                    kubectl delete all --all -n default || true
+                    kubectl delete pvc --all -n default || true
+                    echo "✅ Cleanup complete!"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ CD pipeline completed successfully for ${params.MICROSERVICE_NAME} (${params.DEPLOY_MODE})"
+        }
+        failure {
+            echo "❌ CD pipeline failed for ${params.MICROSERVICE_NAME} (${params.DEPLOY_MODE})"
+        }
+    }
+}

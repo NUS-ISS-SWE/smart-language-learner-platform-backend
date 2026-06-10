@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'feature/sprint11/maxin-CDCNT-290', description: 'Git branch to build')
+        choice(name: 'TF_ACTION', choices: ['apply', 'destroy'], description: 'Terraform Action')
+    }
+
+    stages {
+        stage('Checkout Terraform Code') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "github-pat",
+                        url: 'https://github.com/NUS-ISS-SWE/code-connect-backend.git'
+                }
+            }
+        }
+
+        stage('Setup AWS CLI / Terraform / Kubectl') {
+            steps {
+                sh '''
+                    echo "🔍 Checking environment tools..."
+                    aws --version || echo "⚠️ AWS CLI not found!"
+                    terraform -version || echo "⚠️ Terraform not found!"
+                    kubectl version --client || echo "⚠️ Kubectl not found!"
+                '''
+            }
+        }
+
+        stage('Terraform Apply / Destroy') {
+            steps {
+                dir('source/terraform/awseks') {
+                    sh '''
+                        terraform init
+                        if [ "${TF_ACTION}" = "apply" ]; then
+                            echo "🚀 Applying Terraform configuration..."
+                            terraform apply -auto-approve -input=false
+                        elif [ "${TF_ACTION}" = "destroy" ]; then
+                            echo "💣 Destroying Terraform resources..."
+                            terraform destroy -auto-approve -input=false
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Update kubeconfig & Verify Cluster') {
+            when { expression { return params.TF_ACTION == 'apply' } }
+            steps {
+                sh '''
+                    echo "🔄 Updating kubeconfig..."
+                    aws eks update-kubeconfig --region ap-southeast-1 --name example
+
+                    echo "✅ Verifying cluster nodes..."
+                    kubectl get nodes
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Terraform ${params.TF_ACTION} completed successfully!"
+        }
+        failure {
+            echo "❌ Terraform ${params.TF_ACTION} failed. Check console output."
+        }
+    }
+}

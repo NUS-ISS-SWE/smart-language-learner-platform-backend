@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JDK21'
+        maven 'Maven 3'
+    }
+
+    environment {
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
+        GIT_CREDENTIALS_ID = 'github-pat'
+        DOCKER_IMAGE = "maxin0525/${params.MICROSERVICE_NAME}"
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'feature/sprint10/maxin-CDCNT-290', description: 'Git branch to build')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'codeconnect-admin-management-service',
+            'codeconnect-api-gateway',
+            'codeconnect-interview-prep-service',
+            'codeconnect-job-management-service',
+            'codeconnect-liquibase-service',
+            'codeconnect-profile-management-service',
+            'codeconnect-user-management-service'
+        ], description: 'Select microservice to build')
+        booleanParam(name: 'TESTS_EXECUTION', defaultValue: true, description: 'Run tests')
+        booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: true, description: 'Push Docker image')
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/NUS-ISS-SWE/code-connect-backend.git'
+                }
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                dir("source/${params.MICROSERVICE_NAME}") {
+                    sh "mvn clean verify"
+                    sh "mvn test"
+                }
+            }
+            post {
+                always {
+                    junit "source/${params.MICROSERVICE_NAME}/target/surefire-reports/*.xml"
+                }
+            }
+        }
+
+        stage('Docker Build & Push') {
+            when { expression { return params.UPLOAD_DOCKER_HUB } }
+            environment {
+                DOCKER_BUILDKIT = '1'
+            }
+            steps {
+                dir("source/${params.MICROSERVICE_NAME}") {
+                    withCredentials([usernamePassword(
+                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker build -t ${DOCKER_IMAGE}:latest .
+                            docker push ${DOCKER_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "✅ CI pipeline complete — Docker image pushed: ${DOCKER_IMAGE}:latest" }
+        failure { echo "❌ CI pipeline failed." }
+    }
+}

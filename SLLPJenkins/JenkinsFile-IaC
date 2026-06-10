@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch containing Terraform code')
+        choice(name: 'TF_ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
+    }
+
+    stages {
+        stage('Checkout Terraform Code') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "github-pat",
+                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Check Tools') {
+            steps {
+                sh '''
+                    echo "Checking environment tools..."
+                    aws --version       || echo "⚠️  AWS CLI not found — install via: sudo yum install awscli -y"
+                    terraform -version  || echo "⚠️  Terraform not found — see setup guide"
+                '''
+            }
+        }
+
+        stage('Terraform Apply / Destroy') {
+            steps {
+                dir('source/terraform') {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials']]) {
+                        sh '''
+                            terraform init
+
+                            if [ "${TF_ACTION}" = "apply" ]; then
+                                echo "Applying Terraform — provisioning EC2 + security groups..."
+                                terraform apply -auto-approve -input=false
+                            elif [ "${TF_ACTION}" = "destroy" ]; then
+                                echo "Destroying Terraform resources..."
+                                terraform destroy -auto-approve -input=false
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "✅ Terraform ${params.TF_ACTION} completed successfully!" }
+        failure { echo "❌ Terraform ${params.TF_ACTION} failed. Check console output." }
+    }
+}

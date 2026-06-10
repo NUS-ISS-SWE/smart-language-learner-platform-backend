@@ -13,6 +13,7 @@ pipeline {
     parameters {
         string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch to deploy')
         choice(name: 'MICROSERVICE_NAME', choices: [
+            'backend-only',
             'all',
             'user-service',
             'liquibase-service',
@@ -20,7 +21,7 @@ pipeline {
             'evaluation-service',
             'api-gateway',
             'frontend'
-        ], description: 'Service to deploy (all = full stack via docker compose up)')
+        ], description: 'Service to deploy (backend-only skips frontend build; all = everything)')
         choice(name: 'DEPLOY_MODE', choices: [
             'deploy',
             'cleanup'
@@ -46,8 +47,9 @@ pipeline {
                     script {
                         // Only build modules that have a Java service (skip frontend)
                         def mavenModules = [
-                            'all'            : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
-                            'user-service'   : 'sllp-user-service',
+                            'backend-only'       : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                            'all'                : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                            'user-service'       : 'sllp-user-service',
                             'liquibase-service'  : 'sllp-liquibase-service',
                             'composition-service': 'sllp-composition-service',
                             'evaluation-service' : 'sllp-evaluation-service',
@@ -61,6 +63,29 @@ pipeline {
                             echo "Frontend has no Maven build — skipping."
                         }
                     }
+                }
+            }
+        }
+
+        // ── Deploy backend only (skip frontend build) ────────────────────────
+        stage('Deploy Backend Only') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.MICROSERVICE_NAME == 'backend-only' }
+                }
+            }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Deploying backend services (skipping frontend)..."
+                        docker compose up -d --build \
+                            postgres-db liquibase-service kafka-service \
+                            user-service composition-service evaluation-service api-gateway
+
+                        echo "Service status:"
+                        docker compose ps
+                    '''
                 }
             }
         }

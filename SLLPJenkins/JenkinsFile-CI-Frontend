@@ -36,7 +36,7 @@ pipeline {
                 )]) {
                     sh """
                         echo "\$DOCKER_PASS" | docker login -u "\$DOCKER_USER" --password-stdin
-                        docker build -t ${DOCKER_IMAGE}:latest -t ${DOCKER_IMAGE}:v1 source/frontend/
+                        docker build --network=host -t ${DOCKER_IMAGE}:latest -t ${DOCKER_IMAGE}:v1 source/frontend/
                         docker push ${DOCKER_IMAGE}:latest
                         docker push ${DOCKER_IMAGE}:v1
                     """

@@ -10,7 +10,9 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
         GIT_CREDENTIALS_ID    = 'github-pat'
         DOCKER_HUB_USER       = 'maxin0525'
-        ALL_SERVICES          = 'user-service document-service liquibase-service'
+        // Services that currently have a directory + Dockerfile in the repo.
+        // Add document-service here once its branch is merged.
+        ALL_SERVICES = 'user-service liquibase-service composition-service evaluation-service api-gateway'
     }
 
     parameters {
@@ -18,11 +20,13 @@ pipeline {
         choice(name: 'MICROSERVICE_NAME', choices: [
             'all',
             'user-service',
-            'document-service',
-            'liquibase-service'
-        ], description: 'Select microservice to build (all = build & push all three)')
-        booleanParam(name: 'RUN_TESTS',          defaultValue: true, description: 'Run unit tests')
-        booleanParam(name: 'UPLOAD_DOCKER_HUB',  defaultValue: true, description: 'Push image to Docker Hub')
+            'liquibase-service',
+            'composition-service',
+            'evaluation-service',
+            'api-gateway'
+        ], description: 'Select microservice to build (all = build & push all five)')
+        booleanParam(name: 'RUN_TESTS',         defaultValue: true, description: 'Run unit tests')
+        booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: true, description: 'Push image to Docker Hub')
     }
 
     stages {
@@ -89,7 +93,7 @@ pipeline {
     }
 
     post {
-        success { echo "✅ CI complete — ${params.MICROSERVICE_NAME} built & pushed" }
+        success { echo "✅ CI complete — ${params.MICROSERVICE_NAME} built & pushed to Docker Hub" }
         failure { echo "❌ CI failed for ${params.MICROSERVICE_NAME}" }
     }
 }

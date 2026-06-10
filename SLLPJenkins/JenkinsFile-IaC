@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch containing Terraform code')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch containing Terraform code')
         choice(name: 'TF_ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
     }
 
@@ -12,7 +12,7 @@ pipeline {
                 dir('source') {
                     git branch: "${params.BRANCH_NAME}",
                         credentialsId: "github-pat",
-                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
                 }
             }
         }

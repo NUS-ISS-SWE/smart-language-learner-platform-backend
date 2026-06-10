@@ -3,15 +3,19 @@ pipeline {
 
     environment {
         GIT_CREDENTIALS_ID = 'github-pat'
-        JWT_SECRET         = credentials('sllp-jwt-secret')
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to deploy')
-        choice(name: 'DEPLOY_TARGET', choices: [
-            'phase3-only',
-            'full'
-        ], description: 'phase3-only: user-service + document-service only; full: all services')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch to deploy')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'all',
+            'user-service',
+            'liquibase-service',
+            'composition-service',
+            'evaluation-service',
+            'api-gateway',
+            'frontend'
+        ], description: 'Service to deploy (all = full stack via docker compose up)')
         choice(name: 'DEPLOY_MODE', choices: [
             'deploy',
             'cleanup'
@@ -24,55 +28,25 @@ pipeline {
                 dir('source') {
                     git branch: "${params.BRANCH_NAME}",
                         credentialsId: "${GIT_CREDENTIALS_ID}",
-                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
                 }
             }
         }
 
-        stage('Pull Latest Images') {
-            when { expression { return params.DEPLOY_MODE == 'deploy' } }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Pulling latest images from Docker Hub..."
-                        docker compose pull --ignore-pull-failures || true
-                    '''
-                }
-            }
-        }
-
-        // Phase 3 only: user-service + document-service (+ their infra deps)
-        stage('Deploy Phase 3 Services') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.DEPLOY_TARGET == 'phase3-only' }
-                }
-            }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Deploying Phase 3: user-service + document-service..."
-                        docker compose up user-service document-service -d --wait
-
-                        echo "Service status:"
-                        docker compose ps user-service document-service
-                    '''
-                }
-            }
-        }
-
-        // Full stack (includes Kafka, Ollama, frontend etc.)
+        // ── Deploy full stack ─────────────────────────────────────────────────
         stage('Deploy Full Stack') {
             when {
                 allOf {
                     expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.DEPLOY_TARGET == 'full' }
+                    expression { params.MICROSERVICE_NAME == 'all' }
                 }
             }
             steps {
                 dir('source') {
                     sh '''
+                        echo "Pulling latest images..."
+                        docker compose pull --ignore-pull-failures || true
+
                         echo "Deploying full stack..."
                         docker compose up -d
 
@@ -83,6 +57,31 @@ pipeline {
             }
         }
 
+        // ── Deploy / restart a single service ─────────────────────────────────
+        stage('Deploy Single Service') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_MODE == 'deploy' }
+                    expression { params.MICROSERVICE_NAME != 'all' }
+                }
+            }
+            steps {
+                dir('source') {
+                    sh """
+                        echo "Pulling latest image for ${params.MICROSERVICE_NAME}..."
+                        docker compose pull ${params.MICROSERVICE_NAME} || true
+
+                        echo "Restarting ${params.MICROSERVICE_NAME}..."
+                        docker compose up -d ${params.MICROSERVICE_NAME}
+
+                        echo "Service status:"
+                        docker compose ps ${params.MICROSERVICE_NAME}
+                    """
+                }
+            }
+        }
+
+        // ── Cleanup ───────────────────────────────────────────────────────────
         stage('Cleanup') {
             when { expression { return params.DEPLOY_MODE == 'cleanup' } }
             steps {
@@ -90,7 +89,7 @@ pipeline {
                     sh '''
                         echo "Tearing down all services and volumes..."
                         docker compose down -v --remove-orphans
-                        echo "✅ Cleanup complete."
+                        echo "Cleanup complete."
                     '''
                 }
             }
@@ -98,7 +97,7 @@ pipeline {
     }
 
     post {
-        success { echo "✅ CD complete — ${params.DEPLOY_MODE} (${params.DEPLOY_TARGET})" }
-        failure { echo "❌ CD failed — ${params.DEPLOY_MODE} (${params.DEPLOY_TARGET})" }
+        success { echo "✅ CD complete — ${params.DEPLOY_MODE} (${params.MICROSERVICE_NAME})" }
+        failure { echo "❌ CD failed — ${params.DEPLOY_MODE} (${params.MICROSERVICE_NAME})" }
     }
 }

@@ -9,7 +9,7 @@ pipeline {
     environment {
         DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
         GIT_CREDENTIALS_ID    = 'github-pat'
-        DOCKER_IMAGE          = "961125mingwei/sllp-${params.MICROSERVICE_NAME}"
+        DOCKER_IMAGE          = "maxin0525/sllp-${params.MICROSERVICE_NAME}"
     }
 
     parameters {
@@ -29,7 +29,7 @@ pipeline {
                 dir('source') {
                     git branch: "${params.BRANCH_NAME}",
                         credentialsId: "${GIT_CREDENTIALS_ID}",
-                        url: 'https://github.com/<YOUR_ORG>/smart-language-learner-platform-backend.git'
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
                 }
             }
         }

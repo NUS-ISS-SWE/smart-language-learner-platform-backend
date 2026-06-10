@@ -47,7 +47,7 @@ pipeline {
                     script {
                         // Only build modules that have a Java service (skip frontend)
                         def mavenModules = [
-                            'backend-only'       : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                            'backend-only'       : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-api-gateway',
                             'all'                : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
                             'user-service'       : 'sllp-user-service',
                             'liquibase-service'  : 'sllp-liquibase-service',
@@ -78,10 +78,10 @@ pipeline {
             steps {
                 dir('source') {
                     sh '''
-                        echo "Deploying backend services (skipping frontend)..."
+                        echo "Deploying backend services (skipping frontend and ollama)..."
                         docker compose up -d --build \
                             postgres-db liquibase-service kafka-service \
-                            user-service composition-service evaluation-service api-gateway
+                            user-service composition-service api-gateway
 
                         echo "Service status:"
                         docker compose ps

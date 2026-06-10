@@ -25,11 +25,11 @@
         <module>sllp-api-gateway</module>
         <module>sllp-liquibase-service</module>
         <module>sllp-user-service</module>
-        <module>sllp-admin-service</module>
+        <!-- <module>sllp-admin-service</module> -->
         <module>sllp-composition-service</module>
-        <module>sllp-document-service</module>
+        <!-- <module>sllp-document-service</module> -->
         <module>sllp-evaluation-service</module>
-        <module>sllp-knowledge-service</module>
+        <!-- <module>sllp-knowledge-service</module> -->
     </modules>
     <scm>
         <connection/>

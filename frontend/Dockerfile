@@ -1,14 +1,17 @@
-FROM node:20-alpine AS build
+FROM node:20-bookworm-slim AS build
 
 WORKDIR /app
 
+ENV CI=true
+
+RUN npm install -g npm@10
+
 COPY package.json package-lock.json ./
 
-RUN npm ci --include=dev
-
-RUN echo "Checking installed build tools..." && \
-    ls -la node_modules/.bin && \
-    npm list typescript vite
+RUN npm cache clean --force && \
+    npm ci --include=dev --no-audit --no-fund && \
+    test -x node_modules/.bin/tsc && \
+    test -x node_modules/.bin/vite
 
 COPY . .
 

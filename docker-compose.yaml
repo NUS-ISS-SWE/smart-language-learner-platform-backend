@@ -154,7 +154,6 @@ services:
       - liquibase-service
       - user-service
       - composition-service
-      - evaluation-service
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 

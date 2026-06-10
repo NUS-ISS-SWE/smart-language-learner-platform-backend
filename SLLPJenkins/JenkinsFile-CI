@@ -14,7 +14,7 @@ pipeline {
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'mx_cicd_branch', description: 'Git branch to build')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch to build')
         choice(name: 'MICROSERVICE_NAME', choices: [
             'all',
             'user-service',

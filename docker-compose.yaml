@@ -144,7 +144,10 @@ services:
       - SPRING_PROFILES_ACTIVE=uat
 
   api-gateway:
-    image: 961125mingwei/sllp-api-gateway:v1
+    build:
+      context: ./sllp-api-gateway
+      dockerfile: Dockerfile
+    image: sllp-api-gateway:latest
     container_name: api-gateway
     ports:
       - "8080:8080"

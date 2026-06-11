@@ -34,7 +34,10 @@ public class S3Config {
     @Bean
     public S3Client s3Client() {
         var builder = S3Client.builder().region(Region.of(awsRegion));
-        applyCredentials(builder);
+        if (hasValidCredentials()) {
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)));
+        }
         return builder.build();
     }
 
@@ -46,25 +49,11 @@ public class S3Config {
     @Bean
     public S3Presigner s3Presigner() {
         var builder = S3Presigner.builder().region(Region.of(awsRegion));
-        applyCredentials(builder);
-        return builder.build();
-    }
-
-    /**
-     * Apply AWS credentials to client builder if provided.
-     * Uses static credentials if configured, otherwise falls back to default provider (IAM roles, environment variables).
-     *
-     * @param builder the AWS SDK builder
-     */
-    private void applyCredentials(Object builder) {
         if (hasValidCredentials()) {
-            AwsBasicCredentials awsCredentials = AwsBasicCredentials.create(accessKey, secretKey);
-            if (builder instanceof S3Client.Builder s3Builder) {
-                s3Builder.credentialsProvider(StaticCredentialsProvider.create(awsCredentials));
-            } else if (builder instanceof S3Presigner.Builder presignerBuilder) {
-                presignerBuilder.credentialsProvider(StaticCredentialsProvider.create(awsCredentials));
-            }
+            builder.credentialsProvider(StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)));
         }
+        return builder.build();
     }
 
     /**

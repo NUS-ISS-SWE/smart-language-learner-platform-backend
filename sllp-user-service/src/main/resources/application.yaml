@@ -19,6 +19,8 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
+  jackson:
+    default-property-inclusion: non_null
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -36,3 +38,10 @@ application:
     secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
     access-token-expiry: 900000
     refresh-token-expiry: 604800000
+
+sllp:
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:sllp-app}
+      secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
+      expirationTimeMillis: 86400000

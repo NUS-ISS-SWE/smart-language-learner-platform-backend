@@ -104,6 +104,7 @@ services:
       - liquibase-service
     environment:
       - SPRING_PROFILES_ACTIVE=uat
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production-min-32-chars}
 
   composition-service:
     build:

@@ -46,6 +46,9 @@ public class Document {
     @Builder.Default
     private String status = "UPLOADED";
 
+    @Column(columnDefinition = "TEXT")
+    private String extractedText;
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

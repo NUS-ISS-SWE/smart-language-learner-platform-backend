@@ -7,18 +7,20 @@ spring:
   application:
     name: sllp-document-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/sllp_document_db
+    url: jdbc:postgresql://localhost:5432/sllp_main_db
     username: postgres
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
+  liquibase:
+    enabled: false  # Schema managed by sllp-liquibase-service; disable here to avoid re-running
 
 aws:
   s3:

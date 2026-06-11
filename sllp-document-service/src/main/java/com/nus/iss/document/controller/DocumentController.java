@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.nus.iss.document.dto.DocumentContentResponse;
 import com.nus.iss.document.dto.DocumentUploadResponse;
 import com.nus.iss.document.dto.DocumentsPageResponse;
 import com.nus.iss.document.security.JwtAuthenticationToken;
@@ -99,6 +100,28 @@ public class DocumentController {
 
         log.info("List documents endpoint called for user: {}", jwtAuth.getUserId());
         DocumentsPageResponse response = documentService.listUserDocuments(jwtAuth.getUserId(), page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get extracted text content for a document.
+     *
+     * @param authentication current user authentication
+     * @param id document ID
+     * @return extracted text content and processing status
+     */
+    @GetMapping("/{id}/content")
+    @Operation(summary = "Get document content", description = "Retrieve extracted plain-text content of a document")
+    public ResponseEntity<DocumentContentResponse> getDocumentContent(
+            Authentication authentication,
+            @PathVariable String id) {
+
+        if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        log.info("Get document content called for user: {}, document: {}", jwtAuth.getUserId(), id);
+        DocumentContentResponse response = documentService.getDocumentContent(jwtAuth.getUserId(), id);
         return ResponseEntity.ok(response);
     }
 

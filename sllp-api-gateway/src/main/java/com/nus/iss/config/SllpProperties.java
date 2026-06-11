@@ -14,4 +14,5 @@ import org.springframework.context.annotation.Configuration;
 public class SllpProperties {
     public String userService;
     public String compositionService;
+    public String documentService;
 }

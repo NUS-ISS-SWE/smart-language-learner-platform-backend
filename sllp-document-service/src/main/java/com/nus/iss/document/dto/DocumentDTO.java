@@ -10,7 +10,7 @@ import java.time.Instant;
  * @param filename original filename
  * @param fileType file type (pdf, docx, pptx, txt)
  * @param fileSize file size in bytes
- * @param status document processing status
+ * @param status document processing status (UPLOADED, PROCESSING, READY, FAILED)
  * @param createdAt creation timestamp
  */
 public record DocumentDTO(
@@ -26,7 +26,7 @@ public record DocumentDTO(
     @Schema(description = "File size in bytes", example = "1024000")
     long fileSize,
 
-    @Schema(description = "Document processing status", example = "UPLOADED")
+    @Schema(description = "Document processing status", example = "READY")
     String status,
 
     @Schema(description = "Creation timestamp")

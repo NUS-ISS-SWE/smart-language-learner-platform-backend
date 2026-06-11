@@ -73,6 +73,33 @@ public class GatewayRoute {
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getCompositionService()))
 
+                // Document service routes
+                .route("document_upload", r -> r.method(HttpMethod.POST)
+                        .and()
+                        .path("/api/documents/upload")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("document_list", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("document_content", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/{id}/content")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("document_get", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/{id}")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("document_delete", r -> r.method(HttpMethod.DELETE)
+                        .and()
+                        .path("/api/documents/{id}")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getDocumentService()))
+
                 .build();
     }
 }

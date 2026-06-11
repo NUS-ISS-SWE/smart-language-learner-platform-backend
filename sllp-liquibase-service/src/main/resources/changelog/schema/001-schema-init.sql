@@ -32,3 +32,20 @@ CREATE TABLE IF NOT EXISTS composition (
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+--changeset yasin:init-setup-documents-table
+CREATE TABLE IF NOT EXISTS documents (
+    id         VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id    VARCHAR(36)  NOT NULL,
+    filename   VARCHAR(255) NOT NULL,
+    s3_key     VARCHAR(500) NOT NULL,
+    file_type  VARCHAR(50)  NOT NULL,
+    file_size  BIGINT       NOT NULL,
+    status     VARCHAR(50)  NOT NULL DEFAULT 'UPLOADED' CHECK (status IN ('UPLOADED', 'PROCESSING', 'READY', 'FAILED')),
+    extracted_text TEXT,
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
+

@@ -12,13 +12,14 @@ services:
       - "5432:5432"
     volumes:
       - sllp-data:/var/lib/postgresql
+      - ./sllp-liquibase-service/src/main/resources/changelog/schema/001-schema-init.sql:/docker-entrypoint-initdb.d/001-schema-init.sql:ro
     networks:
       - sllp-network
 
   liquibase-service:
     build:
-      context: ./sllp-liquibase-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: sllp-liquibase-service/Dockerfile
     image: 961125mingwei/sllp-liquibase-service:v1
     container_name: liquibase-service
     environment:
@@ -92,8 +93,8 @@ services:
 
   user-service:
     build:
-      context: ./sllp-user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: sllp-user-service/Dockerfile
     image: 961125mingwei/sllp-user-service:v1
     container_name: user-service
     ports:

@@ -64,7 +64,11 @@ public class AppUserServiceImpl implements AppUserService {
         AppUser savedUser = appUserRepository.save(appUser);
         log.info("User registered successfully with ID: {}", savedUser.getId());
 
-        notificationService.sendActivationEmail(savedUser);
+        try {
+            notificationService.sendActivationEmail(savedUser);
+        } catch (Exception e) {
+            log.warn("Failed to send activation email to {}: {}", savedUser.getEmail(), e.getMessage());
+        }
 
         return mapToDTO(savedUser);
     }

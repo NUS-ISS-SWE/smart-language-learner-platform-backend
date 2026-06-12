@@ -43,11 +43,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return appUserDetailsService;
-    }
-
 //    @Bean
 //    public AuthenticationProvider authenticationProvider() {
 //        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService());

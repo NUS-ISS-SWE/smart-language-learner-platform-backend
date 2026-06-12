@@ -8,5 +8,7 @@
 			"path": "../smart-language-learner-platform-frontend"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "automatic"
+	}
 }

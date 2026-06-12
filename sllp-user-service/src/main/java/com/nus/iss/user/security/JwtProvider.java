@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,7 +41,7 @@ public class JwtProvider {
     public String generateAccessToken(String userId, String email, String role) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("email", email);
-        claims.put("role", role);
+        claims.put("ROLE", role);
         return createToken(claims, userId, accessTokenExpiry);
     }
 
@@ -106,7 +107,7 @@ public class JwtProvider {
      * @return user role
      */
     public String getRoleFromToken(String token) {
-        return (String) getJwtParser().parseSignedClaims(token).getPayload().get("role");
+        return (String) getJwtParser().parseSignedClaims(token).getPayload().get("ROLE");
     }
 
     /**
@@ -147,6 +148,6 @@ public class JwtProvider {
      * @return signing key
      */
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 }

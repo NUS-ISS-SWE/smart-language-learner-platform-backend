@@ -28,10 +28,12 @@ aws:
     region: ${AWS_REGION:ap-southeast-1}
     access-key: ${AWS_ACCESS_KEY_ID:}
     secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    endpoint: ${AWS_S3_ENDPOINT:}
+    public-endpoint: ${AWS_S3_PUBLIC_ENDPOINT:}
 
 application:
   jwt:
-    secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
+    secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
   file:
     max-size: 52428800
     allowed-types: pdf,docx,pptx,txt

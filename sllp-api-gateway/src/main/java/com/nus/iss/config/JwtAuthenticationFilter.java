@@ -11,7 +11,10 @@ import org.springframework.web.server.ServerWebExchange;
 
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Component
+@Slf4j
 public class JwtAuthenticationFilter {
     private final JwtConfig jwtConfig;
 
@@ -33,6 +36,7 @@ public class JwtAuthenticationFilter {
             try {
                 claims = jwtConfig.getClaims(token);
             } catch (Exception e) {
+                log.warn("JWT validation failed: {}", e.getMessage());
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }

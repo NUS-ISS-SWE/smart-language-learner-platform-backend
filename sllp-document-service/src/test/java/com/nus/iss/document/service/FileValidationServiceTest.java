@@ -24,7 +24,6 @@ class FileValidationServiceTest {
     void setUp() {
         fileValidationService = new FileValidationService();
         ReflectionTestUtils.setField(fileValidationService, "maxFileSize", 52428800L); // 50MB
-        ReflectionTestUtils.setField(fileValidationService, "allowedTypesConfig", "pdf,docx,pptx,txt");
     }
 
     @Test

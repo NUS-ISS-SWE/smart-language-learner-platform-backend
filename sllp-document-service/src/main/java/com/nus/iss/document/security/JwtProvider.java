@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 
 /**
  * JWT provider for validating tokens (read-only, inherits from user-service).
@@ -80,10 +81,10 @@ public class JwtProvider {
             .build()
             .parseSignedClaims(token)
             .getPayload()
-            .get("role");
+            .get("ROLE");
     }
 
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 }

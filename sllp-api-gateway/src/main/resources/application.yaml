@@ -33,5 +33,5 @@ sllp:
   security:
     jwt:
       issuer: nus-iss-smart-language-learner-platform
-      secret: bnVzLWlzcy1jb2RlY29ubmVjdC1qd3Qtc2VjcmV0LXRva2Vu
+      secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       expirationTimeMillis: 86400000

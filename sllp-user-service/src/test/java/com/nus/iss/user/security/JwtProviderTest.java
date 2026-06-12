@@ -15,9 +15,9 @@ class JwtProviderTest {
 
     private JwtProvider jwtProvider;
 
-      // 64+ character secret suitable for HS512
+      // 64-char ASCII secret — matches raw-bytes approach used in all services
     private static final String TEST_SECRET =
-            "this-is-a-test-secret-key-for-hs512-that-is-long-enough-to-pass-security-requirements-123456789";
+            "sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12";
             
     @BeforeEach
     void setUp() {

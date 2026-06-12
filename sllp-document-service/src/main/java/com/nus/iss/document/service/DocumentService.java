@@ -1,4 +1,4 @@
-﻿package com.nus.iss.document.service;
+package com.nus.iss.document.service;
 
 import java.io.IOException;
 import java.io.InputStream;

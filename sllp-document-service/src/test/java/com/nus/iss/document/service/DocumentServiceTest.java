@@ -16,6 +16,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,12 +43,17 @@ class DocumentServiceTest {
     @Mock
     private FileValidationService fileValidationService;
 
+    @Mock
+    private TextExtractionService textExtractionService;
+
     @InjectMocks
     private DocumentService documentService;
 
     private Document testDocument;
     private String testUserId = "user-123";
     private String testDocumentId = "doc-456";
+
+
 
     @BeforeEach
     void setUp() {
@@ -88,7 +94,7 @@ class DocumentServiceTest {
         assertEquals("test.pdf", response.document().filename());
         assertEquals("pdf", response.document().fileType());
         assertNotNull(response.downloadUrl());
-        verify(documentRepository).save(any(Document.class));
+        verify(documentRepository, times(2)).save(any(Document.class));
     }
 
     @Test

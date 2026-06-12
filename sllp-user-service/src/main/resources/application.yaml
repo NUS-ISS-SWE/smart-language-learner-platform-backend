@@ -35,7 +35,7 @@ spring:
 
 application:
   jwt:
-    secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
+    secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
     access-token-expiry: 900000
     refresh-token-expiry: 604800000
 

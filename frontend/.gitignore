@@ -1,5 +1,0 @@
-node_modules/
-dist/
-*.local
-vite-dev*.log
-vite-dev*.err.log

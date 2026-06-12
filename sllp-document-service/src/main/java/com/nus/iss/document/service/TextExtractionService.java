@@ -30,7 +30,7 @@ public class TextExtractionService {
             // -1 = no write-limit so large files are not truncated
             BodyContentHandler handler = new BodyContentHandler(-1);
             Metadata metadata = new Metadata();
-            metadata.set(Metadata.RESOURCE_NAME_KEY, filename);
+            metadata.set("resourceName", filename);
             ParseContext context = new ParseContext();
             context.set(AutoDetectParser.class, parser);
 

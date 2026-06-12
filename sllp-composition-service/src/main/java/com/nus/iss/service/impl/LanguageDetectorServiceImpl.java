@@ -16,8 +16,12 @@ public class LanguageDetectorServiceImpl implements LanguageDetectorService {
     private final LanguageDetector detector;
 
     public LanguageDetectorServiceImpl() {
-        this.detector = LanguageDetectorBuilder.fromAllLanguages()
-                .withMinimumRelativeDistance(0.2)
+        // Only load English and Chinese models — much faster than fromAllLanguages()
+        // and avoids UNKNOWN results for valid English/Chinese text caused by
+        // competition with 75 other languages at the default confidence threshold.
+        this.detector = LanguageDetectorBuilder.fromLanguages(
+                com.github.pemistahl.lingua.api.Language.ENGLISH,
+                com.github.pemistahl.lingua.api.Language.CHINESE)
                 .build();
     }
 

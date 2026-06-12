@@ -14,8 +14,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 class JwtProviderTest {
 
     private JwtProvider jwtProvider;
-    private static final String TEST_SECRET = "your-secret-key-change-in-production-min-32-chars";
 
+      // 64+ character secret suitable for HS512
+    private static final String TEST_SECRET =
+            "this-is-a-test-secret-key-for-hs512-that-is-long-enough-to-pass-security-requirements-123456789";
+            
     @BeforeEach
     void setUp() {
         jwtProvider = new JwtProvider();

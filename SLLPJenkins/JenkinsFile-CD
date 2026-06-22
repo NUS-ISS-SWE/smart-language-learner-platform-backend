@@ -81,7 +81,7 @@ pipeline {
                             CONTAINERS=$(docker ps -a -q --filter "name=$svc")
                             if [ -n "$CONTAINERS" ]; then
                                 echo "Removing containers for $svc: $CONTAINERS"
-                                docker rm -f $CONTAINERS || true
+                                timeout 120s docker rm -f $CONTAINERS || true
                             fi
                         done
 
@@ -89,14 +89,13 @@ pipeline {
                         NETWORK=$(docker network ls -q --filter "name=sllp-network")
                         if [ -n "$NETWORK" ]; then
                             echo "Removing network sllp-network: $NETWORK"
-                            docker network rm $NETWORK || true
+                            timeout 30s docker network rm $NETWORK || true
                         fi
 
                         # Kill any processes still using port 8080
                         echo "Checking port 8080..."
-                        fuser -k 8080/tcp || true
+                        timeout 10s fuser -k 8080/tcp || true
 
-                        sleep 3
                         echo "✅ Cleanup complete"
                     '''
                 }

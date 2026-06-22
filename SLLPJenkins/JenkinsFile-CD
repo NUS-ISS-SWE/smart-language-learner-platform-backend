@@ -1,356 +1,302 @@
 pipeline {
-    agent any
+agent any
 
-    tools {
-        jdk   'jdk-25'
-        maven 'maven-3.9'
-    }
+```
+tools {
+    jdk   'jdk-25'
+    maven 'maven-3.9'
+}
 
-    environment {
-        GIT_CREDENTIALS_ID = 'github-pat'
-    }
+environment {
+    GIT_CREDENTIALS_ID = 'github-pat'
+    OLLAMA_MODEL = 'qwen3:0.6b'
+}
 
-    parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test_duplicant', description: 'Git branch to deploy')
-        choice(name: 'MICROSERVICE_NAME', choices: [
-            'backend-only',
-            'all',
-            'user-service',
-            'liquibase-service',
-            'composition-service',
-            'evaluation-service',
-            'api-gateway',
-            'frontend'
-        ], description: 'Service to deploy (backend-only skips frontend build; all = everything)')
-        choice(name: 'DEPLOY_MODE', choices: [
-            'deploy',
-            'cleanup',
-            'preload-ollama'
-        ], description: 'Deploy, tear down, or preload Ollama model to persistent volume')
-    }
+parameters {
+    string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test_duplicant', description: 'Git branch to deploy')
+    choice(name: 'MICROSERVICE_NAME', choices: [
+        'backend-only',
+        'all',
+        'user-service',
+        'liquibase-service',
+        'composition-service',
+        'evaluation-service',
+        'api-gateway',
+        'frontend'
+    ], description: 'Service to deploy (backend-only skips frontend build; all = everything)')
+}
 
-    stages {
-        stage('Checkout') {
-            steps {
-                dir('source') {
-                    git branch: "${params.BRANCH_NAME}",
-                        credentialsId: "${GIT_CREDENTIALS_ID}",
-                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
-                }
+stages {
+    stage('Checkout') {
+        steps {
+            dir('source') {
+                git branch: "${params.BRANCH_NAME}",
+                    credentialsId: "${GIT_CREDENTIALS_ID}",
+                    url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
             }
         }
+    }
 
-        // Build JARs so Dockerfiles have something to COPY
-        stage('Build JARs') {
-            when { expression { return params.DEPLOY_MODE == 'deploy' } }
-            steps {
-                dir('source') {
-                    script {
-                        // Only build modules that have a Java service (skip frontend)
-                        def mavenModules = [
-                            'backend-only'       : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
-                            'all'                : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
-                            'user-service'       : 'sllp-user-service',
-                            'liquibase-service'  : 'sllp-liquibase-service',
-                            'composition-service': 'sllp-composition-service',
-                            'evaluation-service' : 'sllp-evaluation-service',
-                            'api-gateway'        : 'sllp-api-gateway',
-                            'frontend'           : null
-                        ]
-                        def modules = mavenModules[params.MICROSERVICE_NAME]
-                        if (modules) {
-                            sh "mvn package -DskipTests -pl ${modules} -am --no-transfer-progress"
-                        } else {
-                            echo "Frontend has no Maven build — skipping."
-                        }
+    stage('Build JARs') {
+        steps {
+            dir('source') {
+                script {
+                    def mavenModules = [
+                        'backend-only'       : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                        'all'                : 'sllp-user-service,sllp-liquibase-service,sllp-composition-service,sllp-evaluation-service,sllp-api-gateway',
+                        'user-service'       : 'sllp-user-service',
+                        'liquibase-service'  : 'sllp-liquibase-service',
+                        'composition-service': 'sllp-composition-service',
+                        'evaluation-service' : 'sllp-evaluation-service',
+                        'api-gateway'        : 'sllp-api-gateway',
+                        'frontend'           : null
+                    ]
+
+                    def modules = mavenModules[params.MICROSERVICE_NAME]
+
+                    if (modules) {
+                        sh "mvn package -DskipTests -pl ${modules} -am --no-transfer-progress"
+                    } else {
+                        echo "Frontend has no Maven build — skipping Maven build."
                     }
                 }
             }
         }
+    }
 
-        // ── Cleanup existing 8080 binders before deploy ───────────────────
-        stage('Cleanup Existing Containers') {
-            when { expression { return params.DEPLOY_MODE == 'deploy' } }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Cleaning up existing containers and volumes..."
-                        timeout 60s docker compose down -v --remove-orphans || true
-                        echo "✅ Cleanup complete"
-                    '''
-                }
+    stage('Cleanup Existing Containers') {
+        steps {
+            dir('source') {
+                sh '''
+                    echo "Cleaning up existing containers but keeping volumes..."
+                    timeout 60s docker compose down --remove-orphans || true
+                    echo "✅ Cleanup complete. Volumes are kept."
+                '''
             }
         }
+    }
 
-        // ── Preload Ollama Model Standalone (dedicated model initialization) ───
-        stage('Preload Ollama Model Standalone') {
-            when { expression { params.DEPLOY_MODE == 'preload-ollama' } }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "🔄 Preloading Ollama model to persistent volume (preload-ollama mode)..."
-                        echo "   This mode is designed to initialize the ollama-data volume with models."
-                        echo "   Models are saved to persistent storage and won't need re-downloading."
-                        echo ""
+    stage('Prepare Ollama Model') {
+        steps {
+            dir('source') {
+                sh '''
+                    echo "Preparing Ollama model ${OLLAMA_MODEL}..."
 
-                        docker compose up -d --build ollama-service
+                    echo "=== Step 1: Start normal ollama-service ==="
+                    docker compose up -d --build ollama-service
 
-                        echo "Waiting for ollama-service to become ready..."
-                        for i in {1..30}; do
-                            if docker compose exec ollama-service ollama list >/dev/null 2>&1; then
-                                echo "✅ ollama-service is ready."
-                                break
-                            fi
-                            if [ $i -eq 30 ]; then
-                                echo "❌ ollama-service failed to start after 150 seconds"
-                                exit 1
-                            fi
-                            echo "Waiting for ollama-service... ($((i*5))s)"
-                            sleep 5
-                        done
-
-                        echo "Checking whether model qwen3:0.6b is already available..."
-                        if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
-                            echo "✅ Model qwen3:0.6b already available in persistent volume."
-                            echo "   No download needed."
-                            exit 0
+                    echo "=== Step 2: Wait for ollama-service ==="
+                    for i in $(seq 1 30); do
+                        if docker compose exec -T ollama-service ollama list >/dev/null 2>&1; then
+                            echo "✅ ollama-service is ready."
+                            break
                         fi
 
-                        echo ""
-                        echo "📥 Model not found. Pulling qwen3:0.6b from registry..."
-                        echo "   (This may take several minutes - model is ~600MB)"
-                        echo ""
-
-                        MAX_ATTEMPTS=5
-                        ATTEMPT=1
-
-                        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-                            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
-                            set +e
-                            docker compose run --rm ollama-model-pull
-                            RESULT=$?
-                            set -e
-
-                            if [ "$RESULT" -eq 0 ]; then
-                                echo ""
-                                echo "✅ Model pull succeeded on attempt $ATTEMPT!"
-                                echo "   Model is now saved to persistent volume (ollama-data)"
-                                echo "   Future deployments will use this cached model."
-                                exit 0
-                            fi
-
-                            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-                                WAIT_TIME=$((ATTEMPT * 10))
-                                echo "⚠️  Attempt $ATTEMPT failed (exit $RESULT)."
-                                echo "   Waiting ${WAIT_TIME}s before retry..."
-                                sleep $WAIT_TIME
-                            fi
-                            ATTEMPT=$((ATTEMPT + 1))
-                        done
-
-                        echo ""
-                        echo "❌ Model pull failed after $MAX_ATTEMPTS attempts."
-                        echo ""
-                        echo "Possible causes:"
-                        echo "  1. Network connectivity issue - check Docker's internet access"
-                        echo "  2. Registry timeout - ollama.ai may be temporarily unavailable"
-                        echo "  3. Disk space - insufficient space in Docker volume"
-                        echo ""
-                        echo "Solutions:"
-                        echo "  - Check network connectivity: docker compose exec ollama-service curl -I https://registry.ollama.ai"
-                        echo "  - Retry the preload job"
-                        echo "  - Use a private model registry if available"
-                        exit 1
-                    '''
-                }
-            }
-        }
-
-        // ── Prepare Ollama model before deploy ───────────────────────────────
-        stage('Prepare Ollama Model') {
-            when { expression { params.DEPLOY_MODE == 'deploy' } }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Preparing Ollama model qwen3:0.6b..."
-
-                        docker compose up -d --build ollama-service
-
-                        echo "Waiting for ollama-service to become ready..."
-                        for i in 1 24; do
-                            if docker compose exec ollama-service ollama list >/dev/null 2>&1; then
-                                echo "ollama-service is ready."
-                                break
-                            fi
-                            echo "Waiting for ollama-service... ($i)"
-                            sleep 5
-                        done
-
-                        echo "Checking whether model qwen3:0.6b is already available..."
-                        if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
-                            echo "✅ Model qwen3:0.6b already available."
-                            exit 0
+                        if [ "$i" -eq 30 ]; then
+                            echo "❌ ollama-service failed to start after 150 seconds"
+                            exit 1
                         fi
 
-                        echo "⚠️  Model not present, attempting to pull via ollama-model-pull..."
-                        set +e
-                        docker compose run --rm ollama-model-pull
-                        RESULT=$?
-                        set -e
+                        echo "Waiting for ollama-service... $((i * 5))s"
+                        sleep 5
+                    done
 
-                        if [ "$RESULT" -eq 0 ]; then
-                            echo "✅ Model pull succeeded."
-                            exit 0
-                        fi
-
-                        echo "⚠️  First model pull attempt failed (exit $RESULT). Retrying once..."
-                        set +e
-                        docker compose run --rm ollama-model-pull
-                        RESULT=$?
-                        set -e
-
-                        if [ "$RESULT" -eq 0 ]; then
-                            echo "✅ Model pull succeeded on retry."
-                            exit 0
-                        fi
-
-                        echo "❌ Model pull failed after 2 attempts (exit $RESULT)."
-                        if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
-                            echo "✅ But model is available anyway. Continuing."
-                            exit 0
-                        fi
-
-                        echo ""
-                        echo "⚠️  WARNING: Ollama model qwen3:0.6b is not available."
-                            echo "    AI functionality will be unavailable. To fix this:"
-                            echo "    1. Run the pipeline with DEPLOY_MODE='preload-ollama' to pre-load the model"
-                            echo "    2. Then run normal deployments"
-                        echo ""
-                        echo "✅ Continuing with backend deploy anyway..."
+                    echo "=== Step 3: Check whether model already exists ==="
+                    if docker compose exec -T ollama-service ollama list | grep -q "${OLLAMA_MODEL}"; then
+                        echo "✅ Model ${OLLAMA_MODEL} already available. Skip download."
                         exit 0
-                    '''
-                }
-            }
-        }
+                    fi
 
-        // ── Deploy backend only (skip frontend build) ────────────────────────
-        stage('Deploy Backend Only') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.MICROSERVICE_NAME == 'backend-only' }
-                }
-            }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Deploying backend services (skipping frontend)..."
+                    echo "⚠️ Model ${OLLAMA_MODEL} not found."
+                    echo "Will preload it using a temporary Ollama container with host network."
 
-                        # Wait until host port 8085 is free (check up to 30s)
-                        MAX_WAIT=30
-                        WAITED=0
-                        while ss -ltnp 2>/dev/null | grep -q ':8085'; do
-                            if [ "$WAITED" -ge "$MAX_WAIT" ]; then
-                                echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
-                                ss -ltnp || true
-                                exit 1
-                            fi
-                            echo "Port 8085 in use, waiting... (${WAITED}s)"
-                            sleep 2
-                            WAITED=$((WAITED+2))
-                        done
+                    echo "=== Step 4: Stop normal ollama-service to free port 11434 ==="
+                    docker compose stop ollama-service || true
 
-                        echo "Port 8085 is free, starting docker compose..."
-                        docker compose up -d --build \
-                            postgres-db liquibase-service kafka-service \
-                            ollama-service \
-                            user-service composition-service evaluation-service api-gateway
+                    echo "=== Step 5: Remove old temporary host pull container if exists ==="
+                    docker rm -f ollama-host-pull || true
 
-                        echo "Service status:"
-                        docker compose ps
-                    '''
-                }
-            }
-        }
+                    echo "=== Step 6: Find ollama-data volume ==="
+                    OLLAMA_VOLUME=$(docker volume ls --format '{{.Name}}' | grep 'ollama-data' | head -n 1)
+                    echo "OLLAMA_VOLUME=$OLLAMA_VOLUME"
 
-        // ── Deploy full stack ─────────────────────────────────────────────────
-        stage('Deploy Full Stack') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.MICROSERVICE_NAME == 'all' }
-                }
-            }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Building images and deploying full stack..."
+                    if [ -z "$OLLAMA_VOLUME" ]; then
+                        echo "❌ Cannot find ollama-data volume"
+                        exit 1
+                    fi
 
-                        # Wait until host port 8085 is free (check up to 30s)
-                        MAX_WAIT=30
-                        WAITED=0
-                        while ss -ltnp 2>/dev/null | grep -q ':8085'; do
-                            if [ "$WAITED" -ge "$MAX_WAIT" ]; then
-                                echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
-                                ss -ltnp || true
-                                exit 1
-                            fi
-                            echo "Port 8085 in use, waiting... (${WAITED}s)"
-                            sleep 2
-                            WAITED=$((WAITED+2))
-                        done
+                    echo "=== Step 7: Start temporary Ollama container with host network ==="
+                    docker run -d \
+                        --name ollama-host-pull \
+                        --network host \
+                        -v "$OLLAMA_VOLUME:/root/.ollama" \
+                        ollama/ollama:latest
 
-                        echo "Port 8085 is free, starting docker compose..."
-                        docker compose up -d --build \
-                            postgres-db liquibase-service kafka-service \
-                            ollama-service \
-                            user-service composition-service evaluation-service api-gateway frontend
+                    echo "=== Step 8: Wait for temporary Ollama server ==="
+                    sleep 15
 
-                        echo "Service status:"
-                        docker compose ps
-                    '''
-                }
-            }
-        }
+                    echo "=== Step 9: Pull model through host network ==="
+                    set +e
+                    docker exec ollama-host-pull ollama pull "${OLLAMA_MODEL}"
+                    PULL_RESULT=$?
+                    set -e
 
-        // ── Deploy / restart a single service ─────────────────────────────────
-        stage('Deploy Single Service') {
-            when {
-                allOf {
-                    expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.MICROSERVICE_NAME != 'all' && params.MICROSERVICE_NAME != 'backend-only' && params.MICROSERVICE_NAME != 'frontend' }
-                }
-            }
-            steps {
-                dir('source') {
-                    sh """
-                        echo "Restarting ${params.MICROSERVICE_NAME}..."
-                        docker compose up -d --build ${params.MICROSERVICE_NAME}
+                    echo "=== Step 10: Check model list in temporary container ==="
+                    docker exec ollama-host-pull ollama list || true
 
-                        echo "Service status:"
-                        docker compose ps ${params.MICROSERVICE_NAME}
-                    """
-                }
-            }
-        }
+                    echo "=== Step 11: Remove temporary host pull container ==="
+                    docker rm -f ollama-host-pull || true
 
-        // ── Cleanup ───────────────────────────────────────────────────────────
-        stage('Cleanup') {
-            when { expression { return params.DEPLOY_MODE == 'cleanup' } }
-            steps {
-                dir('source') {
-                    sh '''
-                        echo "Tearing down all services and volumes..."
-                        docker compose down -v --remove-orphans
-                        echo "Cleanup complete."
-                    '''
-                }
+                    echo "=== Step 12: Restart normal compose ollama-service ==="
+                    docker compose up -d ollama-service
+
+                    echo "=== Step 13: Wait normal ollama-service ==="
+                    sleep 15
+
+                    if [ "$PULL_RESULT" -ne 0 ]; then
+                        echo "❌ Host-network model pull failed with exit code $PULL_RESULT."
+                        echo "Deployment will stop because AI model is required."
+                        exit 1
+                    fi
+
+                    echo "=== Step 14: Verify model from normal ollama-service ==="
+                    docker compose exec -T ollama-service ollama list
+
+                    if docker compose exec -T ollama-service ollama list | grep -q "${OLLAMA_MODEL}"; then
+                        echo "✅ Model ${OLLAMA_MODEL} is ready. Continue deployment."
+                        exit 0
+                    else
+                        echo "❌ Model ${OLLAMA_MODEL} still not found after host-network preload."
+                        exit 1
+                    fi
+                '''
             }
         }
     }
 
-    post {
-        success { echo "✅ CD complete — ${params.DEPLOY_MODE} (${params.MICROSERVICE_NAME})" }
-        failure { echo "❌ CD failed — ${params.DEPLOY_MODE} (${params.MICROSERVICE_NAME})" }
+    stage('Deploy Backend Only') {
+        when {
+            expression { params.MICROSERVICE_NAME == 'backend-only' }
+        }
+        steps {
+            dir('source') {
+                sh '''
+                    echo "Deploying backend services (skipping frontend)..."
+
+                    MAX_WAIT=30
+                    WAITED=0
+
+                    while ss -ltnp 2>/dev/null | grep -q ':8085'; do
+                        if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+                            echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                            ss -ltnp || true
+                            exit 1
+                        fi
+
+                        echo "Port 8085 in use, waiting... (${WAITED}s)"
+                        sleep 2
+                        WAITED=$((WAITED + 2))
+                    done
+
+                    echo "Port 8085 is free, starting docker compose..."
+                    docker compose up -d --build \
+                        postgres-db liquibase-service kafka-service \
+                        ollama-service \
+                        user-service composition-service evaluation-service api-gateway
+
+                    echo "Service status:"
+                    docker compose ps
+                '''
+            }
+        }
     }
+
+    stage('Deploy Full Stack') {
+        when {
+            expression { params.MICROSERVICE_NAME == 'all' }
+        }
+        steps {
+            dir('source') {
+                sh '''
+                    echo "Building images and deploying full stack..."
+
+                    MAX_WAIT=30
+                    WAITED=0
+
+                    while ss -ltnp 2>/dev/null | grep -q ':8085'; do
+                        if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+                            echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                            ss -ltnp || true
+                            exit 1
+                        fi
+
+                        echo "Port 8085 in use, waiting... (${WAITED}s)"
+                        sleep 2
+                        WAITED=$((WAITED + 2))
+                    done
+
+                    echo "Port 8085 is free, starting docker compose..."
+                    docker compose up -d --build \
+                        postgres-db liquibase-service kafka-service \
+                        ollama-service \
+                        user-service composition-service evaluation-service api-gateway frontend
+
+                    echo "Service status:"
+                    docker compose ps
+                '''
+            }
+        }
+    }
+
+    stage('Deploy Single Service') {
+        when {
+            expression {
+                params.MICROSERVICE_NAME != 'all' &&
+                params.MICROSERVICE_NAME != 'backend-only' &&
+                params.MICROSERVICE_NAME != 'frontend'
+            }
+        }
+        steps {
+            dir('source') {
+                sh """
+                    echo "Restarting ${params.MICROSERVICE_NAME}..."
+                    docker compose up -d --build ${params.MICROSERVICE_NAME}
+
+                    echo "Service status:"
+                    docker compose ps ${params.MICROSERVICE_NAME}
+                """
+            }
+        }
+    }
+
+    stage('Deploy Frontend Only') {
+        when {
+            expression { params.MICROSERVICE_NAME == 'frontend' }
+        }
+        steps {
+            dir('source') {
+                sh '''
+                    echo "Deploying frontend only..."
+
+                    docker compose up -d --build frontend
+
+                    echo "Service status:"
+                    docker compose ps frontend
+                '''
+            }
+        }
+    }
+}
+
+post {
+    success {
+        echo "✅ CD complete — deploy (${params.MICROSERVICE_NAME})"
+    }
+
+    failure {
+        echo "❌ CD failed — deploy (${params.MICROSERVICE_NAME})"
+    }
+}
+```
+
 }

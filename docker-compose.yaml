@@ -82,24 +82,6 @@ services:
     networks:
       - sllp-network
 
-  ollama-model-pull:
-    image: ollama/ollama:latest
-    container_name: ollama-model-pull
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama-service:11434
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    command: ["pull", "qwen3:0.6b"]
-    depends_on:
-      ollama-service:
-        condition: service_healthy
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - sllp-network
-
   user-service:
     build:
       context: ./sllp-user-service

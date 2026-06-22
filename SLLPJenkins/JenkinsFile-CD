@@ -169,33 +169,45 @@ pipeline {
 
                         echo "Checking whether model qwen3:0.6b is already available..."
                         if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
-                            echo "Model qwen3:0.6b already available."
-                        else
-                            echo "Model not present, pulling via ollama-model-pull..."
-                            set +e
-                            docker compose run --rm ollama-model-pull
-                            RESULT=$?
-                            set -e
-                            if [ "$RESULT" -ne 0 ]; then
-                                echo "First model pull attempt failed (exit $RESULT). Retrying..."
-                                set +e
-                                docker compose run --rm ollama-model-pull
-                                RESULT=$?
-                                set -e
-                                if [ "$RESULT" -ne 0 ]; then
-                                    echo "Second model pull attempt failed (exit $RESULT)."
-                                    echo "Checking again whether model qwen3:0.6b is available..."
-                                    if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
-                                        echo "Model is available after retry despite pull exit code. Continuing."
-                                    else
-                                        echo "Model pull failed and model is not available. Please fix Ollama environment."
-                                        exit 1
-                                    fi
-                                fi
-                            fi
+                            echo "✅ Model qwen3:0.6b already available."
+                            exit 0
                         fi
 
-                        echo "Ollama model preparation complete."
+                        echo "⚠️  Model not present, attempting to pull via ollama-model-pull..."
+                        set +e
+                        docker compose run --rm ollama-model-pull
+                        RESULT=$?
+                        set -e
+
+                        if [ "$RESULT" -eq 0 ]; then
+                            echo "✅ Model pull succeeded."
+                            exit 0
+                        fi
+
+                        echo "⚠️  First model pull attempt failed (exit $RESULT). Retrying once..."
+                        set +e
+                        docker compose run --rm ollama-model-pull
+                        RESULT=$?
+                        set -e
+
+                        if [ "$RESULT" -eq 0 ]; then
+                            echo "✅ Model pull succeeded on retry."
+                            exit 0
+                        fi
+
+                        echo "❌ Model pull failed after 2 attempts (exit $RESULT)."
+                        if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
+                            echo "✅ But model is available anyway. Continuing."
+                            exit 0
+                        fi
+
+                        echo ""
+                        echo "⚠️  WARNING: Ollama model qwen3:0.6b is not available."
+                        echo "    Evaluation service will not have AI functionality until the model is pulled."
+                        echo "    To fix: Ensure Docker container has internet access or pre-load the model."
+                        echo ""
+                        echo "✅ Continuing with backend deploy anyway..."
+                        exit 0
                     '''
                 }
             }

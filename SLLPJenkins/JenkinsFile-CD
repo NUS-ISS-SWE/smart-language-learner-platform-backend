@@ -298,7 +298,7 @@ pipeline {
             when {
                 allOf {
                     expression { params.DEPLOY_MODE == 'deploy' }
-                    expression { params.MICROSERVICE_NAME != 'all' }
+                    expression { params.MICROSERVICE_NAME != 'all' && params.MICROSERVICE_NAME != 'backend-only' && params.MICROSERVICE_NAME != 'frontend' }
                 }
             }
             steps {

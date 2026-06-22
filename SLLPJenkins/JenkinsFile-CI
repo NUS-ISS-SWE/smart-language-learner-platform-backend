@@ -66,6 +66,36 @@ pipeline {
             }
         }
 
+        stage('OWASP Dependency-Check') {
+            steps {
+                script {
+                    def targets = params.MICROSERVICE_NAME == 'all'
+                        ? ALL_SERVICES.split(' ') as List
+                        : [params.MICROSERVICE_NAME]
+
+                    targets.each { svc ->
+                        dir("source/sllp-${svc}") {
+                            // 第一次跑会下载/更新 NVD 漏洞库，比较慢；建议挂 NVD_API_KEY 加速
+                            sh '''
+                                mvn org.owasp:dependency-check-maven:check \
+                                    -DfailBuildOnCVSS=11 \
+                                    -Dformats=HTML,XML \
+                                    --no-transfer-progress
+                            '''
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'source/sllp-*/target/dependency-check-report.html',
+                                      allowEmptyArchive: true
+                    // 如果装了 OWASP Dependency-Check Jenkins 插件，取消下面这行注释即可在Jenkins UI看趋势图
+                    // dependencyCheckPublisher pattern: 'source/sllp-*/target/dependency-check-report.xml'
+                }
+            }
+        }
+
         stage('Docker Build & Push') {
             when { expression { return params.UPLOAD_DOCKER_HUB } }
             environment {
@@ -93,6 +123,57 @@ pipeline {
                             """
                         }
                     }
+                }
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            when { expression { return params.UPLOAD_DOCKER_HUB } }
+            steps {
+                script {
+                    def targets = params.MICROSERVICE_NAME == 'all'
+                        ? ALL_SERVICES.split(' ') as List
+                        : [params.MICROSERVICE_NAME]
+
+                    sh '''
+                        mkdir -p trivy-reports
+                        # 现场下载 junit 模板，不用在EC2上手动装任何东西
+                        curl -fsSL -o trivy-junit.tpl \
+                            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/junit.tpl
+                        # 漏洞库缓存放在固定目录（不在workspace里），这样每次build不用重新下载整个DB
+                        mkdir -p /tmp/trivy-cache
+                    '''
+
+                    targets.each { svc ->
+                        def img = "${DOCKER_HUB_USER}/sllp-${svc}:latest"
+                        sh """
+                            # trivy 本身跑成容器，靠 docker run 自动拉镜像，不用在host上装trivy二进制
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v \$(pwd):/workspace \
+                                -v /tmp/trivy-cache:/root/.cache/ \
+                                -w /workspace \
+                                aquasec/trivy image \
+                                --exit-code 0 --severity HIGH,CRITICAL \
+                                --format template --template '@/workspace/trivy-junit.tpl' \
+                                -o trivy-reports/${svc}-junit.xml ${img}
+
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v \$(pwd):/workspace \
+                                -v /tmp/trivy-cache:/root/.cache/ \
+                                -w /workspace \
+                                aquasec/trivy image \
+                                --exit-code 0 --severity HIGH,CRITICAL \
+                                --format json -o trivy-reports/${svc}-report.json ${img}
+                        """
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'trivy-reports/*-junit.xml'
+                    archiveArtifacts artifacts: 'trivy-reports/*-report.json', allowEmptyArchive: true
                 }
             }
         }

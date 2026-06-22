@@ -74,74 +74,8 @@ pipeline {
             steps {
                 dir('source') {
                     sh '''
-                        echo "Cleaning up port 8085 binders and old api-gateway containers..."
-
-                        echo "Running docker compose down..."
+                        echo "Cleaning up existing containers and volumes..."
                         timeout 60s docker compose down -v --remove-orphans || true
-
-                        echo "Current docker containers after compose down:"
-                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' || true
-
-                        echo "Detect containers publishing host port 8085 via docker ps..."
-                        PORTED=$(docker ps -a --filter publish=8085 --format '{{.ID}} {{.Names}} {{.Ports}}' | awk '{print $1}') || true
-                        if [ -n "$PORTED" ]; then
-                            echo "Removing containers publishing port 8085: $PORTED"
-                            timeout 60s docker rm -f $PORTED || true
-                        fi
-
-                        echo "Detect lingering api-gateway containers..."
-                        APIC=$(docker ps -a --filter name=api-gateway --format '{{.ID}}' ) || true
-                        if [ -n "$APIC" ]; then
-                            echo "Removing existing api-gateway container: $APIC"
-                            timeout 60s docker rm -f $APIC || true
-                        fi
-
-                        echo "Detect host process binding port 8085..."
-                        ss -ltnp | grep ':8085' || true
-                        PIDS=$(ss -ltnp | awk '/:8085/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
-                        if [ -z "$PIDS" ] && command -v netstat >/dev/null 2>&1; then
-                            PIDS=$(netstat -tlnp 2>/dev/null | awk '/:8085/ {split($7,a,"/"); if (a[1] != "") print a[1]}' | sort -u)
-                        fi
-                        if [ -z "$PIDS" ] && command -v lsof >/dev/null 2>&1; then
-                            PIDS=$(lsof -tiTCP:8085 -sTCP:LISTEN | sort -u)
-                        fi
-                        if [ -n "$PIDS" ]; then
-                            echo "Killing host processes holding port 8085: $PIDS"
-                            for pid in $PIDS; do
-                                kill -9 $pid || true
-                            done
-
-                            echo "Waiting for port 8085 to become free..."
-                            for i in 1 2 3 4 5; do
-                                if ! ss -ltnp 2>/dev/null | grep -q ':8085'; then
-                                    break
-                                fi
-                                sleep 2
-                            done
-
-                            if ss -ltnp 2>/dev/null | grep -q ':8085'; then
-                                echo "Port 8085 still in use after kill; retrying fallback cleanup..."
-                                command -v fuser >/dev/null 2>&1 && fuser -k 8085/tcp || true
-                                if command -v lsof >/dev/null 2>&1; then
-                                    PIDS=$(lsof -tiTCP:8085 -sTCP:LISTEN | sort -u)
-                                else
-                                    PIDS=$(ss -ltnp 2>/dev/null | awk '/:8085/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
-                                fi
-                                if [ -n "$PIDS" ]; then
-                                    echo "Killing remaining port 8085 processes: $PIDS"
-                                    for pid in $PIDS; do
-                                        kill -9 $pid || true
-                                    done
-                                fi
-                            fi
-                        fi
-
-                        echo "Port 8085 status after cleanup:"
-                        ss -ltnp | grep ':8085' || true
-
-                        echo "Remaining containers with 8085 exposure:"
-                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep ':8085' || true
-
                         echo "✅ Cleanup complete"
                     '''
                 }
@@ -288,8 +222,9 @@ pipeline {
 
                         echo ""
                         echo "⚠️  WARNING: Ollama model qwen3:0.6b is not available."
-                        echo "    Evaluation service will not have AI functionality until the model is pulled."
-                        echo "    To fix: Use DEPLOY_MODE='preload-ollama' to initialize the model volume."
+                            echo "    AI functionality will be unavailable. To fix this:"
+                            echo "    1. Run the pipeline with DEPLOY_MODE='preload-ollama' to pre-load the model"
+                            echo "    2. Then run normal deployments"
                         echo ""
                         echo "✅ Continuing with backend deploy anyway..."
                         exit 0

@@ -75,24 +75,28 @@ pipeline {
                     sh '''
                         echo "Cleaning up existing containers and networks..."
 
-                        # Stop and remove all compose services
-                        docker compose down -v --remove-orphans || true
+                        # Explicitly remove known service containers by name to avoid docker compose hang
+                        SERVICES="postgres-db liquibase-service kafka-service ollama-service ollama-model-pull user-service composition-service evaluation-service api-gateway frontend"
+                        for svc in $SERVICES; do
+                            CONTAINERS=$(docker ps -a -q --filter "name=$svc")
+                            if [ -n "$CONTAINERS" ]; then
+                                echo "Removing containers for $svc: $CONTAINERS"
+                                docker rm -f $CONTAINERS || true
+                            fi
+                        done
 
-                        # Force kill any containers that might still be running
-                        CONTAINERS=$(docker ps -q)
-                        if [ -n "$CONTAINERS" ]; then
-                            docker kill $CONTAINERS || true
-                        fi
-
-                        ALL_CONTAINERS=$(docker ps -a -q)
-                        if [ -n "$ALL_CONTAINERS" ]; then
-                            docker rm -f $ALL_CONTAINERS || true
+                        # Remove the compose network if it exists
+                        NETWORK=$(docker network ls -q --filter "name=sllp-network")
+                        if [ -n "$NETWORK" ]; then
+                            echo "Removing network sllp-network: $NETWORK"
+                            docker network rm $NETWORK || true
                         fi
 
                         # Kill any processes still using port 8080
+                        echo "Checking port 8080..."
                         fuser -k 8080/tcp || true
 
-                        sleep 5
+                        sleep 3
                         echo "✅ Cleanup complete"
                     '''
                 }

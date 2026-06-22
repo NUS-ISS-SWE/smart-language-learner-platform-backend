@@ -42,20 +42,26 @@ pipeline {
 
         stage('Build & Test') {
             steps {
-                dir('source') {
-                    script {
-                        def modules = params.MICROSERVICE_NAME == 'all'
-                            ? ALL_SERVICES.split(' ').collect { "sllp-${it}" }.join(',')
-                            : "sllp-${params.MICROSERVICE_NAME}"
-                        def goal = params.RUN_TESTS ? 'verify' : 'package -DskipTests'
-                        sh "mvn clean ${goal} -pl ${modules} -am --no-transfer-progress"
+                script {
+                    def targets = params.MICROSERVICE_NAME == 'all'
+                        ? ALL_SERVICES.split(' ') as List
+                        : [params.MICROSERVICE_NAME]
+
+                    targets.each { svc ->
+                        dir("source/sllp-${svc}") {
+                            if (params.RUN_TESTS) {
+                                sh 'mvn clean verify --no-transfer-progress'
+                            } else {
+                                sh 'mvn clean package -DskipTests --no-transfer-progress'
+                            }
+                        }
                     }
                 }
             }
             post {
                 always {
                     junit allowEmptyResults: true,
-                          testResults: 'source/**/target/surefire-reports/*.xml'
+                          testResults: 'source/sllp-*/target/surefire-reports/*.xml'
                 }
             }
         }

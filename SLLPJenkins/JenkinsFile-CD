@@ -109,7 +109,7 @@ pipeline {
                         ss -ltnp | grep ':8080' || true
 
                         echo "Remaining containers with 8080 exposure:"
-                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep -E '0\\.0\\.0\\.0:8080|\[::\]:8080|:8080->' || true
+                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep ':8080' || true
 
                         echo "✅ Cleanup complete"
                     '''

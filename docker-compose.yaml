@@ -66,6 +66,11 @@ services:
     restart: always
     ports:
       - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -83,6 +88,9 @@ services:
     restart: "no"
     environment:
       OLLAMA_HOST: http://ollama-service:11434
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     command: ["pull", "qwen3:0.6b"]
     depends_on:
       ollama-service:

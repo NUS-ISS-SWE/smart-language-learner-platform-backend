@@ -81,22 +81,29 @@ pipeline {
                         echo "Current docker containers after compose down:"
                         docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' || true
 
-                        echo "Detect containers publishing host port 8080..."
-                        PORTED=$(docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep -E '0\\.0\\.0\\.0:8080|\[::\]:8080|:8080->' | awk '{print $1}') || true
+                        echo "Detect containers publishing host port 8080 via docker ps..."
+                        PORTED=$(docker ps -a --filter publish=8080 --format '{{.ID}} {{.Names}} {{.Ports}}' | awk '{print $1}') || true
                         if [ -n "$PORTED" ]; then
-                            echo "Removing containers publishing 8080: $PORTED"
+                            echo "Removing containers publishing port 8080: $PORTED"
                             timeout 60s docker rm -f $PORTED || true
                         fi
 
                         echo "Detect lingering api-gateway containers..."
-                        APIC=$(docker ps -a --format '{{.ID}}\t{{.Names}}' | grep -E '\tapi-gateway$' | awk '{print $1}') || true
+                        APIC=$(docker ps -a --filter name=api-gateway --format '{{.ID}}' ) || true
                         if [ -n "$APIC" ]; then
                             echo "Removing existing api-gateway container: $APIC"
                             timeout 60s docker rm -f $APIC || true
                         fi
 
-                        echo "Checking port 8080 on host..."
-                        timeout 10s fuser -k 8080/tcp || true
+                        echo "Detect host process binding port 8080..."
+                        ss -ltnp | grep ':8080' || true
+                        PIDS=$(ss -ltnp | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); print $6}' | sort -u)
+                        if [ -n "$PIDS" ]; then
+                            echo "Killing host processes holding port 8080: $PIDS"
+                            for pid in $PIDS; do
+                                kill -9 $pid || true
+                            done
+                        fi
 
                         echo "Port 8080 status after cleanup:"
                         ss -ltnp | grep ':8080' || true

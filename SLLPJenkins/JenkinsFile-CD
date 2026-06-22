@@ -129,6 +129,22 @@ pipeline {
                 dir('source') {
                     sh '''
                         echo "Deploying backend services (skipping frontend)..."
+
+                        # Wait until host port 8080 is free (check up to 30s)
+                        MAX_WAIT=30
+                        WAITED=0
+                        while ss -ltnp 2>/dev/null | grep -q ':8080'; do
+                            if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+                                echo "Port 8080 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                                ss -ltnp || true
+                                exit 1
+                            fi
+                            echo "Port 8080 in use, waiting... (${WAITED}s)"
+                            sleep 2
+                            WAITED=$((WAITED+2))
+                        done
+
+                        echo "Port 8080 is free, starting docker compose..."
                         docker compose up -d --build \
                             postgres-db liquibase-service kafka-service \
                             ollama-service ollama-model-pull \
@@ -153,6 +169,22 @@ pipeline {
                 dir('source') {
                     sh '''
                         echo "Building images and deploying full stack..."
+
+                        # Wait until host port 8080 is free (check up to 30s)
+                        MAX_WAIT=30
+                        WAITED=0
+                        while ss -ltnp 2>/dev/null | grep -q ':8080'; do
+                            if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+                                echo "Port 8080 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                                ss -ltnp || true
+                                exit 1
+                            fi
+                            echo "Port 8080 in use, waiting... (${WAITED}s)"
+                            sleep 2
+                            WAITED=$((WAITED+2))
+                        done
+
+                        echo "Port 8080 is free, starting docker compose..."
                         docker compose up -d --build
 
                         echo "Service status:"

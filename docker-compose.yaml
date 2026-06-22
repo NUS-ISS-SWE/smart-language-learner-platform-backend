@@ -87,6 +87,8 @@ services:
     depends_on:
       ollama-service:
         condition: service_healthy
+    volumes:
+      - ollama-data:/root/.ollama
     networks:
       - sllp-network
 

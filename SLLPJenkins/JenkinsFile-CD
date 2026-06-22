@@ -24,8 +24,9 @@ pipeline {
         ], description: 'Service to deploy (backend-only skips frontend build; all = everything)')
         choice(name: 'DEPLOY_MODE', choices: [
             'deploy',
-            'cleanup'
-        ], description: 'Deploy or tear down')
+            'cleanup',
+            'preload-ollama'
+        ], description: 'Deploy, tear down, or preload Ollama model to persistent volume')
     }
 
     stages {
@@ -147,6 +148,90 @@ pipeline {
             }
         }
 
+        // ── Preload Ollama Model Standalone (dedicated model initialization) ───
+        stage('Preload Ollama Model Standalone') {
+            when { expression { params.DEPLOY_MODE == 'preload-ollama' } }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "🔄 Preloading Ollama model to persistent volume (preload-ollama mode)..."
+                        echo "   This mode is designed to initialize the ollama-data volume with models."
+                        echo "   Models are saved to persistent storage and won't need re-downloading."
+                        echo ""
+
+                        docker compose up -d --build ollama-service
+
+                        echo "Waiting for ollama-service to become ready..."
+                        for i in {1..30}; do
+                            if docker compose exec ollama-service ollama list >/dev/null 2>&1; then
+                                echo "✅ ollama-service is ready."
+                                break
+                            fi
+                            if [ $i -eq 30 ]; then
+                                echo "❌ ollama-service failed to start after 150 seconds"
+                                exit 1
+                            fi
+                            echo "Waiting for ollama-service... ($((i*5))s)"
+                            sleep 5
+                        done
+
+                        echo "Checking whether model qwen3:0.6b is already available..."
+                        if docker compose exec ollama-service ollama list | grep -q 'qwen3:0.6b'; then
+                            echo "✅ Model qwen3:0.6b already available in persistent volume."
+                            echo "   No download needed."
+                            exit 0
+                        fi
+
+                        echo ""
+                        echo "📥 Model not found. Pulling qwen3:0.6b from registry..."
+                        echo "   (This may take several minutes - model is ~600MB)"
+                        echo ""
+
+                        MAX_ATTEMPTS=5
+                        ATTEMPT=1
+
+                        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+                            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS..."
+                            set +e
+                            docker compose run --rm ollama-model-pull
+                            RESULT=$?
+                            set -e
+
+                            if [ "$RESULT" -eq 0 ]; then
+                                echo ""
+                                echo "✅ Model pull succeeded on attempt $ATTEMPT!"
+                                echo "   Model is now saved to persistent volume (ollama-data)"
+                                echo "   Future deployments will use this cached model."
+                                exit 0
+                            fi
+
+                            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                                WAIT_TIME=$((ATTEMPT * 10))
+                                echo "⚠️  Attempt $ATTEMPT failed (exit $RESULT)."
+                                echo "   Waiting ${WAIT_TIME}s before retry..."
+                                sleep $WAIT_TIME
+                            fi
+                            ATTEMPT=$((ATTEMPT + 1))
+                        done
+
+                        echo ""
+                        echo "❌ Model pull failed after $MAX_ATTEMPTS attempts."
+                        echo ""
+                        echo "Possible causes:"
+                        echo "  1. Network connectivity issue - check Docker's internet access"
+                        echo "  2. Registry timeout - ollama.ai may be temporarily unavailable"
+                        echo "  3. Disk space - insufficient space in Docker volume"
+                        echo ""
+                        echo "Solutions:"
+                        echo "  - Check network connectivity: docker compose exec ollama-service curl -I https://registry.ollama.ai"
+                        echo "  - Retry the preload job"
+                        echo "  - Use a private model registry if available"
+                        exit 1
+                    '''
+                }
+            }
+        }
+
         // ── Prepare Ollama model before deploy ───────────────────────────────
         stage('Prepare Ollama Model') {
             when { expression { params.DEPLOY_MODE == 'deploy' } }
@@ -204,7 +289,7 @@ pipeline {
                         echo ""
                         echo "⚠️  WARNING: Ollama model qwen3:0.6b is not available."
                         echo "    Evaluation service will not have AI functionality until the model is pulled."
-                        echo "    To fix: Ensure Docker container has internet access or pre-load the model."
+                        echo "    To fix: Use DEPLOY_MODE='preload-ollama' to initialize the model volume."
                         echo ""
                         echo "✅ Continuing with backend deploy anyway..."
                         exit 0

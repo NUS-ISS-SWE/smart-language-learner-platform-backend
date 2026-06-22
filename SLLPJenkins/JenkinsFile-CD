@@ -74,9 +74,21 @@ pipeline {
                 dir('source') {
                     sh '''
                         echo "Cleaning up existing containers and networks..."
+                        
+                        # Stop and remove all compose services
                         docker compose down -v --remove-orphans || true
+                        
+                        # Force kill any containers that might still be running
+                        docker kill $(docker ps -q) || true
+                        docker rm -f $(docker ps -a -q) || true
+                        
+                        # Kill any processes still using port 8080
+                        fuser -k 8080/tcp || true
+                        
+                        # Prune unused resources
                         docker system prune -f || true
-                        sleep 5
+                        
+                        sleep 10
                         echo "✅ Cleanup complete"
                     '''
                 }

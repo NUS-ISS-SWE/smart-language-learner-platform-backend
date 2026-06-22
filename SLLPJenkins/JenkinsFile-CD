@@ -11,7 +11,7 @@ pipeline {
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch to deploy')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test_duplicant', description: 'Git branch to deploy')
         choice(name: 'MICROSERVICE_NAME', choices: [
             'backend-only',
             'all',
@@ -63,6 +63,22 @@ pipeline {
                             echo "Frontend has no Maven build — skipping."
                         }
                     }
+                }
+            }
+        }
+
+        // ── Cleanup existing containers to avoid port conflicts ──────────────
+        stage('Cleanup Existing Containers') {
+            when { expression { return params.DEPLOY_MODE == 'deploy' } }
+            steps {
+                dir('source') {
+                    sh '''
+                        echo "Cleaning up existing containers and networks..."
+                        docker compose down -v --remove-orphans || true
+                        docker system prune -f || true
+                        sleep 5
+                        echo "✅ Cleanup complete"
+                    '''
                 }
             }
         }

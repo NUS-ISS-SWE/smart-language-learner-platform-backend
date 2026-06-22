@@ -97,12 +97,42 @@ pipeline {
 
                         echo "Detect host process binding port 8080..."
                         ss -ltnp | grep ':8080' || true
-                        PIDS=$(ss -ltnp | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); print $6}' | sort -u)
+                        PIDS=$(ss -ltnp | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
+                        if [ -z "$PIDS" ] && command -v netstat >/dev/null 2>&1; then
+                            PIDS=$(netstat -tlnp 2>/dev/null | awk '/:8080/ {gsub(/.*\//, "", $7); if ($7 != "") print $7}' | sort -u)
+                        fi
+                        if [ -z "$PIDS" ] && command -v lsof >/dev/null 2>&1; then
+                            PIDS=$(lsof -tiTCP:8080 -sTCP:LISTEN | sort -u)
+                        fi
                         if [ -n "$PIDS" ]; then
                             echo "Killing host processes holding port 8080: $PIDS"
                             for pid in $PIDS; do
                                 kill -9 $pid || true
                             done
+
+                            echo "Waiting for port 8080 to become free..."
+                            for i in 1 2 3 4 5; do
+                                if ! ss -ltnp 2>/dev/null | grep -q ':8080'; then
+                                    break
+                                fi
+                                sleep 2
+                            done
+
+                            if ss -ltnp 2>/dev/null | grep -q ':8080'; then
+                                echo "Port 8080 still in use after kill; retrying fallback cleanup..."
+                                command -v fuser >/dev/null 2>&1 && fuser -k 8080/tcp || true
+                                if command -v lsof >/dev/null 2>&1; then
+                                    PIDS=$(lsof -tiTCP:8080 -sTCP:LISTEN | sort -u)
+                                else
+                                    PIDS=$(ss -ltnp 2>/dev/null | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
+                                fi
+                                if [ -n "$PIDS" ]; then
+                                    echo "Killing remaining port 8080 processes: $PIDS"
+                                    for pid in $PIDS; do
+                                        kill -9 $pid || true
+                                    done
+                                fi
+                            fi
                         fi
 
                         echo "Port 8080 status after cleanup:"

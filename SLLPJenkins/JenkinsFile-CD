@@ -67,32 +67,20 @@ pipeline {
             }
         }
 
-        // ── Cleanup existing containers to avoid port conflicts ──────────────
+        // ── Cleanup api-gateway conflict only ──────────────────────────────
         stage('Cleanup Existing Containers') {
             when { expression { return params.DEPLOY_MODE == 'deploy' } }
             steps {
                 dir('source') {
                     sh '''
-                        echo "Cleaning up existing containers and networks..."
+                        echo "Cleaning up api-gateway port 8080 conflict..."
 
-                        # Explicitly remove known service containers by name to avoid docker compose hang
-                        SERVICES="postgres-db liquibase-service kafka-service ollama-service ollama-model-pull user-service composition-service evaluation-service api-gateway frontend"
-                        for svc in $SERVICES; do
-                            CONTAINERS=$(docker ps -a -q --filter "name=$svc")
-                            if [ -n "$CONTAINERS" ]; then
-                                echo "Removing containers for $svc: $CONTAINERS"
-                                timeout 120s docker rm -f $CONTAINERS || true
-                            fi
-                        done
-
-                        # Remove the compose network if it exists
-                        NETWORK=$(docker network ls -q --filter "name=sllp-network")
-                        if [ -n "$NETWORK" ]; then
-                            echo "Removing network sllp-network: $NETWORK"
-                            timeout 30s docker network rm $NETWORK || true
+                        CONTAINER=$(docker ps -a -q --filter "name=api-gateway")
+                        if [ -n "$CONTAINER" ]; then
+                            echo "Removing existing api-gateway container: $CONTAINER"
+                            timeout 60s docker rm -f $CONTAINER || true
                         fi
 
-                        # Kill any processes still using port 8080
                         echo "Checking port 8080..."
                         timeout 10s fuser -k 8080/tcp || true
 

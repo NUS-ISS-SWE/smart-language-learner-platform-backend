@@ -1,0 +1,14 @@
+.git
+.idea
+*.iml
+*.log
+.mvn
+mvnw
+mvnw.cmd
+*.md
+src
+target/classes
+target/generated-sources
+target/maven-status
+target/maven-archiver
+*.jar.original

@@ -155,7 +155,7 @@ services:
     image: maxin0525/sllp-frontend:v1
     container_name: frontend
     ports:
-      - "80:80"
+      - "8086:80"
     networks:
       - sllp-network
     depends_on:

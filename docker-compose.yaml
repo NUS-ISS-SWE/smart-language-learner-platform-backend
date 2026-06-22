@@ -128,7 +128,7 @@ services:
     image: maxin0525/sllp-evaluation-service:v1
     container_name: evaluation-service
     ports:
-      - "8085:8085"
+      - "8084:8084"
     networks:
       - sllp-network
     depends_on:

@@ -75,14 +75,23 @@ pipeline {
                     sh '''
                         echo "Cleaning up port 8080 binders and old api-gateway containers..."
 
-                        # Remove any container that currently publishes host port 8080
+                        echo "Running docker compose down..."
+                        timeout 60s docker compose down -v --remove-orphans || true
+
+                        echo "Current docker containers after compose down:"
+                        docker ps -a || true
+
+                        echo "Current docker networks:"
+                        docker network ls || true
+
+                        echo "Remove any container that currently publishes host port 8080"
                         PORTED=$(docker ps -a -q --filter "publish=8080")
                         if [ -n "$PORTED" ]; then
                             echo "Removing containers publishing port 8080: $PORTED"
                             timeout 60s docker rm -f $PORTED || true
                         fi
 
-                        # Also remove any lingering api-gateway container by name
+                        echo "Remove any lingering api-gateway container by name"
                         APIC=$(docker ps -a -q --filter "name=api-gateway")
                         if [ -n "$APIC" ]; then
                             echo "Removing existing api-gateway container: $APIC"
@@ -91,6 +100,9 @@ pipeline {
 
                         echo "Checking port 8080 on host..."
                         timeout 10s fuser -k 8080/tcp || true
+
+                        echo "Port 8080 status after cleanup:"
+                        ss -ltnp | grep 8080 || true
 
                         echo "✅ Cleanup complete"
                     '''

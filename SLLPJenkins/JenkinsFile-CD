@@ -177,7 +177,7 @@ pipeline {
                         echo "Port 8085 is free, starting docker compose..."
                         docker compose up -d --build \
                             postgres-db liquibase-service kafka-service \
-                            ollama-service ollama-model-pull \
+                            ollama-service \
                             user-service composition-service evaluation-service api-gateway
 
                         echo "Service status:"
@@ -215,7 +215,10 @@ pipeline {
                         done
 
                         echo "Port 8085 is free, starting docker compose..."
-                        docker compose up -d --build
+                        docker compose up -d --build \
+                            postgres-db liquibase-service kafka-service \
+                            ollama-service \
+                            user-service composition-service evaluation-service api-gateway frontend
 
                         echo "Service status:"
                         docker compose ps

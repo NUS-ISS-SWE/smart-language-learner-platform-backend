@@ -138,8 +138,6 @@ services:
         condition: service_started
       composition-service:
         condition: service_started
-      ollama-model-pull:
-        condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 

@@ -67,21 +67,29 @@ pipeline {
             }
         }
 
-        // ── Cleanup api-gateway conflict only ──────────────────────────────
+        // ── Cleanup existing 8080 binders before deploy ───────────────────
         stage('Cleanup Existing Containers') {
             when { expression { return params.DEPLOY_MODE == 'deploy' } }
             steps {
                 dir('source') {
                     sh '''
-                        echo "Cleaning up api-gateway port 8080 conflict..."
+                        echo "Cleaning up port 8080 binders and old api-gateway containers..."
 
-                        CONTAINER=$(docker ps -a -q --filter "name=api-gateway")
-                        if [ -n "$CONTAINER" ]; then
-                            echo "Removing existing api-gateway container: $CONTAINER"
-                            timeout 60s docker rm -f $CONTAINER || true
+                        # Remove any container that currently publishes host port 8080
+                        PORTED=$(docker ps -a -q --filter "publish=8080")
+                        if [ -n "$PORTED" ]; then
+                            echo "Removing containers publishing port 8080: $PORTED"
+                            timeout 60s docker rm -f $PORTED || true
                         fi
 
-                        echo "Checking port 8080..."
+                        # Also remove any lingering api-gateway container by name
+                        APIC=$(docker ps -a -q --filter "name=api-gateway")
+                        if [ -n "$APIC" ]; then
+                            echo "Removing existing api-gateway container: $APIC"
+                            timeout 60s docker rm -f $APIC || true
+                        fi
+
+                        echo "Checking port 8080 on host..."
                         timeout 10s fuser -k 8080/tcp || true
 
                         echo "✅ Cleanup complete"

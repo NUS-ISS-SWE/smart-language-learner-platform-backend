@@ -151,6 +151,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      network: host
     image: maxin0525/sllp-frontend:v1
     container_name: frontend
     ports:

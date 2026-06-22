@@ -73,7 +73,7 @@ pipeline {
             steps {
                 dir('source') {
                     sh '''
-                        echo "Cleaning up port 8080 binders and old api-gateway containers..."
+                        echo "Cleaning up port 8085 binders and old api-gateway containers..."
 
                         echo "Running docker compose down..."
                         timeout 60s docker compose down -v --remove-orphans || true
@@ -81,10 +81,10 @@ pipeline {
                         echo "Current docker containers after compose down:"
                         docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' || true
 
-                        echo "Detect containers publishing host port 8080 via docker ps..."
-                        PORTED=$(docker ps -a --filter publish=8080 --format '{{.ID}} {{.Names}} {{.Ports}}' | awk '{print $1}') || true
+                        echo "Detect containers publishing host port 8085 via docker ps..."
+                        PORTED=$(docker ps -a --filter publish=8085 --format '{{.ID}} {{.Names}} {{.Ports}}' | awk '{print $1}') || true
                         if [ -n "$PORTED" ]; then
-                            echo "Removing containers publishing port 8080: $PORTED"
+                            echo "Removing containers publishing port 8085: $PORTED"
                             timeout 60s docker rm -f $PORTED || true
                         fi
 
@@ -95,39 +95,39 @@ pipeline {
                             timeout 60s docker rm -f $APIC || true
                         fi
 
-                        echo "Detect host process binding port 8080..."
-                        ss -ltnp | grep ':8080' || true
-                        PIDS=$(ss -ltnp | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
+                        echo "Detect host process binding port 8085..."
+                        ss -ltnp | grep ':8085' || true
+                        PIDS=$(ss -ltnp | awk '/:8085/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
                         if [ -z "$PIDS" ] && command -v netstat >/dev/null 2>&1; then
-                            PIDS=$(netstat -tlnp 2>/dev/null | awk '/:8080/ {gsub(/.*\//, "", $7); if ($7 != "") print $7}' | sort -u)
+                            PIDS=$(netstat -tlnp 2>/dev/null | awk '/:8085/ {gsub(/.*\//, "", $7); if ($7 != "") print $7}' | sort -u)
                         fi
                         if [ -z "$PIDS" ] && command -v lsof >/dev/null 2>&1; then
-                            PIDS=$(lsof -tiTCP:8080 -sTCP:LISTEN | sort -u)
+                            PIDS=$(lsof -tiTCP:8085 -sTCP:LISTEN | sort -u)
                         fi
                         if [ -n "$PIDS" ]; then
-                            echo "Killing host processes holding port 8080: $PIDS"
+                            echo "Killing host processes holding port 8085: $PIDS"
                             for pid in $PIDS; do
                                 kill -9 $pid || true
                             done
 
-                            echo "Waiting for port 8080 to become free..."
+                            echo "Waiting for port 8085 to become free..."
                             for i in 1 2 3 4 5; do
-                                if ! ss -ltnp 2>/dev/null | grep -q ':8080'; then
+                                if ! ss -ltnp 2>/dev/null | grep -q ':8085'; then
                                     break
                                 fi
                                 sleep 2
                             done
 
-                            if ss -ltnp 2>/dev/null | grep -q ':8080'; then
-                                echo "Port 8080 still in use after kill; retrying fallback cleanup..."
-                                command -v fuser >/dev/null 2>&1 && fuser -k 8080/tcp || true
+                            if ss -ltnp 2>/dev/null | grep -q ':8085'; then
+                                echo "Port 8085 still in use after kill; retrying fallback cleanup..."
+                                command -v fuser >/dev/null 2>&1 && fuser -k 8085/tcp || true
                                 if command -v lsof >/dev/null 2>&1; then
-                                    PIDS=$(lsof -tiTCP:8080 -sTCP:LISTEN | sort -u)
+                                    PIDS=$(lsof -tiTCP:8085 -sTCP:LISTEN | sort -u)
                                 else
-                                    PIDS=$(ss -ltnp 2>/dev/null | awk '/:8080/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
+                                    PIDS=$(ss -ltnp 2>/dev/null | awk '/:8085/ {gsub(/.*pid=/, "", $6); gsub(/,.*/, "", $6); if ($6 != "") print $6}' | sort -u)
                                 fi
                                 if [ -n "$PIDS" ]; then
-                                    echo "Killing remaining port 8080 processes: $PIDS"
+                                    echo "Killing remaining port 8085 processes: $PIDS"
                                     for pid in $PIDS; do
                                         kill -9 $pid || true
                                     done
@@ -135,11 +135,11 @@ pipeline {
                             fi
                         fi
 
-                        echo "Port 8080 status after cleanup:"
-                        ss -ltnp | grep ':8080' || true
+                        echo "Port 8085 status after cleanup:"
+                        ss -ltnp | grep ':8085' || true
 
-                        echo "Remaining containers with 8080 exposure:"
-                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep ':8080' || true
+                        echo "Remaining containers with 8085 exposure:"
+                        docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Ports}}' | grep ':8085' || true
 
                         echo "✅ Cleanup complete"
                     '''
@@ -160,21 +160,21 @@ pipeline {
                     sh '''
                         echo "Deploying backend services (skipping frontend)..."
 
-                        # Wait until host port 8080 is free (check up to 30s)
+                        # Wait until host port 8085 is free (check up to 30s)
                         MAX_WAIT=30
                         WAITED=0
-                        while ss -ltnp 2>/dev/null | grep -q ':8080'; do
+                        while ss -ltnp 2>/dev/null | grep -q ':8085'; do
                             if [ "$WAITED" -ge "$MAX_WAIT" ]; then
-                                echo "Port 8080 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                                echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
                                 ss -ltnp || true
                                 exit 1
                             fi
-                            echo "Port 8080 in use, waiting... (${WAITED}s)"
+                            echo "Port 8085 in use, waiting... (${WAITED}s)"
                             sleep 2
                             WAITED=$((WAITED+2))
                         done
 
-                        echo "Port 8080 is free, starting docker compose..."
+                        echo "Port 8085 is free, starting docker compose..."
                         docker compose up -d --build \
                             postgres-db liquibase-service kafka-service \
                             ollama-service ollama-model-pull \
@@ -200,21 +200,21 @@ pipeline {
                     sh '''
                         echo "Building images and deploying full stack..."
 
-                        # Wait until host port 8080 is free (check up to 30s)
+                        # Wait until host port 8085 is free (check up to 30s)
                         MAX_WAIT=30
                         WAITED=0
-                        while ss -ltnp 2>/dev/null | grep -q ':8080'; do
+                        while ss -ltnp 2>/dev/null | grep -q ':8085'; do
                             if [ "$WAITED" -ge "$MAX_WAIT" ]; then
-                                echo "Port 8080 still in use after ${MAX_WAIT}s, aborting deploy." >&2
+                                echo "Port 8085 still in use after ${MAX_WAIT}s, aborting deploy." >&2
                                 ss -ltnp || true
                                 exit 1
                             fi
-                            echo "Port 8080 in use, waiting... (${WAITED}s)"
+                            echo "Port 8085 in use, waiting... (${WAITED}s)"
                             sleep 2
                             WAITED=$((WAITED+2))
                         done
 
-                        echo "Port 8080 is free, starting docker compose..."
+                        echo "Port 8085 is free, starting docker compose..."
                         docker compose up -d --build
 
                         echo "Service status:"

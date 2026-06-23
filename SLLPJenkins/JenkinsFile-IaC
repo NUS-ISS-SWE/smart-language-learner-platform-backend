@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    options {
+        disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
     parameters {
         string(name: 'BRANCH_NAME', defaultValue: 'mx_cici_clean_test', description: 'Git branch containing Terraform code')
         choice(name: 'TF_ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
@@ -27,22 +32,56 @@ pipeline {
             }
         }
 
-        stage('Terraform Apply / Destroy') {
+        stage('Terraform Init & Validate') {
             steps {
                 dir('source/terraform') {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
                                       credentialsId: 'aws-credentials']]) {
                         sh '''
-                            terraform init
-
-                            if [ "${TF_ACTION}" = "apply" ]; then
-                                echo "Applying Terraform — provisioning EC2 + security groups..."
-                                terraform apply -auto-approve -input=false
-                            elif [ "${TF_ACTION}" = "destroy" ]; then
-                                echo "Destroying Terraform resources..."
-                                terraform destroy -auto-approve -input=false
-                            fi
+                            terraform init -input=false
+                            terraform fmt -check -recursive
+                            terraform validate
                         '''
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('source/terraform') {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials']]) {
+                        script {
+                            def destroyFlag = params.TF_ACTION == 'destroy' ? '-destroy' : ''
+                            sh """
+                                terraform plan ${destroyFlag} -input=false -out=tfplan
+                                terraform show -no-color tfplan > tfplan.txt
+                            """
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'source/terraform/tfplan.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Approval') {
+            steps {
+                input message: "确认要对环境执行 terraform ${params.TF_ACTION} 吗？先看一下上面 Plan stage 归档的 tfplan.txt。",
+                      ok: 'Proceed'
+            }
+        }
+
+        stage('Terraform Apply / Destroy') {
+            steps {
+                dir('source/terraform') {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
+                                      credentialsId: 'aws-credentials']]) {
+                        sh 'terraform apply -input=false tfplan'
                     }
                 }
             }
@@ -52,5 +91,6 @@ pipeline {
     post {
         success { echo "✅ Terraform ${params.TF_ACTION} completed successfully!" }
         failure { echo "❌ Terraform ${params.TF_ACTION} failed. Check console output." }
+        aborted { echo "🚫 Terraform ${params.TF_ACTION} was not approved." }
     }
 }

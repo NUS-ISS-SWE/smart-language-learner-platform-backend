@@ -20,7 +20,7 @@ services:
     build:
       context: .
       dockerfile: sllp-liquibase-service/Dockerfile
-    image: 961125mingwei/sllp-liquibase-service:v1
+    image: 961125mingwei/sllp-liquibase-service:v2
     container_name: liquibase-service
     environment:
       POSTGRES_DB: sllp_main_db
@@ -61,41 +61,41 @@ services:
     networks:
       - sllp-network
 
-  ollama-service:
-    image: ollama/ollama:latest
-    container_name: ollama-service
-    restart: always
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    networks:
-      - sllp-network
-
-  ollama-model-pull:
-    image: ollama/ollama:latest
-    container_name: ollama-model-pull
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama-service:11434
-    command: ["pull", "qwen3:0.6b"]
-    depends_on:
-      ollama-service:
-        condition: service_healthy
-    networks:
-      - sllp-network
+#  ollama-service:
+#    image: ollama/ollama:latest
+#    container_name: ollama-service
+#    restart: always
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ollama-data:/root/.ollama
+#    healthcheck:
+#      test: ["CMD", "ollama", "list"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 30
+#      start_period: 10s
+#    networks:
+#      - sllp-network
+#
+#  ollama-model-pull:
+#    image: ollama/ollama:latest
+#    container_name: ollama-model-pull
+#    restart: "no"
+#    environment:
+#      OLLAMA_HOST: http://ollama-service:11434
+#    command: ["pull", "qwen3:0.6b"]
+#    depends_on:
+#      ollama-service:
+#        condition: service_healthy
+#    networks:
+#      - sllp-network
 
   user-service:
     build:
       context: .
       dockerfile: sllp-user-service/Dockerfile
-    image: 961125mingwei/sllp-user-service:v1
+    image: 961125mingwei/sllp-user-service:v2
     container_name: user-service
     ports:
       - "8082:8082"
@@ -111,7 +111,7 @@ services:
     build:
       context: ./sllp-composition-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-composition-service:v1
+    image: 961125mingwei/sllp-composition-service:v2
     container_name: composition-service
     ports:
       - "8083:8083"
@@ -123,27 +123,27 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
-  evaluation-service:
-    build:
-      context: ./sllp-evaluation-service
-      dockerfile: Dockerfile
-    image: 961125mingwei/sllp-evaluation-service:v1
-    container_name: evaluation-service
-    ports:
-      - "8085:8085"
-    networks:
-      - sllp-network
-    depends_on:
-      user-service:
-        condition: service_started
-      kafka-service:
-        condition: service_started
-      composition-service:
-        condition: service_started
-      ollama-model-pull:
-        condition: service_completed_successfully
-    environment:
-      - SPRING_PROFILES_ACTIVE=uat
+#  evaluation-service:
+#    build:
+#      context: ./sllp-evaluation-service
+#      dockerfile: Dockerfile
+#    image: 961125mingwei/sllp-evaluation-service:v2
+#    container_name: evaluation-service
+#    ports:
+#      - "8085:8085"
+#    networks:
+#      - sllp-network
+#    depends_on:
+#      user-service:
+#        condition: service_started
+#      kafka-service:
+#        condition: service_started
+#      composition-service:
+#        condition: service_started
+##      ollama-model-pull:
+##        condition: service_completed_successfully
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=uat
 
   api-gateway:
     build:
@@ -159,7 +159,7 @@ services:
       - liquibase-service
       - user-service
       - composition-service
-      - evaluation-service
+#      - evaluation-service
       - document-service
     environment:
       - SPRING_PROFILES_ACTIVE=uat

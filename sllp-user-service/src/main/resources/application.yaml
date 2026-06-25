@@ -22,16 +22,16 @@ spring:
   jackson:
     default-property-inclusion: non_null
   mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:1025}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:mwcode5050@gmail.com}
+    password: ${MAIL_PASSWORD:vdrfkynnbdayotpp}
     properties:
       mail:
         smtp:
-          auth: false
+          auth: true
           starttls:
-            enable: false
+            enable: true
 
 application:
   jwt:
@@ -43,5 +43,5 @@ sllp:
   security:
     jwt:
       issuer: ${JWT_ISSUER:sllp-app}
-      secret: ${JWT_SECRET:your-secret-key-change-in-production-min-32-chars}
+      secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       expirationTimeMillis: 86400000

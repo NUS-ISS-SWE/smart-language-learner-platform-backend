@@ -43,16 +43,20 @@ public class JwtAuthenticationFilter {
 
             String role = claims.get("ROLE", String.class);
             String username = claims.getSubject();
+            String userId = claims.get("userId", String.class);
 
             if (role == null || !allowedRoles.contains(role)) {
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                 return exchange.getResponse().setComplete();
             }
 
-            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+            ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
                     .header("X-Sllp-Username", username)
-                    .header("X-Sllp-Role", role)
-                    .build();
+                    .header("X-Sllp-Role", role);
+            if (userId != null) {
+                requestBuilder.header("X-Sllp-User-Id", userId);
+            }
+            ServerHttpRequest mutatedRequest = requestBuilder.build();
 
             ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
             return chain.filter(mutatedExchange);

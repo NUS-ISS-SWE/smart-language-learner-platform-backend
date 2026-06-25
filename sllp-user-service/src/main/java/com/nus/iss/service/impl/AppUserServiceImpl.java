@@ -57,8 +57,8 @@ public class AppUserServiceImpl implements AppUserService {
                 .preferredLanguage(appUserDTO.getPreferredLanguage() != null ? appUserDTO.getPreferredLanguage() : PreferredLanguage.ENGLISH)
                 .difficultyLevel(appUserDTO.getDifficultyLevel() != null ? appUserDTO.getDifficultyLevel() : DifficultyLevel.BEGINNER)
                 .createdAt(LocalDateTime.now())
-                .token(5000L)
-                .totalTokenConsumption(0L)
+                .aiTokenBalance(5000L)
+                .aiTokenUsed(0L)
                 .build();
 
         AppUser savedUser = appUserRepository.save(appUser);
@@ -87,7 +87,7 @@ public class AppUserServiceImpl implements AppUserService {
             throw new BadCredentialsException("Invalid username or password");
         }
 
-        String token = jwtConfig.generateToken(user.getUsername(), user.getRole().name());
+        String token = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
 
         return JwtAccessTokenDTO.builder()
                 .accessToken(token)
@@ -151,11 +151,8 @@ public class AppUserServiceImpl implements AppUserService {
                 .preferredLanguage(user.getPreferredLanguage())
                 .difficultyLevel(user.getDifficultyLevel())
                 .createdAt(user.getCreatedAt())
-                .token(user.getToken())
-                .totalTokenConsumption(user.getTotalTokenConsumption())
-//                .subscriptionStartDate(user.getSubscriptionStartDate())
-//                .subscriptionEndDate(user.getSubscriptionEndDate())
-//                .subscriptionDurationInDays(user.getSubscriptionDurationInDays())
+                .aiTokenBalance(user.getAiTokenBalance())
+                .aiTokenUsed(user.getAiTokenUsed())
                 .build();
     }
 }

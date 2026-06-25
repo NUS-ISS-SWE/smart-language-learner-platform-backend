@@ -36,9 +36,10 @@ public class JwtConfig {
         this.appUserRepository = appUserRepository;
     }
 
-    public String generateToken(String username, String role) {
+    public String generateToken(String username, Long userId, String role) {
         Map<String, String> claims = new HashMap<>();
         claims.put("ROLE", role);
+        claims.put("userId", userId.toString());
         String token = Jwts.builder()
                 .claims(claims)
                 .issuer(issuer)

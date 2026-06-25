@@ -8,8 +8,9 @@ import com.nus.iss.enums.Status;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,10 +40,15 @@ public class AppUser {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
-    private Long token;
-    private Long totalTokenConsumption;
-    private LocalDate subscriptionStartDate;
-    private LocalDate subscriptionEndDate;
-    private Integer subscriptionDurationInDays;
 
+    @Column(name = "ai_token_balance")
+    private Long aiTokenBalance;
+
+    @Column(name = "ai_token_used")
+    private Long aiTokenUsed;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<UserSubscription> subscriptions = new ArrayList<>();
 }
+

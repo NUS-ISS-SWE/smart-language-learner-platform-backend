@@ -13,7 +13,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -43,9 +42,6 @@ public class AppUserDTO {
     private DifficultyLevel difficultyLevel;
     private LocalDateTime createdAt;
     private Role role;
-    private Long token;
-    private Long totalTokenConsumption;
-    private LocalDate subscriptionStartDate;
-    private LocalDate subscriptionEndDate;
-    private Integer subscriptionDurationInDays;
+    private Long aiTokenBalance;
+    private Long aiTokenUsed;
 }

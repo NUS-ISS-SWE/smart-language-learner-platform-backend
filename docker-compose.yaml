@@ -12,15 +12,14 @@ services:
       - "5432:5432"
     volumes:
       - sllp-data:/var/lib/postgresql
-      - ./sllp-liquibase-service/src/main/resources/changelog/schema/001-schema-init.sql:/docker-entrypoint-initdb.d/001-schema-init.sql:ro
     networks:
       - sllp-network
 
   liquibase-service:
     build:
-      context: .
-      dockerfile: sllp-liquibase-service/Dockerfile
-    image: 961125mingwei/sllp-liquibase-service:v2
+      context: ./sllp-liquibase-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-liquibase-service:v3
     container_name: liquibase-service
     environment:
       POSTGRES_DB: sllp_main_db
@@ -93,16 +92,17 @@ services:
 
   user-service:
     build:
-      context: .
-      dockerfile: sllp-user-service/Dockerfile
-    image: 961125mingwei/sllp-user-service:v2
+      context: ./sllp-user-service
+      dockerfile: Dockerfile
+    image: 961125mingwei/sllp-user-service:v3
     container_name: user-service
     ports:
       - "8082:8082"
     networks:
       - sllp-network
     depends_on:
-      - liquibase-service
+      liquibase-service:
+        condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
@@ -111,7 +111,7 @@ services:
     build:
       context: ./sllp-composition-service
       dockerfile: Dockerfile
-    image: 961125mingwei/sllp-composition-service:v2
+    image: 961125mingwei/sllp-composition-service:v3
     container_name: composition-service
     ports:
       - "8083:8083"
@@ -156,11 +156,15 @@ services:
     networks:
       - sllp-network
     depends_on:
-      - liquibase-service
-      - user-service
-      - composition-service
+      liquibase-service:
+        condition: service_completed_successfully
+      user-service:
+        condition: service_started
+      composition-service:
+        condition: service_started
 #      - evaluation-service
-      - document-service
+      document-service:
+        condition: service_started
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
@@ -191,8 +195,10 @@ services:
     networks:
       - sllp-network
     depends_on:
-      - liquibase-service
-      - minio
+      liquibase-service:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_PASSWORD=password

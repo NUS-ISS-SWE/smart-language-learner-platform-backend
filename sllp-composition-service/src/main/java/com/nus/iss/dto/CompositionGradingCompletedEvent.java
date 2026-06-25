@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CompositionGradingCompletedEvent {
     private Long compositionId;
-    private String username;
+    private Long userId;
     private BigDecimal score;
     private String feedback;
     private boolean success;

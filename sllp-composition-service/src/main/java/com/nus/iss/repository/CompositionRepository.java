@@ -11,7 +11,7 @@ import java.util.Optional;
 @Repository
 public interface CompositionRepository extends JpaRepository<Composition, Long> {
 
-    List<Composition> findByUsername(String username, Pageable pageable);
+    List<Composition> findByUserId(Long userId, Pageable pageable);
 
-    Optional<Composition> findByIdAndUsername(Long id, String username);
+    Optional<Composition> findByIdAndUserId(Long id, Long userId);
 }

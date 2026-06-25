@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CompositionGenerationCompletedEvent {
     private Long compositionId;
-    private String username;
+    private Long userId;
     private String generatedContent;
     private boolean success;
     private String failureReason;

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CompositionGenerationRequestedEvent {
     private Long compositionId;
-    private String username;
+    private Long userId;
     private String title;
     private Language language;
     private LocalDateTime requestedAt;

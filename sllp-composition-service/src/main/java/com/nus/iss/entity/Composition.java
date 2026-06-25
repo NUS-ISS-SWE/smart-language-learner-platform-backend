@@ -19,7 +19,8 @@ public class Composition {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String username;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
     private String title;
     private String content;
     @Enumerated(EnumType.STRING)

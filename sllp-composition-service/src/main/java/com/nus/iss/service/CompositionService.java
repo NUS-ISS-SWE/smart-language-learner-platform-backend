@@ -10,21 +10,21 @@ import java.util.List;
 
 public interface CompositionService {
 
-    CompositionDTO createNewComposition(String username, CompositionDTO compositionDTO);
+    CompositionDTO createNewComposition(Long userId, CompositionDTO compositionDTO);
 
-    List<CompositionDTO> getAllCompositionByUsername(String username, Pageable pageable);
+    List<CompositionDTO> getAllCompositionByUserId(Long userId, Pageable pageable);
 
-    CompositionDTO getSingleCompositionById(String username, Long id);
+    CompositionDTO getSingleCompositionById(Long userId, Long id);
 
-    CompositionDTO updateComposition(String username, Long id, CompositionDTO compositionDTO);
+    CompositionDTO updateComposition(Long userId, Long id, CompositionDTO compositionDTO);
 
-    void deleteComposition(String username, Long id);
+    void deleteComposition(Long userId, Long id);
 
-    CompositionDTO requestToGradeComposition(String username, Long id);
+    CompositionDTO requestToGradeComposition(Long userId, Long id);
 
     void completeCompositionGrading(CompositionGradingCompletedEvent event);
 
-    CompositionDTO generateComposition(String username, CompositionDTO compositionDTO);
+    CompositionDTO generateComposition(Long userId, CompositionDTO compositionDTO);
 
     void completeCompositionGeneration(CompositionGenerationCompletedEvent event);
 }

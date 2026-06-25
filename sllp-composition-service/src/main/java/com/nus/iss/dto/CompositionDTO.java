@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CompositionDTO {
     private Long id;
-    private String username;
+    private Long userId;
     private String title;
     private String content;
     private CompositionSource compositionSource;

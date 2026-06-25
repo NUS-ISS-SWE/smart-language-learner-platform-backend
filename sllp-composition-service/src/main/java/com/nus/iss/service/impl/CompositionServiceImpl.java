@@ -6,10 +6,12 @@ import com.nus.iss.dto.CompositionGenerationRequestedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingRequestedEvent;
 import com.nus.iss.entity.Composition;
+import com.nus.iss.entity.Evaluation;
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
 import com.nus.iss.repository.CompositionRepository;
+import com.nus.iss.repository.EvaluationRepository;
 import com.nus.iss.service.CompositionService;
 import com.nus.iss.service.KafkaProducerService;
 import com.nus.iss.service.LanguageDetectorService;
@@ -28,22 +30,25 @@ import java.util.NoSuchElementException;
 public class CompositionServiceImpl implements CompositionService {
 
     private final CompositionRepository compositionRepository;
+    private final EvaluationRepository evaluationRepository;
     private final LanguageDetectorService languageDetectorService;
     private final KafkaProducerService kafkaProducerService;
 
     @Autowired
     public CompositionServiceImpl(CompositionRepository compositionRepository,
+                                  EvaluationRepository evaluationRepository,
                                   LanguageDetectorService languageDetectorService,
                                   KafkaProducerService kafkaProducerService) {
         this.compositionRepository = compositionRepository;
+        this.evaluationRepository = evaluationRepository;
         this.languageDetectorService = languageDetectorService;
         this.kafkaProducerService = kafkaProducerService;
     }
 
     @Override
     @Transactional
-    public CompositionDTO createNewComposition(String username, CompositionDTO compositionDTO) {
-        validateCreateRequest(username, compositionDTO);
+    public CompositionDTO createNewComposition(Long userId, CompositionDTO compositionDTO) {
+        validateCreateRequest(userId, compositionDTO);
 
         LocalDateTime now = LocalDateTime.now();
         Language detectedLanguage = languageDetectorService.detectLanguage(compositionDTO.getContent())
@@ -51,7 +56,7 @@ public class CompositionServiceImpl implements CompositionService {
                         "Only English and Chinese compositions are supported"));
 
         Composition composition = Composition.builder()
-                .username(username)
+                .userId(userId)
                 .title(compositionDTO.getTitle())
                 .content(compositionDTO.getContent())
                 .compositionSource(CompositionSource.RAW_TEXT)
@@ -62,18 +67,18 @@ public class CompositionServiceImpl implements CompositionService {
                 .build();
 
         Composition savedComposition = compositionRepository.save(composition);
-        log.info("Created composition with ID: {} for user: {}", savedComposition.getId(), username);
+        log.info("Created composition with ID: {} for user: {}", savedComposition.getId(), userId);
 
         return mapToDTO(savedComposition);
     }
 
     @Override
-    public List<CompositionDTO> getAllCompositionByUsername(String username, Pageable pageable) {
-        validateUsername(username);
+    public List<CompositionDTO> getAllCompositionByUserId(Long userId, Pageable pageable) {
+        validateUserId(userId);
         validatePageable(pageable);
 
-        List<Composition> compositions = compositionRepository.findByUsername(username, pageable);
-        log.info("Found {} compositions for user: {}", compositions.size(), username);
+        List<Composition> compositions = compositionRepository.findByUserId(userId, pageable);
+        log.info("Found {} compositions for user: {}", compositions.size(), userId);
 
         return compositions.stream()
                 .map(this::mapToDTO)
@@ -81,11 +86,11 @@ public class CompositionServiceImpl implements CompositionService {
     }
 
     @Override
-    public CompositionDTO getSingleCompositionById(String username, Long id) {
-        validateUsername(username);
+    public CompositionDTO getSingleCompositionById(Long userId, Long id) {
+        validateUserId(userId);
         validateCompositionId(id);
 
-        Composition composition = compositionRepository.findByIdAndUsername(id, username)
+        Composition composition = compositionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         return mapToDTO(composition);
@@ -93,11 +98,11 @@ public class CompositionServiceImpl implements CompositionService {
 
     @Override
     @Transactional
-    public CompositionDTO updateComposition(String username, Long id, CompositionDTO compositionDTO) {
-        validateCreateRequest(username, compositionDTO);
+    public CompositionDTO updateComposition(Long userId, Long id, CompositionDTO compositionDTO) {
+        validateCreateRequest(userId, compositionDTO);
         validateCompositionId(id);
 
-        Composition composition = compositionRepository.findByIdAndUsername(id, username)
+        Composition composition = compositionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         Language detectedLanguage = languageDetectorService.detectLanguage(compositionDTO.getContent())
@@ -111,31 +116,31 @@ public class CompositionServiceImpl implements CompositionService {
         composition.setUpdatedAt(LocalDateTime.now());
 
         Composition savedComposition = compositionRepository.save(composition);
-        log.info("Updated composition with ID: {} for user: {}", savedComposition.getId(), username);
+        log.info("Updated composition with ID: {} for user: {}", savedComposition.getId(), userId);
 
         return mapToDTO(savedComposition);
     }
 
     @Override
     @Transactional
-    public void deleteComposition(String username, Long id) {
-        validateUsername(username);
+    public void deleteComposition(Long userId, Long id) {
+        validateUserId(userId);
         validateCompositionId(id);
 
-        Composition composition = compositionRepository.findByIdAndUsername(id, username)
+        Composition composition = compositionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         compositionRepository.delete(composition);
-        log.info("Deleted composition with ID: {} for user: {}", id, username);
+        log.info("Deleted composition with ID: {} for user: {}", id, userId);
     }
 
     @Override
     @Transactional
-    public CompositionDTO requestToGradeComposition(String username, Long id) {
-        validateUsername(username);
+    public CompositionDTO requestToGradeComposition(Long userId, Long id) {
+        validateUserId(userId);
         validateCompositionId(id);
 
-        Composition composition = compositionRepository.findByIdAndUsername(id, username)
+        Composition composition = compositionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         if (composition.getCompositionStatus() != CompositionStatus.DRAFT) {
@@ -149,7 +154,7 @@ public class CompositionServiceImpl implements CompositionService {
 
         CompositionGradingRequestedEvent event = CompositionGradingRequestedEvent.builder()
                 .compositionId(savedComposition.getId())
-                .username(savedComposition.getUsername())
+                .userId(savedComposition.getUserId())
                 .title(savedComposition.getTitle())
                 .content(savedComposition.getContent())
                 .language(savedComposition.getLanguage())
@@ -157,7 +162,7 @@ public class CompositionServiceImpl implements CompositionService {
                 .build();
         kafkaProducerService.sendCompositionGradingRequestedEvent(event);
 
-        log.info("Requested grading for composition with ID: {} for user: {}", id, username);
+        log.info("Requested grading for composition with ID: {} for user: {}", id, userId);
         return mapToDTO(savedComposition);
     }
 
@@ -166,7 +171,7 @@ public class CompositionServiceImpl implements CompositionService {
     public void completeCompositionGrading(CompositionGradingCompletedEvent event) {
         validateGradingCompletedEvent(event);
 
-        Composition composition = compositionRepository.findByIdAndUsername(event.getCompositionId(), event.getUsername())
+        Composition composition = compositionRepository.findByIdAndUserId(event.getCompositionId(), event.getUserId())
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         if (event.isSuccess()) {
@@ -177,23 +182,35 @@ public class CompositionServiceImpl implements CompositionService {
             composition.setSystemFeedback(event.getFailureReason());
         }
 
-        composition.setUpdatedAt(event.getCompletedAt() != null ? event.getCompletedAt() : LocalDateTime.now());
+        LocalDateTime completedAt = event.getCompletedAt() != null ? event.getCompletedAt() : LocalDateTime.now();
+        composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
+
+        Evaluation evaluation = Evaluation.builder()
+                .compositionId(event.getCompositionId())
+                .score(event.getScore())
+                .feedback(event.getFeedback())
+                .success(event.isSuccess())
+                .failureReason(event.getFailureReason())
+                .evaluatedAt(completedAt)
+                .build();
+        evaluationRepository.save(evaluation);
+
         log.info("Completed grading update for composition with ID: {}, success: {}",
                 event.getCompositionId(), event.isSuccess());
     }
 
     @Override
     @Transactional
-    public CompositionDTO generateComposition(String username, CompositionDTO compositionDTO) {
-        validateGenerateRequest(username, compositionDTO);
+    public CompositionDTO generateComposition(Long userId, CompositionDTO compositionDTO) {
+        validateGenerateRequest(userId, compositionDTO);
 
         LocalDateTime now = LocalDateTime.now();
         Language detectedLanguage = languageDetectorService.detectLanguage(compositionDTO.getTitle())
                 .orElse(Language.ENGLISH);
 
         Composition composition = Composition.builder()
-                .username(username)
+                .userId(userId)
                 .title(compositionDTO.getTitle())
                 .compositionSource(CompositionSource.SYSTEM)
                 .language(detectedLanguage)
@@ -206,7 +223,7 @@ public class CompositionServiceImpl implements CompositionService {
 
         CompositionGenerationRequestedEvent event = CompositionGenerationRequestedEvent.builder()
                 .compositionId(savedComposition.getId())
-                .username(savedComposition.getUsername())
+                .userId(savedComposition.getUserId())
                 .title(savedComposition.getTitle())
                 .language(savedComposition.getLanguage())
                 .requestedAt(now)
@@ -214,7 +231,7 @@ public class CompositionServiceImpl implements CompositionService {
         kafkaProducerService.sendCompositionGenerationRequestedEvent(event);
 
         log.info("Requested generation for composition with ID: {} for user: {}",
-                savedComposition.getId(), username);
+                savedComposition.getId(), userId);
         return mapToDTO(savedComposition);
     }
 
@@ -223,8 +240,8 @@ public class CompositionServiceImpl implements CompositionService {
     public void completeCompositionGeneration(CompositionGenerationCompletedEvent event) {
         validateGenerationCompletedEvent(event);
 
-        Composition composition = compositionRepository.findByIdAndUsername(
-                        event.getCompositionId(), event.getUsername())
+        Composition composition = compositionRepository.findByIdAndUserId(
+                        event.getCompositionId(), event.getUserId())
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
         if (event.isSuccess()) {
@@ -242,8 +259,8 @@ public class CompositionServiceImpl implements CompositionService {
                 event.getCompositionId(), event.isSuccess());
     }
 
-    private void validateCreateRequest(String username, CompositionDTO compositionDTO) {
-        validateUsername(username);
+    private void validateCreateRequest(Long userId, CompositionDTO compositionDTO) {
+        validateUserId(userId);
         if (compositionDTO == null) {
             throw new IllegalArgumentException("Composition request body is required");
         }
@@ -255,8 +272,8 @@ public class CompositionServiceImpl implements CompositionService {
         }
     }
 
-    private void validateGenerateRequest(String username, CompositionDTO compositionDTO) {
-        validateUsername(username);
+    private void validateGenerateRequest(Long userId, CompositionDTO compositionDTO) {
+        validateUserId(userId);
         if (compositionDTO == null) {
             throw new IllegalArgumentException("Composition generation request body is required");
         }
@@ -265,9 +282,9 @@ public class CompositionServiceImpl implements CompositionService {
         }
     }
 
-    private void validateUsername(String username) {
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("Username header is required");
+    private void validateUserId(Long userId) {
+        if (userId == null || userId < 1) {
+            throw new IllegalArgumentException("Valid user ID header is required");
         }
     }
 
@@ -293,7 +310,7 @@ public class CompositionServiceImpl implements CompositionService {
         if (event == null) {
             throw new IllegalArgumentException("Composition grading completed event is required");
         }
-        validateUsername(event.getUsername());
+        validateUserId(event.getUserId());
         validateCompositionId(event.getCompositionId());
         if (event.isSuccess() && (event.getFeedback() == null || event.getFeedback().isBlank())) {
             throw new IllegalArgumentException("Composition grading feedback is required");
@@ -307,7 +324,7 @@ public class CompositionServiceImpl implements CompositionService {
         if (event == null) {
             throw new IllegalArgumentException("Composition generation completed event is required");
         }
-        validateUsername(event.getUsername());
+        validateUserId(event.getUserId());
         validateCompositionId(event.getCompositionId());
         if (event.isSuccess() && (event.getGeneratedContent() == null || event.getGeneratedContent().isBlank())) {
             throw new IllegalArgumentException("Generated composition content is required");
@@ -320,14 +337,13 @@ public class CompositionServiceImpl implements CompositionService {
     private CompositionDTO mapToDTO(Composition composition) {
         return CompositionDTO.builder()
                 .id(composition.getId())
-                .username(composition.getUsername())
+                .userId(composition.getUserId())
                 .title(composition.getTitle())
                 .content(composition.getContent())
                 .compositionSource(composition.getCompositionSource())
                 .language(composition.getLanguage())
                 .compositionStatus(composition.getCompositionStatus())
                 .systemFeedback(composition.getSystemFeedback())
-//                .storagePath(composition.getStoragePath())
                 .createdAt(composition.getCreatedAt())
                 .updatedAt(composition.getUpdatedAt())
                 .build();

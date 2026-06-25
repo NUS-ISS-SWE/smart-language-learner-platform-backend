@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# IntelliJ file lock artifacts
+.LCK*.java~
+*.java~

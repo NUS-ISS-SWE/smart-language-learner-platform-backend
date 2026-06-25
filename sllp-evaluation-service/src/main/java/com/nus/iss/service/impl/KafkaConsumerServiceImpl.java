@@ -42,7 +42,7 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
             CompositionEvaluationResult result = compositionEvaluationService.evaluate(request);
             kafkaProducerService.sendCompositionGradingCompletedEvent(CompositionGradingCompletedEvent.builder()
                     .compositionId(request.getCompositionId())
-                    .username(request.getUsername())
+                    .userId(request.getUserId())
                     .score(result.score())
                     .feedback(result.feedback())
                     .success(true)
@@ -53,7 +53,7 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
             log.error("Failed to grade compositionId: {}", request.getCompositionId(), ex);
             kafkaProducerService.sendCompositionGradingCompletedEvent(CompositionGradingCompletedEvent.builder()
                     .compositionId(request.getCompositionId())
-                    .username(request.getUsername())
+                    .userId(request.getUserId())
                     .success(false)
                     .failureReason(failureReason(ex))
                     .completedAt(LocalDateTime.now())

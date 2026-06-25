@@ -108,8 +108,8 @@ public class CompositionEvaluationServiceImpl implements com.nus.iss.service.Com
         if (event.getCompositionId() == null || event.getCompositionId() < 1) {
             throw new IllegalArgumentException("Composition ID is required");
         }
-        if (event.getUsername() == null || event.getUsername().isBlank()) {
-            throw new IllegalArgumentException("Username is required");
+        if (event.getUserId() == null || event.getUserId() < 1) {
+            throw new IllegalArgumentException("User ID is required");
         }
         if (event.getTitle() == null || event.getTitle().isBlank()) {
             throw new IllegalArgumentException("Composition title is required");

@@ -24,11 +24,11 @@ import java.time.Instant;
 public class Document {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false, length = 36)
-    private String userId;
+    @Column(nullable = false)
+    private Long userId;
 
     @Column(nullable = false, length = 255)
     private String filename;

@@ -68,7 +68,7 @@ public class DocumentController {
     @Operation(summary = "Get document", description = "Retrieve document details and download URL")
     public ResponseEntity<DocumentUploadResponse> getDocument(
             Authentication authentication,
-            @PathVariable String id) {
+            @PathVariable Long id) {
         
         if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -114,7 +114,7 @@ public class DocumentController {
     @Operation(summary = "Get document content", description = "Retrieve extracted plain-text content of a document")
     public ResponseEntity<DocumentContentResponse> getDocumentContent(
             Authentication authentication,
-            @PathVariable String id) {
+            @PathVariable Long id) {
 
         if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -136,7 +136,7 @@ public class DocumentController {
     @Operation(summary = "Delete document", description = "Delete a document owned by authenticated user")
     public ResponseEntity<Void> deleteDocument(
             Authentication authentication,
-            @PathVariable String id) {
+            @PathVariable Long id) {
         
         if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

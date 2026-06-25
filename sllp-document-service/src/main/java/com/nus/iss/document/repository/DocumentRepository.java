@@ -12,7 +12,7 @@ import java.util.Optional;
  * Repository for Document entity.
  */
 @Repository
-public interface DocumentRepository extends JpaRepository<Document, String> {
+public interface DocumentRepository extends JpaRepository<Document, Long> {
     /**
      * Find document by ID and verify ownership (user_id matches).
      *
@@ -20,7 +20,7 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
      * @param userId user ID
      * @return optional containing document if found and owned by user
      */
-    Optional<Document> findByIdAndUserId(String id, String userId);
+    Optional<Document> findByIdAndUserId(Long id, Long userId);
 
     /**
      * Find all documents for a user (paginated).
@@ -29,7 +29,7 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
      * @param pageable pagination parameters
      * @return page of documents owned by user
      */
-    Page<Document> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
+    Page<Document> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     /**
      * Delete document by ID and verify ownership.
@@ -38,5 +38,6 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
      * @param userId user ID
      * @return number of documents deleted
      */
-    long deleteByIdAndUserId(String id, String userId);
+    long deleteByIdAndUserId(Long id, Long userId);
 }
+

@@ -46,12 +46,17 @@ public class JwtProvider {
      * @return user ID
      */
     public String getUserIdFromToken(String token) {
-        return Jwts.parser()
+        Object userId = Jwts.parser()
             .verifyWith(getSigningKey())
             .build()
             .parseSignedClaims(token)
             .getPayload()
-            .getSubject();
+            .get("userId");
+        if (userId == null) {
+            // Fallback: legacy tokens may use subject (username) — not valid for Long lookup
+            throw new IllegalArgumentException("JWT is missing userId claim");
+        }
+        return userId.toString();
     }
 
     /**

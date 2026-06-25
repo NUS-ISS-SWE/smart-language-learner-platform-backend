@@ -14,8 +14,8 @@ import java.time.Instant;
  * @param createdAt creation timestamp
  */
 public record DocumentDTO(
-    @Schema(description = "Document ID", example = "550e8400-e29b-41d4-a716-446655440000")
-    String id,
+    @Schema(description = "Document ID", example = "1")
+    Long id,
 
     @Schema(description = "Original filename", example = "essay.pdf")
     String filename,

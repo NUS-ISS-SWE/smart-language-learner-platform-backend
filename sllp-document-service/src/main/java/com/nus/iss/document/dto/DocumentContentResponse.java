@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 public record DocumentContentResponse(
     @Schema(description = "Document ID")
-    String id,
+    Long id,
 
     @Schema(description = "Document status", example = "READY")
     String status,

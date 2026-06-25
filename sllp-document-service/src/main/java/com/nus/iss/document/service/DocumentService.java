@@ -1,7 +1,6 @@
 package com.nus.iss.document.service;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,13 +36,14 @@ public class DocumentService {
     /**
      * Upload document for user, then synchronously extract text.
      *
-     * @param userId authenticated user ID
-     * @param file   multipart file to upload
+     * @param userIdStr authenticated user ID string from JWT userId claim
+     * @param file      multipart file to upload
      * @return upload response with document details and download URL
      */
     @Transactional
-    public DocumentUploadResponse uploadDocument(String userId, MultipartFile file) {
-        log.info("Uploading document for user: {}", userId);
+    public DocumentUploadResponse uploadDocument(String userIdStr, MultipartFile file) {
+        log.info("Uploading document for user: {}", userIdStr);
+        Long userId = Long.parseLong(userIdStr);
 
         fileValidationService.validateFile(file);
 
@@ -52,12 +52,12 @@ public class DocumentService {
             String sanitizedFilename = fileValidationService.sanitizeFilename(originalFilename);
             String fileExtension = fileValidationService.getFileExtension(originalFilename);
 
-            // Read bytes once â€” used for both S3 upload and text extraction
+            // Read bytes once - used for both S3 upload and text extraction
             byte[] fileBytes = file.getBytes();
 
-            // Upload to S3
+            // Upload to S3 (use userIdStr as the S3 key prefix)
             String s3Key = s3Service.uploadFile(
-                userId,
+                userIdStr,
                 sanitizedFilename,
                 new java.io.ByteArrayInputStream(fileBytes),
                 fileBytes.length,
@@ -96,39 +96,51 @@ public class DocumentService {
     /**
      * Get extracted text content for a document.
      *
-     * @param userId     authenticated user ID
+     * @param userIdStr  authenticated user ID string from JWT userId claim
      * @param documentId document ID
      * @return content response with status and extracted text
      */
     @Transactional(readOnly = true)
-    public DocumentContentResponse getDocumentContent(String userId, String documentId) {
+    public DocumentContentResponse getDocumentContent(String userIdStr, Long documentId) {
+        Long userId = Long.parseLong(userIdStr);
         log.info("Retrieving content for document: id={}, userId={}", documentId, userId);
 
         Document document = documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(documentId));
+            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
 
         return new DocumentContentResponse(document.getId(), document.getStatus(), document.getExtractedText());
     }
 
     /**
      * Get document by ID (verify ownership).
+     *
+     * @param userIdStr  authenticated user ID string from JWT userId claim
+     * @param documentId document ID
+     * @return upload response with document details and download URL
      */
     @Transactional(readOnly = true)
-    public DocumentUploadResponse getDocument(String userId, String documentId) {
+    public DocumentUploadResponse getDocument(String userIdStr, Long documentId) {
+        Long userId = Long.parseLong(userIdStr);
         log.info("Retrieving document: id={}, userId={}", documentId, userId);
 
         Document document = documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(documentId));
+            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
 
         String downloadUrl = s3Service.generatePresignedUrl(document.getS3Key());
         return new DocumentUploadResponse(toDocumentDTO(document), downloadUrl);
     }
 
     /**
-     * List user's documents (paginated).
+     * List user documents (paginated).
+     *
+     * @param userIdStr authenticated user ID string from JWT userId claim
+     * @param page      page number (0-based)
+     * @param size      page size
+     * @return paginated list of documents
      */
     @Transactional(readOnly = true)
-    public DocumentsPageResponse listUserDocuments(String userId, int page, int size) {
+    public DocumentsPageResponse listUserDocuments(String userIdStr, int page, int size) {
+        Long userId = Long.parseLong(userIdStr);
         log.info("Listing documents for user: {}, page={}, size={}", userId, page, size);
 
         Pageable pageable = PageRequest.of(page, size);
@@ -144,13 +156,17 @@ public class DocumentService {
 
     /**
      * Delete document (verify ownership).
+     *
+     * @param userIdStr  authenticated user ID string from JWT userId claim
+     * @param documentId document ID
      */
     @Transactional
-    public void deleteDocument(String userId, String documentId) {
+    public void deleteDocument(String userIdStr, Long documentId) {
+        Long userId = Long.parseLong(userIdStr);
         log.info("Deleting document: id={}, userId={}", documentId, userId);
 
         Document document = documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(documentId));
+            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
 
         s3Service.deleteFile(document.getS3Key());
         documentRepository.deleteByIdAndUserId(documentId, userId);

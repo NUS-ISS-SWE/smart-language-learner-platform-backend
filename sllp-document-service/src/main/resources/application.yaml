@@ -21,6 +21,10 @@ spring:
     show-sql: false
   liquibase:
     enabled: false  # Schema managed by sllp-liquibase-service; disable here to avoid re-running
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 26MB
 
 aws:
   s3:

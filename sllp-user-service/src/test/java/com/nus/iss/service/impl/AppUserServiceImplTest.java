@@ -86,8 +86,8 @@ class AppUserServiceImplTest {
         assertEquals(Role.USER_FREE_TRIAL, response.getRole());
         assertEquals(PreferredLanguage.ENGLISH, response.getPreferredLanguage());
         assertEquals(DifficultyLevel.BEGINNER, response.getDifficultyLevel());
-        assertEquals(5000L, response.getToken());
-        assertEquals(0L, response.getTotalTokenConsumption());
+        assertEquals(5000L, response.getAiTokenBalance());
+        assertEquals(0L, response.getAiTokenUsed());
 
         assertEquals("encoded-password", savedUser.getPassword());
         assertEquals(Status.PENDING_EMAIL_VERIFICATION, savedUser.getStatus());
@@ -172,13 +172,13 @@ class AppUserServiceImplTest {
         AppUser user = activeUser();
         when(appUserRepository.findByUsername("ming")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encoded-password")).thenReturn(true);
-        when(jwtConfig.generateToken("ming", "USER_FREE_TRIAL")).thenReturn("jwt-token");
+        when(jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL")).thenReturn("jwt-token");
 
         JwtAccessTokenDTO response = appUserService.login("ming", "password123");
 
         assertEquals("jwt-token", response.getAccessToken());
         assertEquals("USER_FREE_TRIAL", response.getRole());
-        verify(jwtConfig).generateToken("ming", "USER_FREE_TRIAL");
+        verify(jwtConfig).generateToken("ming", 1L, "USER_FREE_TRIAL");
     }
 
     @Test
@@ -333,8 +333,8 @@ class AppUserServiceImplTest {
                 .role(Role.USER_FREE_TRIAL)
                 .preferredLanguage(PreferredLanguage.ENGLISH)
                 .difficultyLevel(DifficultyLevel.BEGINNER)
-                .token(5000L)
-                .totalTokenConsumption(0L)
+                .aiTokenBalance(5000L)
+                .aiTokenUsed(0L)
                 .build();
     }
 

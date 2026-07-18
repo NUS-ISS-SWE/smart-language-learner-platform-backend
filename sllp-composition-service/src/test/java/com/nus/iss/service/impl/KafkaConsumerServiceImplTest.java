@@ -30,7 +30,7 @@ class KafkaConsumerServiceImplTest {
         KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .feedback("Good")
                 .build();
@@ -46,7 +46,7 @@ class KafkaConsumerServiceImplTest {
         KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(20L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent("Generated")
                 .build();

@@ -63,14 +63,14 @@ class CompositionServiceImplTest {
             return composition;
         });
 
-        CompositionDTO response = compositionService.createNewComposition("ming", request);
+        CompositionDTO response = compositionService.createNewComposition(1L, request);
 
         ArgumentCaptor<Composition> compositionCaptor = ArgumentCaptor.forClass(Composition.class);
         verify(compositionRepository).save(compositionCaptor.capture());
         Composition savedComposition = compositionCaptor.getValue();
 
         assertEquals(10L, response.getId());
-        assertEquals("ming", response.getUsername());
+        assertEquals(1L, response.getUserId());
         assertEquals("My title", response.getTitle());
         assertEquals("This is my composition.", response.getContent());
         assertEquals(CompositionSource.RAW_TEXT, response.getCompositionSource());
@@ -88,7 +88,7 @@ class CompositionServiceImplTest {
         CompositionDTO request = compositionRequest();
         when(languageDetectorService.detectLanguage("This is my composition.")).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> compositionService.createNewComposition("ming", request));
+        assertThrows(IllegalArgumentException.class, () -> compositionService.createNewComposition(1L, request));
 
         verify(compositionRepository, never()).save(any(Composition.class));
         verifyNoInteractions(kafkaProducerService);
@@ -97,7 +97,7 @@ class CompositionServiceImplTest {
     @Test
     void createNewComposition_whenUsernameIsBlankThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition(" ", compositionRequest()));
+                () -> compositionService.createNewComposition(0L, compositionRequest()));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -113,7 +113,7 @@ class CompositionServiceImplTest {
     @Test
     void createNewComposition_whenRequestBodyIsNullThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition("ming", null));
+                () -> compositionService.createNewComposition(1L, null));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -124,7 +124,7 @@ class CompositionServiceImplTest {
         request.setTitle(" ");
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition("ming", request));
+                () -> compositionService.createNewComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -135,7 +135,7 @@ class CompositionServiceImplTest {
         request.setTitle(null);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition("ming", request));
+                () -> compositionService.createNewComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -146,7 +146,7 @@ class CompositionServiceImplTest {
         request.setContent(" ");
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition("ming", request));
+                () -> compositionService.createNewComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -157,62 +157,62 @@ class CompositionServiceImplTest {
         request.setContent(null);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.createNewComposition("ming", request));
+                () -> compositionService.createNewComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
 
     @Test
-    void getAllCompositionByUsername_whenRequestIsValidReturnsMappedCompositions() {
+    void getAllCompositionByUserId_whenRequestIsValidReturnsMappedCompositions() {
         Pageable pageable = PageRequest.of(0, 10);
         Composition composition = persistedComposition();
-        when(compositionRepository.findByUsername("ming", pageable)).thenReturn(List.of(composition));
+        when(compositionRepository.findByUserId(1L, pageable)).thenReturn(List.of(composition));
 
-        List<CompositionDTO> response = compositionService.getAllCompositionByUsername("ming", pageable);
+        List<CompositionDTO> response = compositionService.getAllCompositionByUserId(1L, pageable);
 
         assertEquals(1, response.size());
         assertEquals(10L, response.getFirst().getId());
-        assertEquals("ming", response.getFirst().getUsername());
+        assertEquals(1L, response.getFirst().getUserId());
         assertEquals("My title", response.getFirst().getTitle());
     }
 
     @Test
-    void getAllCompositionByUsername_whenPageableIsNullThrowsIllegalArgumentException() {
+    void getAllCompositionByUserId_whenPageableIsNullThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getAllCompositionByUsername("ming", null));
+                () -> compositionService.getAllCompositionByUserId(1L, null));
 
         verifyNoInteractions(compositionRepository);
     }
 
     @Test
-    void getAllCompositionByUsername_whenPageNumberIsNegativeThrowsIllegalArgumentException() {
+    void getAllCompositionByUserId_whenPageNumberIsNegativeThrowsIllegalArgumentException() {
         Pageable pageable = org.mockito.Mockito.mock(Pageable.class);
         when(pageable.getPageNumber()).thenReturn(-1);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getAllCompositionByUsername("ming", pageable));
+                () -> compositionService.getAllCompositionByUserId(1L, pageable));
 
         verifyNoInteractions(compositionRepository);
     }
 
     @Test
-    void getAllCompositionByUsername_whenPageSizeIsLessThanOneThrowsIllegalArgumentException() {
+    void getAllCompositionByUserId_whenPageSizeIsLessThanOneThrowsIllegalArgumentException() {
         Pageable pageable = org.mockito.Mockito.mock(Pageable.class);
         when(pageable.getPageNumber()).thenReturn(0);
         when(pageable.getPageSize()).thenReturn(0);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getAllCompositionByUsername("ming", pageable));
+                () -> compositionService.getAllCompositionByUserId(1L, pageable));
 
         verifyNoInteractions(compositionRepository);
     }
 
     @Test
-    void getAllCompositionByUsername_whenPageSizeIsTooLargeThrowsIllegalArgumentException() {
+    void getAllCompositionByUserId_whenPageSizeIsTooLargeThrowsIllegalArgumentException() {
         Pageable pageable = PageRequest.of(0, 101);
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getAllCompositionByUsername("ming", pageable));
+                () -> compositionService.getAllCompositionByUserId(1L, pageable));
 
         verifyNoInteractions(compositionRepository);
     }
@@ -220,27 +220,27 @@ class CompositionServiceImplTest {
     @Test
     void getSingleCompositionById_whenCompositionExistsReturnsMappedComposition() {
         Composition composition = persistedComposition();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
-        CompositionDTO response = compositionService.getSingleCompositionById("ming", 10L);
+        CompositionDTO response = compositionService.getSingleCompositionById(1L, 10L);
 
         assertEquals(10L, response.getId());
-        assertEquals("ming", response.getUsername());
+        assertEquals(1L, response.getUserId());
         assertEquals(CompositionStatus.DRAFT, response.getCompositionStatus());
     }
 
     @Test
     void getSingleCompositionById_whenCompositionDoesNotExistThrowsNoSuchElementException() {
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.empty());
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class,
-                () -> compositionService.getSingleCompositionById("ming", 10L));
+                () -> compositionService.getSingleCompositionById(1L, 10L));
     }
 
     @Test
     void getSingleCompositionById_whenIdIsInvalidThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getSingleCompositionById("ming", 0L));
+                () -> compositionService.getSingleCompositionById(1L, 0L));
 
         verifyNoInteractions(compositionRepository);
     }
@@ -248,7 +248,7 @@ class CompositionServiceImplTest {
     @Test
     void getSingleCompositionById_whenIdIsNullThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.getSingleCompositionById("ming", null));
+                () -> compositionService.getSingleCompositionById(1L, null));
 
         verifyNoInteractions(compositionRepository);
     }
@@ -260,11 +260,11 @@ class CompositionServiceImplTest {
                 .title("Updated title")
                 .content("Updated content")
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
         when(languageDetectorService.detectLanguage("Updated content")).thenReturn(Optional.of(Language.CHINESE));
         when(compositionRepository.save(composition)).thenReturn(composition);
 
-        CompositionDTO response = compositionService.updateComposition("ming", 10L, request);
+        CompositionDTO response = compositionService.updateComposition(1L, 10L, request);
 
         assertEquals("Updated title", response.getTitle());
         assertEquals("Updated content", response.getContent());
@@ -276,10 +276,10 @@ class CompositionServiceImplTest {
     @Test
     void updateComposition_whenCompositionDoesNotExistThrowsNoSuchElementException() {
         CompositionDTO request = compositionRequest();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.empty());
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class,
-                () -> compositionService.updateComposition("ming", 10L, request));
+                () -> compositionService.updateComposition(1L, 10L, request));
 
         verifyNoInteractions(languageDetectorService, kafkaProducerService);
     }
@@ -288,11 +288,11 @@ class CompositionServiceImplTest {
     void updateComposition_whenUpdatedLanguageIsUnsupportedThrowsIllegalArgumentException() {
         Composition composition = persistedComposition();
         CompositionDTO request = compositionRequest();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
         when(languageDetectorService.detectLanguage("This is my composition.")).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.updateComposition("ming", 10L, request));
+                () -> compositionService.updateComposition(1L, 10L, request));
 
         verify(compositionRepository, never()).save(any(Composition.class));
         verifyNoInteractions(kafkaProducerService);
@@ -301,19 +301,19 @@ class CompositionServiceImplTest {
     @Test
     void deleteComposition_whenCompositionExistsDeletesComposition() {
         Composition composition = persistedComposition();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
-        compositionService.deleteComposition("ming", 10L);
+        compositionService.deleteComposition(1L, 10L);
 
         verify(compositionRepository).delete(composition);
     }
 
     @Test
     void deleteComposition_whenCompositionDoesNotExistThrowsNoSuchElementException() {
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.empty());
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class,
-                () -> compositionService.deleteComposition("ming", 10L));
+                () -> compositionService.deleteComposition(1L, 10L));
 
         verify(compositionRepository, never()).delete(any(Composition.class));
     }
@@ -321,10 +321,10 @@ class CompositionServiceImplTest {
     @Test
     void requestToGradeComposition_whenCompositionIsDraftMarksReviewingAndSendsEvent() {
         Composition composition = persistedComposition();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
         when(compositionRepository.save(composition)).thenReturn(composition);
 
-        CompositionDTO response = compositionService.requestToGradeComposition("ming", 10L);
+        CompositionDTO response = compositionService.requestToGradeComposition(1L, 10L);
 
         ArgumentCaptor<CompositionGradingRequestedEvent> eventCaptor =
                 ArgumentCaptor.forClass(CompositionGradingRequestedEvent.class);
@@ -333,7 +333,7 @@ class CompositionServiceImplTest {
 
         assertEquals(CompositionStatus.REVIEWING, response.getCompositionStatus());
         assertEquals(10L, event.getCompositionId());
-        assertEquals("ming", event.getUsername());
+        assertEquals(1L, event.getUserId());
         assertEquals("My title", event.getTitle());
         assertEquals("This is my composition.", event.getContent());
         assertEquals(Language.ENGLISH, event.getLanguage());
@@ -344,10 +344,10 @@ class CompositionServiceImplTest {
     void requestToGradeComposition_whenCompositionIsNotDraftThrowsIllegalArgumentException() {
         Composition composition = persistedComposition();
         composition.setCompositionStatus(CompositionStatus.REVIEWED);
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.requestToGradeComposition("ming", 10L));
+                () -> compositionService.requestToGradeComposition(1L, 10L));
 
         verify(compositionRepository, never()).save(any(Composition.class));
         verifyNoInteractions(kafkaProducerService);
@@ -364,7 +364,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenUsernameIsNullThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username(null)
+                .userId(null)
                 .success(true)
                 .feedback("Good structure")
                 .build();
@@ -378,7 +378,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenCompositionIdIsNullThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(null)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .feedback("Good structure")
                 .build();
@@ -394,12 +394,12 @@ class CompositionServiceImplTest {
         LocalDateTime completedAt = LocalDateTime.of(2026, 6, 25, 10, 0);
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .feedback("Good structure")
                 .completedAt(completedAt)
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
         compositionService.completeCompositionGrading(event);
 
@@ -415,11 +415,11 @@ class CompositionServiceImplTest {
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason("Evaluation failed")
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
         compositionService.completeCompositionGrading(event);
 
@@ -433,7 +433,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenSuccessfulEventHasNullFeedbackThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .feedback(null)
                 .build();
@@ -447,7 +447,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenSuccessfulEventHasBlankFeedbackThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .feedback(" ")
                 .build();
@@ -461,7 +461,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenFailedEventHasNullFailureReasonThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason(null)
                 .build();
@@ -475,7 +475,7 @@ class CompositionServiceImplTest {
     void completeCompositionGrading_whenFailedEventHasBlankFailureReasonThrowsIllegalArgumentException() {
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason(" ")
                 .build();
@@ -497,7 +497,7 @@ class CompositionServiceImplTest {
             return composition;
         });
 
-        CompositionDTO response = compositionService.generateComposition("ming", request);
+        CompositionDTO response = compositionService.generateComposition(1L, request);
 
         ArgumentCaptor<CompositionGenerationRequestedEvent> eventCaptor =
                 ArgumentCaptor.forClass(CompositionGenerationRequestedEvent.class);
@@ -505,7 +505,7 @@ class CompositionServiceImplTest {
         CompositionGenerationRequestedEvent event = eventCaptor.getValue();
 
         assertEquals(20L, response.getId());
-        assertEquals("ming", response.getUsername());
+        assertEquals(1L, response.getUserId());
         assertEquals("Chinese prompt", response.getTitle());
         assertEquals(CompositionSource.SYSTEM, response.getCompositionSource());
         assertEquals(Language.CHINESE, response.getLanguage());
@@ -527,7 +527,7 @@ class CompositionServiceImplTest {
             return composition;
         });
 
-        CompositionDTO response = compositionService.generateComposition("ming", request);
+        CompositionDTO response = compositionService.generateComposition(1L, request);
 
         ArgumentCaptor<CompositionGenerationRequestedEvent> eventCaptor =
                 ArgumentCaptor.forClass(CompositionGenerationRequestedEvent.class);
@@ -539,7 +539,7 @@ class CompositionServiceImplTest {
     @Test
     void generateComposition_whenRequestBodyIsNullThrowsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.generateComposition("ming", null));
+                () -> compositionService.generateComposition(1L, null));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -551,7 +551,7 @@ class CompositionServiceImplTest {
                 .build();
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.generateComposition("ming", request));
+                () -> compositionService.generateComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -563,7 +563,7 @@ class CompositionServiceImplTest {
                 .build();
 
         assertThrows(IllegalArgumentException.class,
-                () -> compositionService.generateComposition("ming", request));
+                () -> compositionService.generateComposition(1L, request));
 
         verifyNoInteractions(languageDetectorService, compositionRepository, kafkaProducerService);
     }
@@ -576,12 +576,12 @@ class CompositionServiceImplTest {
         LocalDateTime completedAt = LocalDateTime.of(2026, 6, 25, 11, 0);
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent("Generated composition")
                 .completedAt(completedAt)
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
         compositionService.completeCompositionGeneration(event);
 
@@ -598,11 +598,11 @@ class CompositionServiceImplTest {
         composition.setCompositionStatus(CompositionStatus.GENERATING);
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason("Generation failed")
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.of(composition));
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
 
         compositionService.completeCompositionGeneration(event);
 
@@ -623,7 +623,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenUsernameIsNullThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username(null)
+                .userId(null)
                 .success(true)
                 .generatedContent("Generated composition")
                 .build();
@@ -637,7 +637,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenCompositionIdIsNullThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(null)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent("Generated composition")
                 .build();
@@ -651,7 +651,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenSuccessfulEventHasNullGeneratedContentThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent(null)
                 .build();
@@ -665,7 +665,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenSuccessfulEventHasBlankGeneratedContentThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent(" ")
                 .build();
@@ -679,7 +679,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenFailedEventHasNullFailureReasonThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason(null)
                 .build();
@@ -693,7 +693,7 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenFailedEventHasBlankFailureReasonThrowsIllegalArgumentException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(false)
                 .failureReason(" ")
                 .build();
@@ -707,11 +707,11 @@ class CompositionServiceImplTest {
     void completeCompositionGeneration_whenCompositionDoesNotExistThrowsNoSuchElementException() {
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .success(true)
                 .generatedContent("Generated composition")
                 .build();
-        when(compositionRepository.findByIdAndUsername(10L, "ming")).thenReturn(Optional.empty());
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class, () -> compositionService.completeCompositionGeneration(event));
 
@@ -729,7 +729,7 @@ class CompositionServiceImplTest {
         LocalDateTime createdAt = LocalDateTime.of(2026, 6, 25, 9, 0);
         return Composition.builder()
                 .id(10L)
-                .username("ming")
+                .userId(1L)
                 .title("My title")
                 .content("This is my composition.")
                 .compositionSource(CompositionSource.RAW_TEXT)

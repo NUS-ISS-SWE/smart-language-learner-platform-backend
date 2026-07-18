@@ -1,19 +1,19 @@
 package com.nus.iss.config;
 
-import com.nus.iss.entity.AppUser;
-import com.nus.iss.repository.AppUserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.nus.iss.entity.AppUser;
+import com.nus.iss.repository.AppUserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class JwtConfigTest {
@@ -32,14 +32,14 @@ class JwtConfigTest {
 
     @Test
     void extractUsername_whenTokenWasGeneratedReturnsSubject() {
-        String token = jwtConfig.generateToken("ming", "USER_FREE_TRIAL");
+        String token = jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL");
 
         assertEquals("ming", jwtConfig.extractUsername(token));
     }
 
     @Test
     void isTokenValid_whenSubjectExistsAndTokenIsNotExpiredReturnsTrue() {
-        String token = jwtConfig.generateToken("ming", "USER_FREE_TRIAL");
+        String token = jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL");
         when(appUserRepository.findByUsername("ming"))
                 .thenReturn(Optional.of(AppUser.builder().username("ming").build()));
 
@@ -48,7 +48,7 @@ class JwtConfigTest {
 
     @Test
     void isTokenValid_whenSubjectDoesNotExistReturnsFalse() {
-        String token = jwtConfig.generateToken("missing", "USER_FREE_TRIAL");
+        String token = jwtConfig.generateToken("missing", 1L, "USER_FREE_TRIAL");
         when(appUserRepository.findByUsername("missing")).thenReturn(Optional.empty());
 
         assertFalse(jwtConfig.isTokenValid(token));

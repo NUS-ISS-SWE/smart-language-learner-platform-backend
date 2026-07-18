@@ -50,8 +50,8 @@ class DocumentServiceTest {
     private DocumentService documentService;
 
     private Document testDocument;
-    private String testUserId = "user-123";
-    private String testDocumentId = "doc-456";
+    private String testUserId = "123";
+    private Long testDocumentId = 456L;
 
 
 
@@ -59,7 +59,7 @@ class DocumentServiceTest {
     void setUp() {
         testDocument = Document.builder()
             .id(testDocumentId)
-            .userId(testUserId)
+            .userId(Long.parseLong(testUserId))
             .filename("test.pdf")
             .s3Key("documents/user-123/1234567890_test.pdf")
             .fileType("pdf")
@@ -100,7 +100,7 @@ class DocumentServiceTest {
     @Test
     void testGetDocument_Success() {
         // Arrange
-        when(documentRepository.findByIdAndUserId(testDocumentId, testUserId))
+        when(documentRepository.findByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))
             .thenReturn(Optional.of(testDocument));
         when(s3Service.generatePresignedUrl(testDocument.getS3Key()))
             .thenReturn("https://s3.amazonaws.com/...");
@@ -117,7 +117,7 @@ class DocumentServiceTest {
     @Test
     void testGetDocument_NotFound() {
         // Arrange
-        when(documentRepository.findByIdAndUserId(testDocumentId, testUserId))
+        when(documentRepository.findByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))
             .thenReturn(Optional.empty());
 
         // Act & Assert
@@ -128,10 +128,10 @@ class DocumentServiceTest {
     @Test
     void testDeleteDocument_Success() {
         // Arrange
-        when(documentRepository.findByIdAndUserId(testDocumentId, testUserId))
+        when(documentRepository.findByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))
             .thenReturn(Optional.of(testDocument));
         doNothing().when(s3Service).deleteFile(testDocument.getS3Key());
-        when(documentRepository.deleteByIdAndUserId(testDocumentId, testUserId))
+        when(documentRepository.deleteByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))
             .thenReturn(1L);
 
         // Act
@@ -139,13 +139,13 @@ class DocumentServiceTest {
 
         // Assert
         verify(s3Service).deleteFile(testDocument.getS3Key());
-        verify(documentRepository).deleteByIdAndUserId(testDocumentId, testUserId);
+        verify(documentRepository).deleteByIdAndUserId(testDocumentId, Long.parseLong(testUserId));
     }
 
     @Test
     void testDeleteDocument_NotFound() {
         // Arrange
-        when(documentRepository.findByIdAndUserId(testDocumentId, testUserId))
+        when(documentRepository.findByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))
             .thenReturn(Optional.empty());
 
         // Act & Assert

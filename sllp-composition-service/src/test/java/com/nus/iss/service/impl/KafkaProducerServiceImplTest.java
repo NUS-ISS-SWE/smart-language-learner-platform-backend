@@ -32,7 +32,7 @@ class KafkaProducerServiceImplTest {
         KafkaProducerServiceImpl service = new KafkaProducerServiceImpl(kafkaTemplate, properties, objectMapper);
         CompositionGradingRequestedEvent event = CompositionGradingRequestedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .build();
         when(objectMapper.writeValueAsString(event)).thenReturn("{\"compositionId\":10}");
 
@@ -47,7 +47,7 @@ class KafkaProducerServiceImplTest {
         KafkaProducerServiceImpl service = new KafkaProducerServiceImpl(kafkaTemplate, properties, objectMapper);
         CompositionGenerationRequestedEvent event = CompositionGenerationRequestedEvent.builder()
                 .compositionId(20L)
-                .username("ming")
+                .userId(1L)
                 .build();
         when(objectMapper.writeValueAsString(event)).thenReturn("{\"compositionId\":20}");
 
@@ -62,7 +62,7 @@ class KafkaProducerServiceImplTest {
         KafkaProducerServiceImpl service = new KafkaProducerServiceImpl(kafkaTemplate, properties, objectMapper);
         CompositionGradingRequestedEvent event = CompositionGradingRequestedEvent.builder()
                 .compositionId(10L)
-                .username("ming")
+                .userId(1L)
                 .build();
         when(objectMapper.writeValueAsString(event)).thenThrow(Mockito.mock(JacksonException.class));
 

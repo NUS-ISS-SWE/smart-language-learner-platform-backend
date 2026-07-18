@@ -71,10 +71,17 @@ ALTER TABLE app_user DROP COLUMN IF EXISTS subscription_start_date;
 ALTER TABLE app_user DROP COLUMN IF EXISTS subscription_end_date;
 ALTER TABLE app_user DROP COLUMN IF EXISTS subscription_duration_in_days;
 
---changeset yasin:002-rename-token-fields
--- Rename ambiguous 'token' and 'total_token_consumption' to descriptive AI-quota names
-ALTER TABLE app_user RENAME COLUMN token TO ai_token_balance;
-ALTER TABLE app_user RENAME COLUMN total_token_consumption TO ai_token_used;
+--changeset yasin:002-rename-token-fields splitStatements:false
+-- Rename only if old column names still exist (idempotent: safe if already renamed by init script)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'app_user' AND column_name = 'token') THEN
+        ALTER TABLE app_user RENAME COLUMN token TO ai_token_balance;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'app_user' AND column_name = 'total_token_consumption') THEN
+        ALTER TABLE app_user RENAME COLUMN total_token_consumption TO ai_token_used;
+    END IF;
+END $$;
 
 --changeset yasin:002-create-evaluation
 -- Add persistent evaluation records so grading history is queryable

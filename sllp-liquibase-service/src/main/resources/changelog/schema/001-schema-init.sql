@@ -1,6 +1,7 @@
 --liquibase formatted sql
 
 --changeset mingwei:init-setup-user-table
+--validCheckSum: ANY
 CREATE TABLE IF NOT EXISTS app_user (
     id                            BIGSERIAL PRIMARY KEY,
     username                      VARCHAR(255) NOT NULL UNIQUE,
@@ -11,8 +12,8 @@ CREATE TABLE IF NOT EXISTS app_user (
     difficulty_level              VARCHAR(50) DEFAULT 'BEGINNER' CHECK (difficulty_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')),
     created_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     role                          VARCHAR(50) DEFAULT 'USER_FREE_TRIAL' CHECK (role IN ('ADMIN', 'USER_FREE_TRIAL', 'USER_BASIC', 'USER_PREMIUM')),
-    token                         BIGINT,
-    total_token_consumption       BIGINT,
+    ai_token_balance              BIGINT,
+    ai_token_used                 BIGINT,
     subscription_start_date       DATE,
     subscription_end_date         DATE,
     subscription_duration_in_days INTEGER
@@ -50,7 +51,8 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 
 --changeset yasin:seed-dev-users
-INSERT INTO app_user (username, email, password, status, preferred_language, difficulty_level, role, token, total_token_consumption)
+--validCheckSum: ANY
+INSERT INTO app_user (username, email, password, status, preferred_language, difficulty_level, role, ai_token_balance, ai_token_used)
 VALUES
   ('admin', 'admin@sllp.dev', '$2b$10$LnHUNvtHD64zkeNX2BpBouzMwoN49yiM1uW4t0RMbuqUT37RMCXIq', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN', 10000, 0),
   ('testuser', 'testuser@sllp.dev', '$2b$10$LnHUNvtHD64zkeNX2BpBouzMwoN49yiM1uW4t0RMbuqUT37RMCXIq', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'USER_FREE_TRIAL', 5000, 0)

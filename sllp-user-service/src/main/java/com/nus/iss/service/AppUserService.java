@@ -10,6 +10,8 @@ public interface AppUserService {
 
     void forgotPassword(String email);
 
+    JwtAccessTokenDTO confirmForgotPassword(String token, String newPassword);
+
     void resetPassword(AppUserDTO appUserDTO);
 
     void activateUser(String token);

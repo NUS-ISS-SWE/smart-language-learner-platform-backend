@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
@@ -101,6 +102,23 @@ public class AppUserServiceImpl implements AppUserService {
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> new BadCredentialsException("User not found with email: " + email));
         notificationService.sendForgotPasswordEmail(user);
+    }
+
+    @Override
+    @Transactional
+    public JwtAccessTokenDTO confirmForgotPassword(String token, String newPassword) {
+        log.info("Confirming forgot password with token");
+        String email = new String(Base64.getDecoder().decode(token));
+        AppUser user = appUserRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired reset token"));
+        user.setPassword(passwordEncoder.encode(newPassword));
+        appUserRepository.save(user);
+        String jwtToken = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
+        log.info("Password reset successfully via token for user: {}", user.getUsername());
+        return JwtAccessTokenDTO.builder()
+                .accessToken(jwtToken)
+                .role(user.getRole().name())
+                .build();
     }
 
     @Override

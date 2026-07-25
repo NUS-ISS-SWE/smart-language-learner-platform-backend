@@ -111,6 +111,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
+      - API_BASE_URL=${API_BASE_URL:-http://localhost:8080}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
 
   composition-service:
     build:

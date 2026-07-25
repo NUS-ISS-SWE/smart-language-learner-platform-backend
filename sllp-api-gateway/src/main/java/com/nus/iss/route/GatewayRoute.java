@@ -34,6 +34,8 @@ public class GatewayRoute {
                         .uri(sllpProperties.getUserService()))
                 .route("user_forgot-password", r -> r.path("/api/v1/auth/forgot-password")
                         .uri(sllpProperties.getUserService()))
+                .route("user_forgot-password-confirm", r -> r.path("/api/v1/auth/forgot-password/confirm")
+                        .uri(sllpProperties.getUserService()))
                 .route("user_reset-password", r -> r.path("/api/v1/auth/reset-password")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getUserService()))

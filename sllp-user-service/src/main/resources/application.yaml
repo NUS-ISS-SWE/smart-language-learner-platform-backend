@@ -45,3 +45,7 @@ sllp:
       issuer: ${JWT_ISSUER:sllp-app}
       secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       expirationTimeMillis: 86400000
+
+app:
+  api-base-url: ${API_BASE_URL:http://localhost:8080}
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}

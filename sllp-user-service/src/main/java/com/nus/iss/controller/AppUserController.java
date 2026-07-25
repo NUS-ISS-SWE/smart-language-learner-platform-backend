@@ -2,6 +2,7 @@ package com.nus.iss.controller;
 
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
+import com.nus.iss.dto.ResetPasswordConfirmDTO;
 import com.nus.iss.service.AppUserService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,13 @@ public class AppUserController {
         log.info("Forgot password request for email: {}", appUserDTO.getEmail());
         appUserService.forgotPassword(appUserDTO.getEmail());
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/forgot-password/confirm")
+    public ResponseEntity<JwtAccessTokenDTO> confirmForgotPassword(@Valid @RequestBody ResetPasswordConfirmDTO dto) {
+        log.info("Confirm forgot password request");
+        JwtAccessTokenDTO jwtAccessToken = appUserService.confirmForgotPassword(dto.token(), dto.newPassword());
+        return ResponseEntity.ok(jwtAccessToken);
     }
 
     @PostMapping("/reset-password")

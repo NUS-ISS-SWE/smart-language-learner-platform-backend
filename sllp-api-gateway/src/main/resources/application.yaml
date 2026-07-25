@@ -30,6 +30,7 @@ sllp:
   user-service: http://localhost:8082
   composition-service: http://localhost:8083
   document-service: http://localhost:8089
+  subscription-service: http://localhost:8084
   security:
     jwt:
       issuer: nus-iss-smart-language-learner-platform

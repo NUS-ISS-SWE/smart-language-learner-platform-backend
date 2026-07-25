@@ -171,6 +171,8 @@ services:
 #        condition: service_started
       document-service:
         condition: service_started
+      subscription-service:
+        condition: service_started
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}

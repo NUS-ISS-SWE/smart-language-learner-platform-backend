@@ -1,7 +1,7 @@
 package com.nus.iss.route;
 
-import com.nus.iss.config.JwtAuthenticationFilter;
-import com.nus.iss.config.SllpProperties;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 
-import java.util.List;
+import com.nus.iss.config.JwtAuthenticationFilter;
+import com.nus.iss.config.SllpProperties;
 
 @Configuration
 public class GatewayRoute {
@@ -101,6 +102,32 @@ public class GatewayRoute {
                         .path("/api/documents/{id}")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getDocumentService()))
+
+                // Subscription service routes
+                .route("subscription_plans", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/subscription/plans")
+                        .uri(sllpProperties.getSubscriptionService()))
+                .route("subscription_current", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/subscription/current")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getSubscriptionService()))
+                .route("subscription_select", r -> r.method(HttpMethod.POST)
+                        .and()
+                        .path("/api/v1/subscription/select")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getSubscriptionService()))
+                .route("subscription_cancel", r -> r.method(HttpMethod.POST)
+                        .and()
+                        .path("/api/v1/subscription/cancel")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getSubscriptionService()))
+                .route("subscription_history", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/subscription/history")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getSubscriptionService()))
 
                 .build();
     }

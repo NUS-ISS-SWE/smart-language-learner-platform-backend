@@ -1,5 +1,14 @@
 package com.nus.iss.service.impl;
 
+import java.time.LocalDateTime;
+import java.util.Base64;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.nus.iss.config.JwtConfig;
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
@@ -12,16 +21,8 @@ import com.nus.iss.exception.UserAlreadyExistsException;
 import com.nus.iss.repository.AppUserRepository;
 import com.nus.iss.service.AppUserService;
 import com.nus.iss.service.NotificationService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.Base64;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service

@@ -1,5 +1,28 @@
 package com.nus.iss.service.impl;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.any;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import com.nus.iss.dto.CompositionDTO;
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
@@ -10,39 +33,18 @@ import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
 import com.nus.iss.repository.CompositionRepository;
+import com.nus.iss.repository.EvaluationRepository;
 import com.nus.iss.service.KafkaProducerService;
 import com.nus.iss.service.LanguageDetectorService;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CompositionServiceImplTest {
 
     @Mock
     private CompositionRepository compositionRepository;
+
+    @Mock
+    private EvaluationRepository evaluationRepository;
 
     @Mock
     private LanguageDetectorService languageDetectorService;
@@ -171,9 +173,9 @@ class CompositionServiceImplTest {
         List<CompositionDTO> response = compositionService.getAllCompositionByUserId(1L, pageable);
 
         assertEquals(1, response.size());
-        assertEquals(10L, response.getFirst().getId());
-        assertEquals(1L, response.getFirst().getUserId());
-        assertEquals("My title", response.getFirst().getTitle());
+        assertEquals(10L, response.get(0).getId());
+        assertEquals(1L, response.get(0).getUserId());
+        assertEquals("My title", response.get(0).getTitle());
     }
 
     @Test

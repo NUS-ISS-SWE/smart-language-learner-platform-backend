@@ -1,5 +1,6 @@
 package com.nus.iss.service.impl;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
@@ -13,6 +14,7 @@ import com.nus.iss.config.JwtConfig;
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
 import com.nus.iss.entity.AppUser;
+import com.nus.iss.entity.UserSubscription;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
 import com.nus.iss.enums.Role;
@@ -41,6 +43,8 @@ public class AppUserServiceImpl implements AppUserService {
         this.jwtConfig = jwtConfig;
     }
 
+    private static final int PAID_PLAN_DURATION_DAYS = 30;
+
     @Override
     @Transactional
     public AppUserDTO registerUser(AppUserDTO appUserDTO) {
@@ -50,12 +54,14 @@ public class AppUserServiceImpl implements AppUserService {
             throw new UserAlreadyExistsException("Account already exists");
         }
 
+        Role role = roleForPlan(appUserDTO.getPlanType());
+
         AppUser appUser = AppUser.builder()
                 .username(appUserDTO.getUsername())
                 .email(appUserDTO.getEmail())
                 .password(passwordEncoder.encode(appUserDTO.getPassword()))
                 .status(Status.PENDING_EMAIL_VERIFICATION)
-                .role(Role.USER_FREE_TRIAL)
+                .role(role)
                 .preferredLanguage(appUserDTO.getPreferredLanguage() != null ? appUserDTO.getPreferredLanguage() : PreferredLanguage.ENGLISH)
                 .difficultyLevel(appUserDTO.getDifficultyLevel() != null ? appUserDTO.getDifficultyLevel() : DifficultyLevel.BEGINNER)
                 .createdAt(LocalDateTime.now())
@@ -65,6 +71,8 @@ public class AppUserServiceImpl implements AppUserService {
 
         AppUser savedUser = appUserRepository.save(appUser);
         log.info("User registered successfully with ID: {}", savedUser.getId());
+
+        createInitialSubscription(savedUser, appUserDTO.getPlanType());
 
         try {
             notificationService.sendActivationEmail(savedUser);
@@ -158,6 +166,29 @@ public class AppUserServiceImpl implements AppUserService {
             log.error("Invalid Base64 token: {}", token);
             throw new BadCredentialsException("Invalid activation token");
         }
+    }
+
+    private static Role roleForPlan(String planType) {
+        if ("BASIC".equals(planType)) return Role.USER_BASIC;
+        if ("PREMIUM".equals(planType)) return Role.USER_PREMIUM;
+        return Role.USER_FREE_TRIAL;
+    }
+
+    private void createInitialSubscription(AppUser user, String planType) {
+        if (!"BASIC".equals(planType) && !"PREMIUM".equals(planType)) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+        UserSubscription sub = UserSubscription.builder()
+                .user(user)
+                .planType(planType)
+                .startDate(today)
+                .endDate(today.plusDays(PAID_PLAN_DURATION_DAYS))
+                .durationDays(PAID_PLAN_DURATION_DAYS)
+                .build();
+        user.getSubscriptions().add(sub);
+        appUserRepository.save(user);
+        log.info("Created {} subscription for user {}", planType, user.getId());
     }
 
     private AppUserDTO mapToDTO(AppUser user) {

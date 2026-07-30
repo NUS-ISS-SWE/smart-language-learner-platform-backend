@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,26 +23,20 @@ import com.nus.iss.repository.AppUserRepository;
 import com.nus.iss.service.AppUserService;
 import com.nus.iss.service.NotificationService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AppUserServiceImpl implements AppUserService {
+
+    private static final int PAID_PLAN_DURATION_DAYS = 30;
 
     private final AppUserRepository appUserRepository;
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
     private final JwtConfig jwtConfig;
-
-    @Autowired
-    public AppUserServiceImpl(AppUserRepository appUserRepository, NotificationService notificationService, PasswordEncoder passwordEncoder, JwtConfig jwtConfig) {
-        this.appUserRepository = appUserRepository;
-        this.notificationService = notificationService;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtConfig = jwtConfig;
-    }
-
-    private static final int PAID_PLAN_DURATION_DAYS = 30;
 
     @Override
     @Transactional
@@ -84,6 +77,7 @@ public class AppUserServiceImpl implements AppUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public JwtAccessTokenDTO login(String username, String password) {
         log.info("Login attempt for user: {}", username);
         AppUser user = appUserRepository.findByUsername(username)
@@ -97,15 +91,11 @@ public class AppUserServiceImpl implements AppUserService {
             throw new BadCredentialsException("Invalid username or password");
         }
 
-        String token = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
-
-        return JwtAccessTokenDTO.builder()
-                .accessToken(token)
-                .role(user.getRole().name())
-                .build();
+        return buildJwtToken(user);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public void forgotPassword(String email) {
         log.info("Forgot password request for email: {}", email);
         AppUser user = appUserRepository.findByEmail(email)
@@ -117,17 +107,13 @@ public class AppUserServiceImpl implements AppUserService {
     @Transactional
     public JwtAccessTokenDTO confirmForgotPassword(String token, String newPassword) {
         log.info("Confirming forgot password with token");
-        String email = new String(Base64.getDecoder().decode(token));
+        String email = decodeEmailToken(token);
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> new BadCredentialsException("Invalid or expired reset token"));
         user.setPassword(passwordEncoder.encode(newPassword));
         appUserRepository.save(user);
-        String jwtToken = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
         log.info("Password reset successfully via token for user: {}", user.getUsername());
-        return JwtAccessTokenDTO.builder()
-                .accessToken(jwtToken)
-                .role(user.getRole().name())
-                .build();
+        return buildJwtToken(user);
     }
 
     @Override
@@ -150,22 +136,34 @@ public class AppUserServiceImpl implements AppUserService {
     @Transactional
     public void activateUser(String token) {
         log.info("Activating user with token: {}", token);
-        try {
-            String email = new String(Base64.getDecoder().decode(token));
-            AppUser user = appUserRepository.findByEmail(email)
-                    .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
+        String email = decodeEmailToken(token);
+        AppUser user = appUserRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
 
-            if (user.getStatus() == Status.PENDING_EMAIL_VERIFICATION) {
-                user.setStatus(Status.ACTIVE);
-                appUserRepository.save(user);
-                log.info("User activated successfully: {}", email);
-            } else {
-                log.warn("User already active or in another state: {}", email);
-            }
+        if (user.getStatus() == Status.PENDING_EMAIL_VERIFICATION) {
+            user.setStatus(Status.ACTIVE);
+            appUserRepository.save(user);
+            log.info("User activated successfully: {}", email);
+        } else {
+            log.warn("User already active or in another state: {}", email);
+        }
+    }
+
+    private String decodeEmailToken(String token) {
+        try {
+            return new String(Base64.getDecoder().decode(token));
         } catch (IllegalArgumentException e) {
             log.error("Invalid Base64 token: {}", token);
-            throw new BadCredentialsException("Invalid activation token");
+            throw new BadCredentialsException("Invalid token");
         }
+    }
+
+    private JwtAccessTokenDTO buildJwtToken(AppUser user) {
+        String token = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
+        return JwtAccessTokenDTO.builder()
+                .accessToken(token)
+                .role(user.getRole().name())
+                .build();
     }
 
     private static Role roleForPlan(String planType) {

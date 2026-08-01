@@ -150,6 +150,22 @@ services:
 #    environment:
 #      - SPRING_PROFILES_ACTIVE=uat
 
+  subscription-service:
+    build:
+      context: .
+      dockerfile: sllp-subscription-service/Dockerfile
+    image: sllp-subscription-service:latest
+    container_name: subscription-service
+    ports:
+      - "8084:8084"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+
   api-gateway:
     build:
       context: .

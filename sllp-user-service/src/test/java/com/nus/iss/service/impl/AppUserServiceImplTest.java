@@ -3,6 +3,7 @@ package com.nus.iss.service.impl;
 import com.nus.iss.config.JwtConfig;
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
+import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.AppUser;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
@@ -22,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -172,7 +174,8 @@ class AppUserServiceImplTest {
         AppUser user = activeUser();
         when(appUserRepository.findByUsername("ming")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encoded-password")).thenReturn(true);
-        when(jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL")).thenReturn("jwt-token");
+        when(jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL"))
+                .thenReturn("jwt-token");
 
         JwtAccessTokenDTO response = appUserService.login("ming", "password123");
 
@@ -229,6 +232,26 @@ class AppUserServiceImplTest {
         assertThrows(BadCredentialsException.class, () -> appUserService.forgotPassword("missing@example.com"));
 
         verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void getUserProfile_whenUserExistsReturnsOnlyInternalProfileFields() {
+        AppUser user = activeUser();
+        user.setDifficultyLevel(DifficultyLevel.ADVANCED);
+        when(appUserRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UserProfileDTO response = appUserService.getUserProfile(1L);
+
+        assertEquals(1L, response.getId());
+        assertEquals("ming", response.getUsername());
+        assertEquals(DifficultyLevel.ADVANCED, response.getDifficultyLevel());
+    }
+
+    @Test
+    void getUserProfile_whenUserDoesNotExistThrowsNoSuchElementException() {
+        when(appUserRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(NoSuchElementException.class, () -> appUserService.getUserProfile(99L));
     }
 
     @Test

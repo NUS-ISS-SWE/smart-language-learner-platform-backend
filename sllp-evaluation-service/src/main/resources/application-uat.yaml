@@ -4,5 +4,7 @@ spring:
       base-url: http://ollama-service:11434
 
 sllp:
+  services:
+    user-service-url: http://user-service:8082
   kafka:
     bootstrap-servers: kafka-service:9092

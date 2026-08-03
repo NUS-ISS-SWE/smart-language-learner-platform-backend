@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -47,6 +48,16 @@ public class GlobalExceptionHandler {
         );
         problemDetail.setTitle("Validation Failed");
         problemDetail.setProperty("invalidFields", invalidFields);
+        return problemDetail;
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ProblemDetail handleNotFoundException(NoSuchElementException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "User profile not found."
+        );
+        problemDetail.setTitle("User Not Found");
         return problemDetail;
     }
 

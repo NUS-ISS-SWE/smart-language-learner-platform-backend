@@ -2,6 +2,8 @@ package com.nus.iss.controller;
 
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
+import com.nus.iss.dto.UserProfileDTO;
+import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.service.AppUserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,6 +86,23 @@ class AppUserControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertNull(response.getBody());
         verify(appUserService).forgotPassword("ming@example.com");
+    }
+
+    @Test
+    void getUserProfileReturnsInternalProfile() {
+        AppUserController controller = new AppUserController(appUserService);
+        UserProfileDTO profile = UserProfileDTO.builder()
+                .id(1L)
+                .username("ming")
+                .difficultyLevel(DifficultyLevel.INTERMEDIATE)
+                .build();
+        when(appUserService.getUserProfile(1L)).thenReturn(profile);
+
+        ResponseEntity<UserProfileDTO> response = controller.getUserProfile(1L);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertSame(profile, response.getBody());
+        verify(appUserService).getUserProfile(1L);
     }
 
     @Test

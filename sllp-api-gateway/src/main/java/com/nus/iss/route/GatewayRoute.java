@@ -14,6 +14,8 @@ import com.nus.iss.config.SllpProperties;
 
 @Configuration
 public class GatewayRoute {
+    static final List<String> ADMIN_ONLY = List.of("ADMIN");
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final SllpProperties sllpProperties;
     private final List<String> allUserList = List.of("ADMIN", "USER_FREE_TRIAL", "USER_BASIC", "USER_PREMIUM");
@@ -128,6 +130,11 @@ public class GatewayRoute {
                         .path("/api/v1/subscription/history")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getSubscriptionService()))
+
+                // Admin rubric routes
+                .route("admin_rubrics", r -> r.path("/api/v1/admin/**")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getAdminService()))
 
                 .build();
     }

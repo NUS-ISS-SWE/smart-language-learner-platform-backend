@@ -166,6 +166,23 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
+  admin-service:
+    build:
+      context: .
+      dockerfile: sllp-admin-service/Dockerfile
+    image: sllp-admin-service:latest
+    container_name: admin-service
+    ports:
+      - "8086:8086"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - DB_PASSWORD=password
+
   api-gateway:
     build:
       context: .
@@ -188,6 +205,8 @@ services:
       document-service:
         condition: service_started
       subscription-service:
+        condition: service_started
+      admin-service:
         condition: service_started
     environment:
       - SPRING_PROFILES_ACTIVE=uat

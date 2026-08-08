@@ -132,9 +132,47 @@ public class GatewayRoute {
                         .uri(sllpProperties.getSubscriptionService()))
 
                 // Admin rubric routes
-                .route("admin_rubrics", r -> r.path("/api/v1/admin/**")
+                .route("admin_rubrics", r -> r.path(
+                                "/api/v1/admin/rubrics",
+                                "/api/v1/admin/rubrics/**")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
                         .uri(sllpProperties.getAdminService()))
+                // Admin routes — ADMIN role only
+                .route("admin_user_list", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/admin/users")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
+                .route("admin_user_get", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/admin/users/{id}")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
+                .route("admin_user_status", r -> r.method(HttpMethod.PATCH)
+                        .and()
+                        .path("/api/v1/admin/users/{id}/status")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
+                .route("admin_user_role", r -> r.method(HttpMethod.PATCH)
+                        .and()
+                        .path("/api/v1/admin/users/{id}/role")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
+                .route("admin_user_delete", r -> r.method(HttpMethod.DELETE)
+                        .and()
+                        .path("/api/v1/admin/users/{id}")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
+                .route("admin_compositions", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/admin/compositions")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getCompositionService()))
+                .route("admin_documents", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/admin")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getDocumentService()))
 
                 .build();
     }

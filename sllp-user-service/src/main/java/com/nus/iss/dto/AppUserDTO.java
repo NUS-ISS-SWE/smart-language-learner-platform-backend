@@ -1,9 +1,12 @@
 package com.nus.iss.dto;
 
+import java.time.LocalDateTime;
+
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
 import com.nus.iss.enums.Role;
 import com.nus.iss.enums.Status;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -12,8 +15,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
-import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
@@ -44,4 +45,5 @@ public class AppUserDTO {
     private Role role;
     private Long aiTokenBalance;
     private Long aiTokenUsed;
+    private String planType;
 }

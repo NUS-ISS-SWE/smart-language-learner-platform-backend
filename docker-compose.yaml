@@ -150,22 +150,6 @@ services:
 #    environment:
 #      - SPRING_PROFILES_ACTIVE=uat
 
-  subscription-service:
-    build:
-      context: .
-      dockerfile: sllp-subscription-service/Dockerfile
-    image: sllp-subscription-service:latest
-    container_name: subscription-service
-    ports:
-      - "8084:8084"
-    networks:
-      - sllp-network
-    depends_on:
-      liquibase-service:
-        condition: service_completed_successfully
-    environment:
-      - SPRING_PROFILES_ACTIVE=uat
-
   admin-service:
     build:
       context: .
@@ -254,6 +238,21 @@ services:
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-http://minio:9000}
       - AWS_S3_PUBLIC_ENDPOINT=${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
 
+  subscription-service:
+    build:
+      context: .
+      dockerfile: sllp-subscription-service/Dockerfile
+    image: 961125mingwei/sllp-subscription-service:v3
+    container_name: subscription-service
+    ports:
+      - "8084:8084"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
 
 networks:
   sllp-network:

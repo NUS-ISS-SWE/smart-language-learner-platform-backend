@@ -1,10 +1,10 @@
 package com.nus.iss.service.impl;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.NoSuchElementException;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,6 +15,7 @@ import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
 import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.AppUser;
+import com.nus.iss.entity.UserSubscription;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
 import com.nus.iss.enums.Role;
@@ -24,24 +25,20 @@ import com.nus.iss.repository.AppUserRepository;
 import com.nus.iss.service.AppUserService;
 import com.nus.iss.service.NotificationService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AppUserServiceImpl implements AppUserService {
+
+    private static final int PAID_PLAN_DURATION_DAYS = 30;
 
     private final AppUserRepository appUserRepository;
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
     private final JwtConfig jwtConfig;
-
-    @Autowired
-    public AppUserServiceImpl(AppUserRepository appUserRepository, NotificationService notificationService, PasswordEncoder passwordEncoder, JwtConfig jwtConfig) {
-        this.appUserRepository = appUserRepository;
-        this.notificationService = notificationService;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtConfig = jwtConfig;
-    }
 
     @Override
     @Transactional
@@ -52,12 +49,14 @@ public class AppUserServiceImpl implements AppUserService {
             throw new UserAlreadyExistsException("Account already exists");
         }
 
+        Role role = roleForPlan(appUserDTO.getPlanType());
+
         AppUser appUser = AppUser.builder()
                 .username(appUserDTO.getUsername())
                 .email(appUserDTO.getEmail())
                 .password(passwordEncoder.encode(appUserDTO.getPassword()))
                 .status(Status.PENDING_EMAIL_VERIFICATION)
-                .role(Role.USER_FREE_TRIAL)
+                .role(role)
                 .preferredLanguage(appUserDTO.getPreferredLanguage() != null ? appUserDTO.getPreferredLanguage() : PreferredLanguage.ENGLISH)
                 .difficultyLevel(appUserDTO.getDifficultyLevel() != null ? appUserDTO.getDifficultyLevel() : DifficultyLevel.BEGINNER)
                 .createdAt(LocalDateTime.now())
@@ -67,6 +66,8 @@ public class AppUserServiceImpl implements AppUserService {
 
         AppUser savedUser = appUserRepository.save(appUser);
         log.info("User registered successfully with ID: {}", savedUser.getId());
+
+        createInitialSubscription(savedUser, appUserDTO.getPlanType());
 
         try {
             notificationService.sendActivationEmail(savedUser);
@@ -78,6 +79,7 @@ public class AppUserServiceImpl implements AppUserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public JwtAccessTokenDTO login(String username, String password) {
         log.info("Login attempt for user: {}", username);
         AppUser user = appUserRepository.findByUsername(username)
@@ -91,15 +93,11 @@ public class AppUserServiceImpl implements AppUserService {
             throw new BadCredentialsException("Invalid username or password");
         }
 
-        String token = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
-
-        return JwtAccessTokenDTO.builder()
-                .accessToken(token)
-                .role(user.getRole().name())
-                .build();
+        return buildJwtToken(user);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public void forgotPassword(String email) {
         log.info("Forgot password request for email: {}", email);
         AppUser user = appUserRepository.findByEmail(email)
@@ -111,17 +109,13 @@ public class AppUserServiceImpl implements AppUserService {
     @Transactional
     public JwtAccessTokenDTO confirmForgotPassword(String token, String newPassword) {
         log.info("Confirming forgot password with token");
-        String email = new String(Base64.getDecoder().decode(token));
+        String email = decodeEmailToken(token);
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> new BadCredentialsException("Invalid or expired reset token"));
         user.setPassword(passwordEncoder.encode(newPassword));
         appUserRepository.save(user);
-        String jwtToken = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
         log.info("Password reset successfully via token for user: {}", user.getUsername());
-        return JwtAccessTokenDTO.builder()
-                .accessToken(jwtToken)
-                .role(user.getRole().name())
-                .build();
+        return buildJwtToken(user);
     }
 
     @Override
@@ -144,21 +138,25 @@ public class AppUserServiceImpl implements AppUserService {
     @Transactional
     public void activateUser(String token) {
         log.info("Activating user with token: {}", token);
-        try {
-            String email = new String(Base64.getDecoder().decode(token));
-            AppUser user = appUserRepository.findByEmail(email)
-                    .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
+        String email = decodeEmailToken(token);
+        AppUser user = appUserRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
 
-            if (user.getStatus() == Status.PENDING_EMAIL_VERIFICATION) {
-                user.setStatus(Status.ACTIVE);
-                appUserRepository.save(user);
-                log.info("User activated successfully: {}", email);
-            } else {
-                log.warn("User already active or in another state: {}", email);
-            }
+        if (user.getStatus() == Status.PENDING_EMAIL_VERIFICATION) {
+            user.setStatus(Status.ACTIVE);
+            appUserRepository.save(user);
+            log.info("User activated successfully: {}", email);
+        } else {
+            log.warn("User already active or in another state: {}", email);
+        }
+    }
+
+    private String decodeEmailToken(String token) {
+        try {
+            return new String(Base64.getDecoder().decode(token));
         } catch (IllegalArgumentException e) {
             log.error("Invalid Base64 token: {}", token);
-            throw new BadCredentialsException("Invalid activation token");
+            throw new BadCredentialsException("Invalid token");
         }
     }
 
@@ -177,6 +175,37 @@ public class AppUserServiceImpl implements AppUserService {
                 .username(user.getUsername())
                 .difficultyLevel(user.getDifficultyLevel())
                 .build();
+    }
+
+    private JwtAccessTokenDTO buildJwtToken(AppUser user) {
+        String token = jwtConfig.generateToken(user.getUsername(), user.getId(), user.getRole().name());
+        return JwtAccessTokenDTO.builder()
+                .accessToken(token)
+                .role(user.getRole().name())
+                .build();
+    }
+
+    private static Role roleForPlan(String planType) {
+        if ("BASIC".equals(planType)) return Role.USER_BASIC;
+        if ("PREMIUM".equals(planType)) return Role.USER_PREMIUM;
+        return Role.USER_FREE_TRIAL;
+    }
+
+    private void createInitialSubscription(AppUser user, String planType) {
+        if (!"BASIC".equals(planType) && !"PREMIUM".equals(planType)) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+        UserSubscription sub = UserSubscription.builder()
+                .user(user)
+                .planType(planType)
+                .startDate(today)
+                .endDate(today.plusDays(PAID_PLAN_DURATION_DAYS))
+                .durationDays(PAID_PLAN_DURATION_DAYS)
+                .build();
+        user.getSubscriptions().add(sub);
+        appUserRepository.save(user);
+        log.info("Created {} subscription for user {}", planType, user.getId());
     }
 
     private AppUserDTO mapToDTO(AppUser user) {

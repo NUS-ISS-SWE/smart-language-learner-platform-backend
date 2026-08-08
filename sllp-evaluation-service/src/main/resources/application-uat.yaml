@@ -6,5 +6,6 @@ spring:
 sllp:
   services:
     user-service-url: http://user-service:8082
+    admin-service-url: http://admin-service:8086
   kafka:
     bootstrap-servers: kafka-service:9092

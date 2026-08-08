@@ -16,6 +16,7 @@ spring:
 sllp:
   services:
     user-service-url: http://localhost:8082
+    admin-service-url: http://localhost:8086
   kafka:
     bootstrap-servers: localhost:29092
     group-id: sllp-evaluation-group

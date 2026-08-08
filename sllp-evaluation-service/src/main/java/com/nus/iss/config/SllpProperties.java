@@ -21,6 +21,7 @@ public class SllpProperties {
     @AllArgsConstructor
     public static class Services {
         private String userServiceUrl;
+        private String adminServiceUrl;
     }
 
     @Data

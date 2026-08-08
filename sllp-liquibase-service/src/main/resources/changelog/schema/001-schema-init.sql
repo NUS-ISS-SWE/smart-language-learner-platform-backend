@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS app_user (
     preferred_language            VARCHAR(50) DEFAULT 'ENGLISH' CHECK (preferred_language IN ('ENGLISH', 'CHINESE')),
     difficulty_level              VARCHAR(50) DEFAULT 'BEGINNER' CHECK (difficulty_level IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')),
     created_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    role                          VARCHAR(50) DEFAULT 'USER_FREE_TRIAL' CHECK (role IN ('ADMIN', 'USER_FREE_TRIAL', 'USER_BASIC', 'USER_PREMIUM')),
+    role                          VARCHAR(50) DEFAULT 'USER_FREE_TRIAL' CHECK (role IN ('ADMIN', 'ADMIN_GRADING_REVIEWER', 'USER_FREE_TRIAL', 'USER_BASIC', 'USER_PREMIUM')),
     ai_token_balance              BIGINT,
     ai_token_used                 BIGINT,
     subscription_start_date       DATE,
@@ -56,6 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 INSERT INTO app_user (username, email, password, status, preferred_language, difficulty_level, role, ai_token_balance, ai_token_used)
 VALUES
   ('admin', 'admin@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN', 10000, 0),
+  ('reviewer', 'reviewer@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN_GRADING_REVIEWER', 10000, 0),
   ('testuser', 'testuser@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'USER_FREE_TRIAL', 5000, 0)
 ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
 

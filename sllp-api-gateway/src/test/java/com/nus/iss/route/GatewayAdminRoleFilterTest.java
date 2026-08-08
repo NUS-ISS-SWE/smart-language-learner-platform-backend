@@ -59,6 +59,25 @@ class GatewayAdminRoleFilterTest {
     }
 
     @Test
+    void reviewRoleIsAcceptedForAdminReviewRoutes() {
+        MockServerWebExchange exchange = exchangeWithToken();
+        when(jwtConfig.getClaims("token")).thenReturn(claims);
+        when(claims.get("ROLE", String.class)).thenReturn("ADMIN_GRADING_REVIEWER");
+        when(claims.getSubject()).thenReturn("grader");
+        when(claims.get("userId", String.class)).thenReturn("4");
+        when(chain.filter(any(ServerWebExchange.class))).thenReturn(Mono.empty());
+        GatewayFilter filter = authenticationFilter.jwtRoleFilter(GatewayRoute.ADMIN_AND_REVIEWER);
+
+        filter.filter(exchange, chain).block();
+
+        ArgumentCaptor<ServerWebExchange> exchangeCaptor = ArgumentCaptor.forClass(ServerWebExchange.class);
+        verify(chain).filter(exchangeCaptor.capture());
+        HttpHeaders forwardedHeaders = exchangeCaptor.getValue().getRequest().getHeaders();
+        assertEquals("grader", forwardedHeaders.getFirst("X-Sllp-Username"));
+        assertEquals("4", forwardedHeaders.getFirst("X-Sllp-User-Id"));
+    }
+
+    @Test
     void nonAdminRoleIsRejected() {
         MockServerWebExchange exchange = exchangeWithToken();
         when(jwtConfig.getClaims("token")).thenReturn(claims);

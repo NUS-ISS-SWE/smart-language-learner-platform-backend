@@ -15,10 +15,11 @@ import com.nus.iss.config.SllpProperties;
 @Configuration
 public class GatewayRoute {
     static final List<String> ADMIN_ONLY = List.of("ADMIN");
+    static final List<String> ADMIN_AND_REVIEWER = List.of("ADMIN", "ADMIN_GRADING_REVIEWER");
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final SllpProperties sllpProperties;
-    private final List<String> allUserList = List.of("ADMIN", "USER_FREE_TRIAL", "USER_BASIC", "USER_PREMIUM");
+    private final List<String> allUserList = List.of("ADMIN", "ADMIN_GRADING_REVIEWER", "USER_FREE_TRIAL", "USER_BASIC", "USER_PREMIUM");
 
     @Autowired
     public GatewayRoute(JwtAuthenticationFilter jwtAuthenticationFilter, SllpProperties sllpProperties) {
@@ -137,7 +138,7 @@ public class GatewayRoute {
                 .route("admin_rubrics", r -> r.path(
                                 "/api/v1/admin/rubrics",
                                 "/api/v1/admin/rubrics/**")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_AND_REVIEWER)))
                         .uri(sllpProperties.getAdminService()))
                 // Admin routes — ADMIN role only
                 .route("admin_user_list", r -> r.method(HttpMethod.GET)
@@ -168,12 +169,12 @@ public class GatewayRoute {
                 .route("admin_composition_get", r -> r.method(HttpMethod.GET)
                         .and()
                         .path("/api/v1/admin/compositions/{id}")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_AND_REVIEWER)))
                         .uri(sllpProperties.getCompositionService()))
                 .route("admin_compositions", r -> r.method(HttpMethod.GET)
                         .and()
                         .path("/api/v1/admin/compositions")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_AND_REVIEWER)))
                         .uri(sllpProperties.getCompositionService()))
                 .route("admin_document_content", r -> r.method(HttpMethod.GET)
                         .and()

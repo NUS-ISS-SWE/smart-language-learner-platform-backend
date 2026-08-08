@@ -35,7 +35,7 @@ public class AdminCompositionController {
             @RequestParam Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        assertAdmin(role);
+        assertAdminOrReviewer(role);
         log.info("Admin retrieving compositions for userId={}", userId);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         List<CompositionDTO> compositions = compositionService.getAllCompositionByUserId(userId, pageable);
@@ -46,13 +46,13 @@ public class AdminCompositionController {
     public ResponseEntity<CompositionDTO> getCompositionById(
             @RequestHeader("X-Sllp-Role") String role,
             @PathVariable Long id) {
-        assertAdmin(role);
+        assertAdminOrReviewer(role);
         log.info("Admin retrieving single composition id={}", id);
         return ResponseEntity.ok(compositionService.getCompositionByIdForAdmin(id));
     }
 
-    private static void assertAdmin(String role) {
-        if (!"ADMIN".equals(role)) {
+    private static void assertAdminOrReviewer(String role) {
+        if (!"ADMIN".equals(role) && !"ADMIN_GRADING_REVIEWER".equals(role)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
         }
     }

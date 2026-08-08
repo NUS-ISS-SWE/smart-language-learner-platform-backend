@@ -1,6 +1,7 @@
 package com.nus.iss.config;
 
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -14,6 +15,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nus.iss.entity.AppUser;
 import com.nus.iss.repository.AppUserRepository;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 @ExtendWith(MockitoExtension.class)
 class JwtConfigTest {
@@ -35,6 +39,9 @@ class JwtConfigTest {
         String token = jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL");
 
         assertEquals("ming", jwtConfig.extractUsername(token));
+        Claims claims = parseClaims(token);
+        assertEquals("1", claims.get("userId", String.class));
+        assertEquals("USER_FREE_TRIAL", claims.get("ROLE", String.class));
     }
 
     @Test
@@ -52,5 +59,13 @@ class JwtConfigTest {
         when(appUserRepository.findByUsername("missing")).thenReturn(Optional.empty());
 
         assertFalse(jwtConfig.isTokenValid(token));
+    }
+
+    private static Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

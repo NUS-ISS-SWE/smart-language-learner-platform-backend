@@ -3,6 +3,7 @@ package com.nus.iss.service.impl;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.NoSuchElementException;
 
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nus.iss.config.JwtConfig;
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
+import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.AppUser;
 import com.nus.iss.entity.UserSubscription;
 import com.nus.iss.enums.DifficultyLevel;
@@ -156,6 +158,23 @@ public class AppUserServiceImpl implements AppUserService {
             log.error("Invalid Base64 token: {}", token);
             throw new BadCredentialsException("Invalid token");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserProfileDTO getUserProfile(Long userId) {
+        if (userId == null || userId < 1) {
+            throw new IllegalArgumentException("Valid user ID is required");
+        }
+
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new NoSuchElementException("User profile not found"));
+
+        return UserProfileDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .difficultyLevel(user.getDifficultyLevel())
+                .build();
     }
 
     private JwtAccessTokenDTO buildJwtToken(AppUser user) {

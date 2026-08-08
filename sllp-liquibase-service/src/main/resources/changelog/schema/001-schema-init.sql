@@ -54,7 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 --validCheckSum: ANY
 INSERT INTO app_user (username, email, password, status, preferred_language, difficulty_level, role, ai_token_balance, ai_token_used)
 VALUES
-  ('admin', 'admin@sllp.dev', '$2b$10$LnHUNvtHD64zkeNX2BpBouzMwoN49yiM1uW4t0RMbuqUT37RMCXIq', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN', 10000, 0),
-  ('testuser', 'testuser@sllp.dev', '$2b$10$LnHUNvtHD64zkeNX2BpBouzMwoN49yiM1uW4t0RMbuqUT37RMCXIq', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'USER_FREE_TRIAL', 5000, 0)
+  ('admin', 'admin@sllp.dev', '$2a$10$h9ipVCBJaZvLQAxNKChkQeRKgxg.p89vn6eKlGRuMIujNXvNKH2.K', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN', 10000, 0),
+  ('testuser', 'testuser@sllp.dev', '$2a$10$h9ipVCBJaZvLQAxNKChkQeRKgxg.p89vn6eKlGRuMIujNXvNKH2.K', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'USER_FREE_TRIAL', 5000, 0)
 ON CONFLICT (username) DO NOTHING;
 

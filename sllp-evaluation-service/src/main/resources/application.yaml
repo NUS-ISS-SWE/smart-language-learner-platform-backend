@@ -10,10 +10,13 @@ spring:
     ollama:
       base-url: http://localhost:11434
       chat:
-        model: qwen3:0.6b
+        model: gemma4:e4b-it-q4_K_M
         temperature: 0.3
 
 sllp:
+  services:
+    user-service-url: http://localhost:8082
+    admin-service-url: http://localhost:8086
   kafka:
     bootstrap-servers: localhost:29092
     group-id: sllp-evaluation-group

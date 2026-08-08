@@ -1,5 +1,14 @@
 package com.nus.iss.service.impl;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.nus.iss.dto.CompositionDTO;
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
@@ -15,15 +24,8 @@ import com.nus.iss.repository.EvaluationRepository;
 import com.nus.iss.service.CompositionService;
 import com.nus.iss.service.KafkaProducerService;
 import com.nus.iss.service.LanguageDetectorService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.NoSuchElementException;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -93,6 +95,14 @@ public class CompositionServiceImpl implements CompositionService {
         Composition composition = compositionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Composition not found"));
 
+        return mapToDTO(composition);
+    }
+
+    @Override
+    public CompositionDTO getCompositionByIdForAdmin(Long id) {
+        validateCompositionId(id);
+        Composition composition = compositionRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Composition not found"));
         return mapToDTO(composition);
     }
 

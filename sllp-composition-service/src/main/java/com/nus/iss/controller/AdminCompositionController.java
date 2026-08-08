@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -39,6 +40,15 @@ public class AdminCompositionController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         List<CompositionDTO> compositions = compositionService.getAllCompositionByUserId(userId, pageable);
         return ResponseEntity.ok(compositions);
+    }
+
+    @GetMapping("/compositions/{id}")
+    public ResponseEntity<CompositionDTO> getCompositionById(
+            @RequestHeader("X-Sllp-Role") String role,
+            @PathVariable Long id) {
+        assertAdmin(role);
+        log.info("Admin retrieving single composition id={}", id);
+        return ResponseEntity.ok(compositionService.getCompositionByIdForAdmin(id));
     }
 
     private static void assertAdmin(String role) {

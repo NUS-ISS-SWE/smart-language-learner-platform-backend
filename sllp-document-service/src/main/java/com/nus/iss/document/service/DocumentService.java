@@ -93,41 +93,50 @@ public class DocumentService {
         }
     }
 
-    /**
-     * Get extracted text content for a document.
-     *
-     * @param userIdStr  authenticated user ID string from JWT userId claim
-     * @param documentId document ID
-     * @return content response with status and extracted text
-     */
     @Transactional(readOnly = true)
     public DocumentContentResponse getDocumentContent(String userIdStr, Long documentId) {
         Long userId = Long.parseLong(userIdStr);
         log.info("Retrieving content for document: id={}, userId={}", documentId, userId);
-
-        Document document = documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
-
-        return new DocumentContentResponse(document.getId(), document.getStatus(), document.getExtractedText());
+        Document document = requireDocumentOwnedBy(documentId, userId);
+        return toContentResponse(document);
     }
 
-    /**
-     * Get document by ID (verify ownership).
-     *
-     * @param userIdStr  authenticated user ID string from JWT userId claim
-     * @param documentId document ID
-     * @return upload response with document details and download URL
-     */
     @Transactional(readOnly = true)
     public DocumentUploadResponse getDocument(String userIdStr, Long documentId) {
         Long userId = Long.parseLong(userIdStr);
         log.info("Retrieving document: id={}, userId={}", documentId, userId);
+        Document document = requireDocumentOwnedBy(documentId, userId);
+        return toUploadResponse(document);
+    }
 
-        Document document = documentRepository.findByIdAndUserId(documentId, userId)
+    @Transactional(readOnly = true)
+    public DocumentUploadResponse getDocumentForAdmin(Long documentId) {
+        log.info("Admin retrieving document: id={}", documentId);
+        return toUploadResponse(requireDocument(documentId));
+    }
+
+    @Transactional(readOnly = true)
+    public DocumentContentResponse getDocumentContentForAdmin(Long documentId) {
+        log.info("Admin retrieving document content: id={}", documentId);
+        return toContentResponse(requireDocument(documentId));
+    }
+
+    private Document requireDocumentOwnedBy(Long documentId, Long userId) {
+        return documentRepository.findByIdAndUserId(documentId, userId)
             .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
+    }
 
-        String downloadUrl = s3Service.generatePresignedUrl(document.getS3Key());
-        return new DocumentUploadResponse(toDocumentDTO(document), downloadUrl);
+    private Document requireDocument(Long documentId) {
+        return documentRepository.findById(documentId)
+            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
+    }
+
+    private DocumentUploadResponse toUploadResponse(Document document) {
+        return new DocumentUploadResponse(toDocumentDTO(document), s3Service.generatePresignedUrl(document.getS3Key()));
+    }
+
+    private DocumentContentResponse toContentResponse(Document document) {
+        return new DocumentContentResponse(document.getId(), document.getStatus(), document.getExtractedText());
     }
 
     /**

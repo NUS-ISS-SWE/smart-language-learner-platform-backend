@@ -72,7 +72,10 @@ public class AppUserServiceImpl implements AppUserService {
         try {
             notificationService.sendActivationEmail(savedUser);
         } catch (Exception e) {
-            log.warn("Failed to send activation email to {}: {}", savedUser.getEmail(), e.getMessage());
+            // Email delivery failed — log activation link so local dev can activate manually
+            String activationToken = java.util.Base64.getEncoder().encodeToString(savedUser.getEmail().getBytes());
+            log.warn("Failed to send activation email to {} — activate manually: GET /api/v1/auth/activate?token={}",
+                    savedUser.getEmail(), activationToken);
         }
 
         return mapToDTO(savedUser);

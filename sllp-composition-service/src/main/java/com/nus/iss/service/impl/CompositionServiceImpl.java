@@ -14,16 +14,19 @@ import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.entity.Evaluation;
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
+import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
 import com.nus.iss.repository.CompositionRepository;
 import com.nus.iss.repository.EvaluationRepository;
 import com.nus.iss.service.CompositionService;
 import com.nus.iss.service.KafkaProducerService;
 import com.nus.iss.service.LanguageDetectorService;
+import com.nus.iss.service.UserProfileClient;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,16 +38,19 @@ public class CompositionServiceImpl implements CompositionService {
     private final EvaluationRepository evaluationRepository;
     private final LanguageDetectorService languageDetectorService;
     private final KafkaProducerService kafkaProducerService;
+    private final UserProfileClient userProfileClient;
 
     @Autowired
     public CompositionServiceImpl(CompositionRepository compositionRepository,
                                   EvaluationRepository evaluationRepository,
                                   LanguageDetectorService languageDetectorService,
-                                  KafkaProducerService kafkaProducerService) {
+                                  KafkaProducerService kafkaProducerService,
+                                  UserProfileClient userProfileClient) {
         this.compositionRepository = compositionRepository;
         this.evaluationRepository = evaluationRepository;
         this.languageDetectorService = languageDetectorService;
         this.kafkaProducerService = kafkaProducerService;
+        this.userProfileClient = userProfileClient;
     }
 
     @Override
@@ -218,6 +224,10 @@ public class CompositionServiceImpl implements CompositionService {
         LocalDateTime now = LocalDateTime.now();
         Language detectedLanguage = languageDetectorService.detectLanguage(compositionDTO.getTitle())
                 .orElse(Language.ENGLISH);
+        UserProfileDTO userProfile = userProfileClient.getUserProfile(userId);
+        DifficultyLevel difficultyLevel = userProfile.getDifficultyLevel() != null
+                ? userProfile.getDifficultyLevel()
+                : DifficultyLevel.BEGINNER;
 
         Composition composition = Composition.builder()
                 .userId(userId)
@@ -235,6 +245,9 @@ public class CompositionServiceImpl implements CompositionService {
                 .compositionId(savedComposition.getId())
                 .userId(savedComposition.getUserId())
                 .title(savedComposition.getTitle())
+                .description(compositionDTO.getDescription())
+                .framework(compositionDTO.getFramework())
+                .difficultyLevel(difficultyLevel)
                 .language(savedComposition.getLanguage())
                 .requestedAt(now)
                 .build();
@@ -242,7 +255,11 @@ public class CompositionServiceImpl implements CompositionService {
 
         log.info("Requested generation for composition with ID: {} for user: {}",
                 savedComposition.getId(), userId);
-        return mapToDTO(savedComposition);
+        CompositionDTO response = mapToDTO(savedComposition);
+        response.setDescription(compositionDTO.getDescription());
+        response.setFramework(compositionDTO.getFramework());
+        response.setDifficultyLevel(difficultyLevel);
+        return response;
     }
 
     @Override

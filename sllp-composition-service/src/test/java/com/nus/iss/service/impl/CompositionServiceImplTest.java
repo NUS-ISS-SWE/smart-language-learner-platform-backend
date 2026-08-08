@@ -28,14 +28,17 @@ import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
+import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
 import com.nus.iss.repository.CompositionRepository;
 import com.nus.iss.repository.EvaluationRepository;
 import com.nus.iss.service.KafkaProducerService;
 import com.nus.iss.service.LanguageDetectorService;
+import com.nus.iss.service.UserProfileClient;
 
 @ExtendWith(MockitoExtension.class)
 class CompositionServiceImplTest {
@@ -51,6 +54,9 @@ class CompositionServiceImplTest {
 
     @Mock
     private KafkaProducerService kafkaProducerService;
+
+    @Mock
+    private UserProfileClient userProfileClient;
 
     @InjectMocks
     private CompositionServiceImpl compositionService;
@@ -491,8 +497,15 @@ class CompositionServiceImplTest {
     void generateComposition_whenLanguageIsDetectedSavesGeneratingSystemCompositionAndSendsEvent() {
         CompositionDTO request = CompositionDTO.builder()
                 .title("Chinese prompt")
+                .description("Write about a weekend trip")
+                .framework("IELTS")
                 .build();
         when(languageDetectorService.detectLanguage("Chinese prompt")).thenReturn(Optional.of(Language.CHINESE));
+        when(userProfileClient.getUserProfile(1L)).thenReturn(UserProfileDTO.builder()
+                .id(1L)
+                .username("user1")
+                .difficultyLevel(DifficultyLevel.INTERMEDIATE)
+                .build());
         when(compositionRepository.save(any(Composition.class))).thenAnswer(invocation -> {
             Composition composition = invocation.getArgument(0);
             composition.setId(20L);
@@ -514,6 +527,9 @@ class CompositionServiceImplTest {
         assertEquals(CompositionStatus.GENERATING, response.getCompositionStatus());
         assertEquals(20L, event.getCompositionId());
         assertEquals(Language.CHINESE, event.getLanguage());
+        assertEquals("Write about a weekend trip", event.getDescription());
+        assertEquals("IELTS", event.getFramework());
+        assertEquals(DifficultyLevel.INTERMEDIATE, event.getDifficultyLevel());
         assertNotNull(event.getRequestedAt());
     }
 
@@ -523,6 +539,11 @@ class CompositionServiceImplTest {
                 .title("12345")
                 .build();
         when(languageDetectorService.detectLanguage("12345")).thenReturn(Optional.empty());
+        when(userProfileClient.getUserProfile(1L)).thenReturn(UserProfileDTO.builder()
+                .id(1L)
+                .username("user1")
+                .difficultyLevel(DifficultyLevel.BEGINNER)
+                .build());
         when(compositionRepository.save(any(Composition.class))).thenAnswer(invocation -> {
             Composition composition = invocation.getArgument(0);
             composition.setId(20L);

@@ -2,6 +2,7 @@ package com.nus.iss.dto;
 
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
+import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,9 @@ public class CompositionDTO {
     private Long id;
     private Long userId;
     private String title;
+    private String description;
+    private String framework;
+    private DifficultyLevel difficultyLevel;
     private String content;
     private CompositionSource compositionSource;
     private Language language;

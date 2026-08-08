@@ -27,11 +27,11 @@
         <module>sllp-document-service</module>
         <!-- Future services (to be implemented): -->
         <module>sllp-api-gateway</module>
-<!--        <module>sllp-admin-service</module>-->
         <module>sllp-composition-service</module>
         <module>sllp-evaluation-service</module>
         <module>sllp-subscription-service</module>
-<!--        <module>sllp-knowledge-service</module>-->
+        <module>sllp-admin-service</module>
+        <!--        <module>sllp-knowledge-service</module>-->
 
     </modules>
     <scm>

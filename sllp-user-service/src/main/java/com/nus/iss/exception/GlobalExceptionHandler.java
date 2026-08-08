@@ -1,6 +1,7 @@
 package com.nus.iss.exception;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -49,6 +50,16 @@ public class GlobalExceptionHandler {
         );
         problemDetail.setTitle("Validation Failed");
         problemDetail.setProperty("invalidFields", invalidFields);
+        return problemDetail;
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ProblemDetail handleNotFoundException(NoSuchElementException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "User profile not found."
+        );
+        problemDetail.setTitle("User Not Found");
         return problemDetail;
     }
 

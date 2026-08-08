@@ -14,6 +14,15 @@ import org.springframework.context.annotation.Configuration;
 public class SllpProperties {
 
     private Kafka kafka = new Kafka();
+    private Services services = new Services();
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Services {
+        private String userServiceUrl;
+        private String adminServiceUrl;
+    }
 
     @Data
     @NoArgsConstructor

@@ -1,8 +1,3 @@
-spring:
-  ai:
-    ollama:
-      base-url: http://ollama-service:11434
-
 sllp:
   services:
     user-service-url: http://user-service:8082

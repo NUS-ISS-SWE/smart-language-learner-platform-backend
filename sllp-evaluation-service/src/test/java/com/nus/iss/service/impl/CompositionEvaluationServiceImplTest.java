@@ -1,19 +1,24 @@
 package com.nus.iss.service.impl;
 
+import com.nus.iss.agent.GradingAgentRequest;
+import com.nus.iss.agent.GradingAgentService;
+import com.nus.iss.dto.CompositionEvaluationResult;
 import com.nus.iss.dto.CompositionGradingRequestedEvent;
-import com.nus.iss.dto.RubricCriterionDTO;
-import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class CompositionEvaluationServiceImplTest {
 
@@ -30,46 +35,46 @@ class CompositionEvaluationServiceImplTest {
     }
 
     @Test
-    void guidanceVariesByUserDifficultyLevel() {
-        String beginner = CompositionEvaluationServiceImpl.guidanceFor(DifficultyLevel.BEGINNER);
-        String intermediate = CompositionEvaluationServiceImpl.guidanceFor(DifficultyLevel.INTERMEDIATE);
-        String advanced = CompositionEvaluationServiceImpl.guidanceFor(DifficultyLevel.ADVANCED);
+    void delegatesValidatedRequestToGradingAgent() {
+        GradingAgentService gradingAgent = mock(GradingAgentService.class);
+        CompositionEvaluationServiceImpl service = new CompositionEvaluationServiceImpl(gradingAgent);
+        CompositionGradingRequestedEvent event = validEvent();
+        CompositionEvaluationResult expected = new CompositionEvaluationResult(
+                new BigDecimal("82.50"), "Good structure");
+        when(gradingAgent.grade(any())).thenReturn(expected);
 
-        assertTrue(beginner.contains("beginner expectations"));
-        assertTrue(intermediate.contains("intermediate expectations"));
-        assertTrue(advanced.contains("advanced expectations"));
+        CompositionEvaluationResult actual = service.evaluate(event);
+
+        assertEquals(expected, actual);
+        ArgumentCaptor<GradingAgentRequest> requestCaptor = ArgumentCaptor.forClass(GradingAgentRequest.class);
+        verify(gradingAgent).grade(requestCaptor.capture());
+        GradingAgentRequest request = requestCaptor.getValue();
+        assertEquals(1L, request.userId());
+        assertEquals(Language.ENGLISH, request.language());
+        assertEquals("My composition", request.content());
+        assertEquals(0, request.evidence().size());
     }
 
     @Test
-    void formatsAdminRubricCriteriaForTheEvaluationPrompt() {
-        List<RubricCriterionDTO> criteria = List.of(
-                new RubricCriterionDTO(
-                        1L,
-                        Language.ENGLISH,
-                        DifficultyLevel.INTERMEDIATE,
-                        "TASK_IDEAS",
-                        "Assess relevant and developed ideas.",
-                        new BigDecimal("25.00"),
-                        null,
-                        null,
-                        null,
-                        null),
-                new RubricCriterionDTO(
-                        2L,
-                        Language.ENGLISH,
-                        DifficultyLevel.INTERMEDIATE,
-                        "MECHANICS",
-                        "Assess spelling and punctuation.",
-                        new BigDecimal("10.00"),
-                        null,
-                        null,
-                        null,
-                        null));
+    void rejectsRequestWithoutUserIdBeforeCallingAgent() {
+        GradingAgentService gradingAgent = mock(GradingAgentService.class);
+        CompositionEvaluationServiceImpl service = new CompositionEvaluationServiceImpl(gradingAgent);
+        CompositionGradingRequestedEvent event = validEvent();
+        event.setUserId(null);
 
-        String rubric = CompositionEvaluationServiceImpl.formatRubric(criteria);
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class, () -> service.evaluate(event));
 
-        assertEquals("""
-                - TASK_IDEAS (25%): Assess relevant and developed ideas.
-                - MECHANICS (10%): Assess spelling and punctuation.""", rubric);
+        assertEquals("User ID is required", exception.getMessage());
+    }
+
+    private static CompositionGradingRequestedEvent validEvent() {
+        return CompositionGradingRequestedEvent.builder()
+                .compositionId(10L)
+                .userId(1L)
+                .title("My title")
+                .content("My composition")
+                .language(Language.ENGLISH)
+                .build();
     }
 }

@@ -23,6 +23,7 @@ import com.nus.iss.enums.Status;
 import com.nus.iss.exception.UserAlreadyExistsException;
 import com.nus.iss.repository.AppUserRepository;
 import com.nus.iss.service.AppUserService;
+import com.nus.iss.service.AppUserMapper;
 import com.nus.iss.service.NotificationService;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class AppUserServiceImpl implements AppUserService {
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
     private final JwtConfig jwtConfig;
+    private final AppUserMapper appUserMapper = new AppUserMapper();
 
     @Override
     @Transactional
@@ -173,11 +175,7 @@ public class AppUserServiceImpl implements AppUserService {
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("User profile not found"));
 
-        return UserProfileDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .difficultyLevel(user.getDifficultyLevel())
-                .build();
+        return appUserMapper.toProfileDto(user);
     }
 
     private JwtAccessTokenDTO buildJwtToken(AppUser user) {
@@ -212,17 +210,6 @@ public class AppUserServiceImpl implements AppUserService {
     }
 
     private AppUserDTO mapToDTO(AppUser user) {
-        return AppUserDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .status(user.getStatus())
-                .role(user.getRole())
-                .preferredLanguage(user.getPreferredLanguage())
-                .difficultyLevel(user.getDifficultyLevel())
-                .createdAt(user.getCreatedAt())
-                .aiTokenBalance(user.getAiTokenBalance())
-                .aiTokenUsed(user.getAiTokenUsed())
-                .build();
+        return appUserMapper.toUserDto(user);
     }
 }

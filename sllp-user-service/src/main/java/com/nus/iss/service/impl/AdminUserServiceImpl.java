@@ -15,6 +15,7 @@ import com.nus.iss.enums.Role;
 import com.nus.iss.enums.Status;
 import com.nus.iss.repository.AppUserRepository;
 import com.nus.iss.service.AdminUserService;
+import com.nus.iss.service.AppUserMapper;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final AppUserRepository appUserRepository;
+    private final AppUserMapper appUserMapper = new AppUserMapper();
 
     @Override
     @Transactional(readOnly = true)
@@ -92,18 +94,6 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     private AdminUserResponseDTO toDTO(AppUser user) {
-        return new AdminUserResponseDTO(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole() != null ? user.getRole().name() : null,
-                user.getStatus() != null ? user.getStatus().name() : null,
-                user.getPreferredLanguage() != null ? user.getPreferredLanguage().name() : null,
-                user.getDifficultyLevel() != null ? user.getDifficultyLevel().name() : null,
-                user.getAiTokenBalance(),
-                user.getAiTokenUsed(),
-                user.getCreatedAt(),
-                user.getDeletedAt()
-        );
+        return appUserMapper.toAdminDto(user);
     }
 }

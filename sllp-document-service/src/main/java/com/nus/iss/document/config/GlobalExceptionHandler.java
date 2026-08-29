@@ -1,59 +1,44 @@
 package com.nus.iss.document.config;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.nus.iss.document.dto.ErrorResponse;
 import com.nus.iss.document.exception.DocumentNotFoundException;
 import com.nus.iss.document.exception.FileUploadException;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Global exception handler for REST controllers.
- */
+/** Produces the same structured problem response used by the other services. */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    /**
-     * Handle document not found exception.
-     *
-     * @param ex exception
-     * @return error response with 404 status
-     */
     @ExceptionHandler(DocumentNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleDocumentNotFound(DocumentNotFoundException ex) {
-        log.warn("Document not found: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse("DOCUMENT_NOT_FOUND", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    public ProblemDetail handleDocumentNotFound(DocumentNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "DOCUMENT_NOT_FOUND", ex.getMessage());
     }
 
-    /**
-     * Handle file upload exception.
-     *
-     * @param ex exception
-     * @return error response with 400 status
-     */
     @ExceptionHandler(FileUploadException.class)
-    public ResponseEntity<ErrorResponse> handleFileUploadException(FileUploadException ex) {
-        log.warn("File upload error: {}", ex.getMessage());
-        ErrorResponse error = new ErrorResponse("FILE_UPLOAD_ERROR", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    public ProblemDetail handleFileUploadException(FileUploadException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "FILE_UPLOAD_ERROR", ex.getMessage());
     }
 
-    /**
-     * Handle generic exceptions.
-     *
-     * @param ex exception
-     * @return error response with 500 status
-     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handleInvalidRequest(IllegalArgumentException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        log.error("Unexpected error", ex);
-        ErrorResponse error = new ErrorResponse("INTERNAL_SERVER_ERROR", "An unexpected error occurred");
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    public ProblemDetail handleGenericException(Exception ex) {
+        log.error("Unexpected document-service exception", ex);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred");
+    }
+
+    private static ProblemDetail problem(HttpStatus status, String code, String detail) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setProperty("code", code);
+        return problem;
     }
 }

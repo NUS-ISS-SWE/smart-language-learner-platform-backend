@@ -32,6 +32,8 @@ public class DocumentService {
     private final S3Service s3Service;
     private final FileValidationService fileValidationService;
     private final TextExtractionService textExtractionService;
+    private final DocumentAccessService documentAccessService;
+    private final DocumentMapper documentMapper;
 
     /**
      * Upload document for user, then synchronously extract text.
@@ -43,7 +45,7 @@ public class DocumentService {
     @Transactional
     public DocumentUploadResponse uploadDocument(String userIdStr, MultipartFile file) {
         log.info("Uploading document for user: {}", userIdStr);
-        Long userId = Long.parseLong(userIdStr);
+        Long userId = documentAccessService.userId(userIdStr);
 
         fileValidationService.validateFile(file);
 
@@ -86,7 +88,7 @@ public class DocumentService {
             document = documentRepository.save(document);
 
             String downloadUrl = s3Service.generatePresignedUrl(s3Key);
-            return new DocumentUploadResponse(toDocumentDTO(document), downloadUrl);
+            return new DocumentUploadResponse(documentMapper.toDto(document), downloadUrl);
         } catch (IOException e) {
             log.error("Error reading file", e);
             throw new IllegalStateException("Error processing file", e);
@@ -95,48 +97,32 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentContentResponse getDocumentContent(String userIdStr, Long documentId) {
-        Long userId = Long.parseLong(userIdStr);
+        Long userId = documentAccessService.userId(userIdStr);
         log.info("Retrieving content for document: id={}, userId={}", documentId, userId);
-        Document document = requireDocumentOwnedBy(documentId, userId);
-        return toContentResponse(document);
+        return documentMapper.toContentResponse(documentAccessService.requireOwned(documentId, userId));
     }
 
     @Transactional(readOnly = true)
     public DocumentUploadResponse getDocument(String userIdStr, Long documentId) {
-        Long userId = Long.parseLong(userIdStr);
+        Long userId = documentAccessService.userId(userIdStr);
         log.info("Retrieving document: id={}, userId={}", documentId, userId);
-        Document document = requireDocumentOwnedBy(documentId, userId);
-        return toUploadResponse(document);
+        return toUploadResponse(documentAccessService.requireOwned(documentId, userId));
     }
 
     @Transactional(readOnly = true)
     public DocumentUploadResponse getDocumentForAdmin(Long documentId) {
         log.info("Admin retrieving document: id={}", documentId);
-        return toUploadResponse(requireDocument(documentId));
+        return toUploadResponse(documentAccessService.require(documentId));
     }
 
     @Transactional(readOnly = true)
     public DocumentContentResponse getDocumentContentForAdmin(Long documentId) {
         log.info("Admin retrieving document content: id={}", documentId);
-        return toContentResponse(requireDocument(documentId));
-    }
-
-    private Document requireDocumentOwnedBy(Long documentId, Long userId) {
-        return documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
-    }
-
-    private Document requireDocument(Long documentId) {
-        return documentRepository.findById(documentId)
-            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
+        return documentMapper.toContentResponse(documentAccessService.require(documentId));
     }
 
     private DocumentUploadResponse toUploadResponse(Document document) {
-        return new DocumentUploadResponse(toDocumentDTO(document), s3Service.generatePresignedUrl(document.getS3Key()));
-    }
-
-    private DocumentContentResponse toContentResponse(Document document) {
-        return new DocumentContentResponse(document.getId(), document.getStatus(), document.getExtractedText());
+        return new DocumentUploadResponse(documentMapper.toDto(document), s3Service.generatePresignedUrl(document.getS3Key()));
     }
 
     /**
@@ -149,7 +135,7 @@ public class DocumentService {
      */
     @Transactional(readOnly = true)
     public DocumentsPageResponse listUserDocuments(String userIdStr, int page, int size) {
-        Long userId = Long.parseLong(userIdStr);
+        Long userId = documentAccessService.userId(userIdStr);
         log.info("Listing documents for user: {}, page={}, size={}", userId, page, size);
 
         Pageable pageable = PageRequest.of(page, size);
@@ -157,7 +143,7 @@ public class DocumentService {
 
         var documents = documentsPage.getContent()
             .stream()
-            .map(this::toDocumentDTO)
+            .map(documentMapper::toDto)
             .toList();
 
         return new DocumentsPageResponse(documents, documentsPage.getTotalElements(), page, size, documentsPage.hasNext());
@@ -171,25 +157,13 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocument(String userIdStr, Long documentId) {
-        Long userId = Long.parseLong(userIdStr);
+        Long userId = documentAccessService.userId(userIdStr);
         log.info("Deleting document: id={}, userId={}", documentId, userId);
 
-        Document document = documentRepository.findByIdAndUserId(documentId, userId)
-            .orElseThrow(() -> new DocumentNotFoundException(String.valueOf(documentId)));
+        Document document = documentAccessService.requireOwned(documentId, userId);
 
         s3Service.deleteFile(document.getS3Key());
         documentRepository.deleteByIdAndUserId(documentId, userId);
         log.info("Document deleted: id={}", documentId);
-    }
-
-    private DocumentDTO toDocumentDTO(Document document) {
-        return new DocumentDTO(
-            document.getId(),
-            document.getFilename(),
-            document.getFileType(),
-            document.getFileSize(),
-            document.getStatus(),
-            document.getCreatedAt()
-        );
     }
 }

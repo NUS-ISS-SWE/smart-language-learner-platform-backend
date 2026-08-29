@@ -13,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
@@ -46,7 +45,6 @@ class DocumentServiceTest {
     @Mock
     private TextExtractionService textExtractionService;
 
-    @InjectMocks
     private DocumentService documentService;
 
     private Document testDocument;
@@ -57,6 +55,14 @@ class DocumentServiceTest {
 
     @BeforeEach
     void setUp() {
+        documentService = new DocumentService(
+            documentRepository,
+            s3Service,
+            fileValidationService,
+            textExtractionService,
+            new DocumentAccessService(documentRepository),
+            new DocumentMapper()
+        );
         testDocument = Document.builder()
             .id(testDocumentId)
             .userId(Long.parseLong(testUserId))

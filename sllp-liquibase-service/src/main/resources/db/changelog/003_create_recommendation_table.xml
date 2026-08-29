@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.1.xsd">
+
+    <changeSet id="003_create_recommendation_table" author="system">
+        <createTable tableName="recommendation">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT" nullable="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="recommendation_type" type="TEXT" nullable="false"/>
+            <column name="recommendation" type="TEXT"/>
+            <column name="performance_score" type="NUMERIC(5,2)"/>
+            <column name="reasoning" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" nullable="false" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="recommendation" indexName="idx_recommendation_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="recommendation" indexName="idx_recommendation_created_at">
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

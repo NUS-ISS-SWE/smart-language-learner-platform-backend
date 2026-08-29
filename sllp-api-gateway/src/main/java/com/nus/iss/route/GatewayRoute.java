@@ -92,6 +92,18 @@ public class GatewayRoute {
                         .path("/api/v1/composition/examples/language/{language}/level/{level}")
                         .uri(sllpProperties.getCompositionService()))
 
+                // Recommendation service routes
+                .route("recommendation_generate", r -> r.method(HttpMethod.POST)
+                        .and()
+                        .path("/api/v1/recommendations/generate")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getCompositionService()))
+                .route("recommendation_get", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/recommendations")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getCompositionService()))
+
                 // Document service routes
                 .route("document_upload", r -> r.method(HttpMethod.POST)
                         .and()

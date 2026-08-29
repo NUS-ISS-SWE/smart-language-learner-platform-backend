@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.1.xsd">
+
+    <changeSet id="001_create_users_table" author="system">
+        <createTable tableName="users">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)" nullable="false">
+                <constraints unique="true" nullable="false"/>
+            </column>
+            <column name="password" type="VARCHAR(255)" nullable="false"/>
+            <column name="first_name" type="VARCHAR(255)"/>
+            <column name="last_name" type="VARCHAR(255)"/>
+            <column name="status" type="VARCHAR(50)" nullable="false" defaultValue="ACTIVE"/>
+            <column name="role" type="VARCHAR(50)" nullable="false" defaultValue="USER_FREE_TRIAL"/>
+            <column name="created_at" type="TIMESTAMP" nullable="false" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" nullable="false" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="users" indexName="idx_users_email">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="001_create_composition_table" author="system">
+        <createTable tableName="composition">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT" nullable="false"/>
+            <column name="title" type="VARCHAR(255)"/>
+            <column name="content" type="TEXT"/>
+            <column name="composition_source" type="VARCHAR(50)"/>
+            <column name="language" type="VARCHAR(50)"/>
+            <column name="composition_status" type="VARCHAR(50)"/>
+            <column name="system_feedback" type="TEXT"/>
+            <column name="storage_path" type="VARCHAR(500)"/>
+            <column name="created_at" type="TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="composition" indexName="idx_composition_user_id">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="001_create_evaluation_table" author="system">
+        <createTable tableName="evaluation">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="composition_id" type="BIGINT" nullable="false"/>
+            <column name="score" type="NUMERIC(5,2)"/>
+            <column name="feedback" type="TEXT"/>
+            <column name="success" type="BOOLEAN" nullable="false" defaultValueBoolean="true"/>
+            <column name="failure_reason" type="TEXT"/>
+            <column name="evaluated_at" type="TIMESTAMP" nullable="false"/>
+        </createTable>
+
+        <createIndex tableName="evaluation" indexName="idx_evaluation_composition_id">
+            <column name="composition_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

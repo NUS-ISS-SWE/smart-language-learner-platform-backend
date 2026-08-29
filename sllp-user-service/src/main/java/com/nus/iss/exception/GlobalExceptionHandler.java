@@ -21,12 +21,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ProblemDetail handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
-        return problem(HttpStatus.CONFLICT, "Account Conflict", "Unable to complete registration.");
+        return problem(HttpStatus.CONFLICT, "ACCOUNT_CONFLICT", "Account Conflict", "Unable to complete registration.");
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ProblemDetail handleBadCredentialsException(BadCredentialsException ex) {
-        return problem(HttpStatus.UNAUTHORIZED, "Authentication Failed", "Invalid credentials or request.");
+        return problem(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED", "Authentication Failed", "Invalid credentials or request.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getField)
                 .distinct()
                 .toList();
-        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "Validation Failed", "One or more request fields are invalid.");
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation Failed", "One or more request fields are invalid.");
         pd.setProperty("invalidFields", invalidFields);
         return pd;
     }
@@ -47,34 +47,36 @@ public class GlobalExceptionHandler {
                 "User profile not found."
         );
         problemDetail.setTitle("User Not Found");
+        problemDetail.setProperty("code", "RESOURCE_NOT_FOUND");
         return problemDetail;
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ProblemDetail handleEntityNotFoundException(EntityNotFoundException ex) {
-        return problem(HttpStatus.NOT_FOUND, "Not Found", "The requested resource was not found.");
+        return problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Not Found", "The requested resource was not found.");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgumentException(IllegalArgumentException ex) {
-        return problem(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid value provided.");
+        return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Bad Request", "Invalid value provided.");
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ProblemDetail handleMethodNotSupportedException(HttpRequestMethodNotSupportedException ex) {
-        return problem(HttpStatus.METHOD_NOT_ALLOWED, "Method Not Allowed",
+        return problem(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED", "Method Not Allowed",
                 "HTTP method '" + ex.getMethod() + "' is not supported for this endpoint.");
     }
 
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneralException(Exception ex) {
         log.error("Unhandled user-service exception", ex);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "An unexpected error occurred.");
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal Server Error", "An unexpected error occurred.");
     }
 
-    private static ProblemDetail problem(HttpStatus status, String title, String detail) {
+    private static ProblemDetail problem(HttpStatus status, String code, String title, String detail) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail);
         pd.setTitle(title);
+        pd.setProperty("code", code);
         return pd;
     }
 }

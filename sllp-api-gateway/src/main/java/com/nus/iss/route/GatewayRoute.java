@@ -140,6 +140,11 @@ public class GatewayRoute {
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
                         .uri(sllpProperties.getAdminService()))
                 // Admin routes — ADMIN role only
+                .route("admin_usage_metrics", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/admin/metrics")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getUserService()))
                 .route("admin_user_list", r -> r.method(HttpMethod.GET)
                         .and()
                         .path("/api/v1/admin/users")

@@ -79,6 +79,18 @@ public class GatewayRoute {
                         .path("/api/v1/composition/generate")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getCompositionService()))
+                .route("composition_examples", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/composition/examples")
+                        .uri(sllpProperties.getCompositionService()))
+                .route("composition_examples_by_language", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/composition/examples/language/{language}")
+                        .uri(sllpProperties.getCompositionService()))
+                .route("composition_examples_by_language_and_level", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/v1/composition/examples/language/{language}/level/{level}")
+                        .uri(sllpProperties.getCompositionService()))
 
                 // Document service routes
                 .route("document_upload", r -> r.method(HttpMethod.POST)

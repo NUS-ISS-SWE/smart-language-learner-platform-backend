@@ -17,18 +17,22 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
+import com.nus.iss.dto.CompositionExampleResponse;
 import com.nus.iss.dto.CompositionResponse;
 import com.nus.iss.dto.CreateCompositionRequest;
 import com.nus.iss.dto.GenerateCompositionRequest;
 import com.nus.iss.dto.UpdateCompositionRequest;
 import com.nus.iss.enums.CompositionStatus;
+import com.nus.iss.enums.Language;
 import com.nus.iss.service.CompositionCommandService;
+import com.nus.iss.service.CompositionExampleService;
 import com.nus.iss.service.CompositionQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class CompositionControllerTest {
     @Mock private CompositionCommandService commandService;
     @Mock private CompositionQueryService queryService;
+    @Mock private CompositionExampleService exampleService;
 
     @Test
     void createDelegatesTypedRequestToCommandService() {
@@ -81,8 +85,73 @@ class CompositionControllerTest {
         verify(commandService).requestGrading(1L, 10L);
     }
 
+    @Test
+    void getAllExamplesReturnsExamplesFromService() {
+        CompositionController controller = controller();
+        List<CompositionExampleResponse> examples = List.of(
+                new CompositionExampleResponse("Example 1", "Content 1", Language.ENGLISH, "BEGINNER", "Description 1")
+        );
+        when(exampleService.getAllExamples()).thenReturn(examples);
+
+        ResponseEntity<List<CompositionExampleResponse>> result = controller.getAllCompositionExamples();
+
+        assertEquals(200, result.getStatusCode().value());
+        assertSame(examples, result.getBody());
+        verify(exampleService).getAllExamples();
+    }
+
+    @Test
+    void getExamplesByLanguageReturnsFilteredExamples() {
+        CompositionController controller = controller();
+        List<CompositionExampleResponse> examples = List.of(
+                new CompositionExampleResponse("Example 1", "Content 1", Language.ENGLISH, "BEGINNER", "Description 1")
+        );
+        when(exampleService.getExamples(Language.ENGLISH)).thenReturn(examples);
+
+        ResponseEntity<List<CompositionExampleResponse>> result = controller.getCompositionExamplesByLanguage("english");
+
+        assertEquals(200, result.getStatusCode().value());
+        assertSame(examples, result.getBody());
+        verify(exampleService).getExamples(Language.ENGLISH);
+    }
+
+    @Test
+    void getExamplesByLanguageRejectInvalidLanguage() {
+        CompositionController controller = controller();
+
+        ResponseEntity<List<CompositionExampleResponse>> result = controller.getCompositionExamplesByLanguage("invalid");
+
+        assertEquals(400, result.getStatusCode().value());
+    }
+
+    @Test
+    void getExamplesByLanguageAndLevelReturnsFilteredExamples() {
+        CompositionController controller = controller();
+        List<CompositionExampleResponse> examples = List.of(
+                new CompositionExampleResponse("Example 1", "Content 1", Language.ENGLISH, "BEGINNER", "Description 1")
+        );
+        when(exampleService.getExamplesByLevel(Language.ENGLISH, "BEGINNER")).thenReturn(examples);
+
+        ResponseEntity<List<CompositionExampleResponse>> result =
+                controller.getCompositionExamplesByLanguageAndLevel("english", "BEGINNER");
+
+        assertEquals(200, result.getStatusCode().value());
+        assertSame(examples, result.getBody());
+        verify(exampleService).getExamplesByLevel(Language.ENGLISH, "BEGINNER");
+    }
+
+    @Test
+    void getExamplesByLanguageAndLevelRejectsInvalidLanguage() {
+        CompositionController controller = controller();
+
+        ResponseEntity<List<CompositionExampleResponse>> result =
+                controller.getCompositionExamplesByLanguageAndLevel("invalid", "BEGINNER");
+
+        assertEquals(400, result.getStatusCode().value());
+    }
+
     private CompositionController controller() {
-        return new CompositionController(commandService, queryService);
+        return new CompositionController(commandService, queryService, exampleService);
     }
 
     private static CompositionResponse response() {

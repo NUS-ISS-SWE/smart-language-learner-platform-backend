@@ -16,11 +16,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.nus.iss.dto.CompositionExampleResponse;
 import com.nus.iss.dto.CompositionResponse;
 import com.nus.iss.dto.CreateCompositionRequest;
 import com.nus.iss.dto.GenerateCompositionRequest;
 import com.nus.iss.dto.UpdateCompositionRequest;
+import com.nus.iss.enums.Language;
 import com.nus.iss.service.CompositionCommandService;
+import com.nus.iss.service.CompositionExampleService;
 import com.nus.iss.service.CompositionQueryService;
 
 import jakarta.validation.Valid;
@@ -32,10 +35,13 @@ import jakarta.validation.constraints.NotNull;
 public class CompositionController {
     private final CompositionCommandService commandService;
     private final CompositionQueryService queryService;
+    private final CompositionExampleService exampleService;
 
-    public CompositionController(CompositionCommandService commandService, CompositionQueryService queryService) {
+    public CompositionController(CompositionCommandService commandService, CompositionQueryService queryService,
+                                 CompositionExampleService exampleService) {
         this.commandService = commandService;
         this.queryService = queryService;
+        this.exampleService = exampleService;
     }
 
     @PostMapping("/composition")
@@ -80,6 +86,34 @@ public class CompositionController {
     public ResponseEntity<CompositionResponse> generateComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
                                                                       @RequestBody @Valid @NotNull GenerateCompositionRequest request) {
         return ResponseEntity.ok(commandService.generate(userId, request));
+    }
+
+    @GetMapping("/composition/examples")
+    public ResponseEntity<List<CompositionExampleResponse>> getAllCompositionExamples() {
+        return ResponseEntity.ok(exampleService.getAllExamples());
+    }
+
+    @GetMapping("/composition/examples/language/{language}")
+    public ResponseEntity<List<CompositionExampleResponse>> getCompositionExamplesByLanguage(
+            @PathVariable String language) {
+        try {
+            Language lang = Language.valueOf(language.toUpperCase());
+            return ResponseEntity.ok(exampleService.getExamples(lang));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/composition/examples/language/{language}/level/{level}")
+    public ResponseEntity<List<CompositionExampleResponse>> getCompositionExamplesByLanguageAndLevel(
+            @PathVariable String language,
+            @PathVariable String level) {
+        try {
+            Language lang = Language.valueOf(language.toUpperCase());
+            return ResponseEntity.ok(exampleService.getExamplesByLevel(lang, level));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
 }

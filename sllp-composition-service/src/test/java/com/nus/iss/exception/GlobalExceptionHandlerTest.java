@@ -18,7 +18,8 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), problemDetail.getStatus());
         assertEquals("Internal Server Error", problemDetail.getTitle());
-        assertEquals("Unexpected", problemDetail.getDetail());
+        assertEquals("An unexpected error occurred", problemDetail.getDetail());
+        assertEquals("INTERNAL_ERROR", problemDetail.getProperties().get("code"));
     }
 
     @Test
@@ -29,6 +30,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST.value(), problemDetail.getStatus());
         assertEquals("Bad Request", problemDetail.getTitle());
         assertEquals("Bad request", problemDetail.getDetail());
+        assertEquals("INVALID_REQUEST", problemDetail.getProperties().get("code"));
     }
 
     @Test
@@ -39,5 +41,6 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.NOT_FOUND.value(), problemDetail.getStatus());
         assertEquals("Not Found", problemDetail.getTitle());
         assertEquals("Composition not found", problemDetail.getDetail());
+        assertEquals("RESOURCE_NOT_FOUND", problemDetail.getProperties().get("code"));
     }
 }

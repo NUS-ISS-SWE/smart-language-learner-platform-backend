@@ -2,7 +2,8 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
-import com.nus.iss.service.CompositionService;
+import com.nus.iss.exception.InvalidCompositionRequestException;
+import com.nus.iss.service.CompositionCompletionService;
 import com.nus.iss.service.KafkaConsumerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -14,11 +15,11 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class KafkaConsumerServiceImpl implements KafkaConsumerService {
 
-    private final CompositionService compositionService;
+    private final CompositionCompletionService completionService;
     private final ObjectMapper objectMapper;
 
-    public KafkaConsumerServiceImpl(CompositionService compositionService, ObjectMapper objectMapper) {
-        this.compositionService = compositionService;
+    public KafkaConsumerServiceImpl(CompositionCompletionService completionService, ObjectMapper objectMapper) {
+        this.completionService = completionService;
         this.objectMapper = objectMapper;
     }
 
@@ -31,10 +32,10 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
         try {
             log.info("CompositionGradingCompletedEvent: {}", payload);
             CompositionGradingCompletedEvent event = objectMapper.readValue(payload, CompositionGradingCompletedEvent.class);
-            compositionService.completeCompositionGrading(event);
+            completionService.completeGrading(event);
             log.info("Consumed composition grading completed event for compositionId: {}", event.getCompositionId());
         } catch (JacksonException ex) {
-            throw new IllegalArgumentException("Failed to deserialize composition grading completed event", ex);
+            throw new InvalidCompositionRequestException("Failed to deserialize composition grading completed event", ex);
         }
     }
 
@@ -47,10 +48,10 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
         try {
             log.info("CompositionGenerationCompletedEvent: {}", payload);
             CompositionGenerationCompletedEvent event = objectMapper.readValue(payload, CompositionGenerationCompletedEvent.class);
-            compositionService.completeCompositionGeneration(event);
+            completionService.completeGeneration(event);
             log.info("Consumed composition generation completed event for compositionId: {}", event.getCompositionId());
         } catch (JacksonException ex) {
-            throw new IllegalArgumentException("Failed to deserialize composition generation completed event", ex);
+            throw new InvalidCompositionRequestException("Failed to deserialize composition generation completed event", ex);
         }
     }
 }

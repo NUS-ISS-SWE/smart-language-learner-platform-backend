@@ -1,146 +1,92 @@
 package com.nus.iss.controller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
-import com.nus.iss.dto.CompositionDTO;
+import com.nus.iss.dto.CompositionResponse;
+import com.nus.iss.dto.CreateCompositionRequest;
+import com.nus.iss.dto.GenerateCompositionRequest;
+import com.nus.iss.dto.UpdateCompositionRequest;
 import com.nus.iss.enums.CompositionStatus;
-import com.nus.iss.service.CompositionService;
+import com.nus.iss.service.CompositionCommandService;
+import com.nus.iss.service.CompositionQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class CompositionControllerTest {
-
-    @Mock
-    private CompositionService compositionService;
-
-    @Test
-    void createNewCompositionReturnsCreatedComposition() {
-        CompositionController controller = new CompositionController(compositionService);
-        CompositionDTO request = request();
-        CompositionDTO createdComposition = response();
-        when(compositionService.createNewComposition(1L, request)).thenReturn(createdComposition);
-
-        ResponseEntity<CompositionDTO> response = controller.createNewComposition(1L, "USER_FREE_TRIAL", request);
-
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(createdComposition, response.getBody());
-    }
+    @Mock private CompositionCommandService commandService;
+    @Mock private CompositionQueryService queryService;
 
     @Test
-    void getAllCompositionByUserIdUsesDescendingCreatedAtPageRequest() {
-        CompositionController controller = new CompositionController(compositionService);
-        List<CompositionDTO> compositions = List.of(response());
-        when(compositionService.getAllCompositionByUserId(org.mockito.ArgumentMatchers.eq(1L),
-                org.mockito.ArgumentMatchers.any(Pageable.class))).thenReturn(compositions);
+    void createDelegatesTypedRequestToCommandService() {
+        CompositionController controller = controller();
+        CreateCompositionRequest request = new CreateCompositionRequest("My title", "My composition");
+        CompositionResponse created = response();
+        when(commandService.create(1L, request)).thenReturn(created);
 
-        ResponseEntity<List<CompositionDTO>> response =
-                controller.getAllCompositionByUserId(1L, "USER_FREE_TRIAL", 2, 20);
+        ResponseEntity<CompositionResponse> result = controller.createNewComposition(1L, request);
 
-        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(compositionService).getAllCompositionByUserId(org.mockito.ArgumentMatchers.eq(1L), pageableCaptor.capture());
-        Pageable pageable = pageableCaptor.getValue();
-
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(compositions, response.getBody());
-        assertEquals(2, pageable.getPageNumber());
-        assertEquals(20, pageable.getPageSize());
-        assertEquals("createdAt: DESC", pageable.getSort().toString());
+        assertEquals(200, result.getStatusCode().value());
+        assertSame(created, result.getBody());
     }
 
     @Test
-    void getSingleCompositionByIdReturnsComposition() {
-        CompositionController controller = new CompositionController(compositionService);
-        CompositionDTO composition = response();
-        when(compositionService.getSingleCompositionById(1L, 10L)).thenReturn(composition);
+    void listUsesDescendingCreatedAtPageRequest() {
+        CompositionController controller = controller();
+        List<CompositionResponse> compositions = List.of(response());
+        when(queryService.listForUser(eq(1L), any(Pageable.class))).thenReturn(compositions);
 
-        ResponseEntity<CompositionDTO> response =
-                controller.getSingleCompositionById(1L, "USER_FREE_TRIAL", 10L);
+        ResponseEntity<List<CompositionResponse>> result = controller.getAllCompositionByUserId(1L, 2, 20);
 
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(composition, response.getBody());
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(queryService).listForUser(eq(1L), captor.capture());
+        assertEquals(2, captor.getValue().getPageNumber());
+        assertEquals(20, captor.getValue().getPageSize());
+        assertEquals("createdAt: DESC", captor.getValue().getSort().toString());
+        assertSame(compositions, result.getBody());
     }
 
     @Test
-    void updateCompositionReturnsUpdatedComposition() {
-        CompositionController controller = new CompositionController(compositionService);
-        CompositionDTO request = request();
-        CompositionDTO updatedComposition = response();
-        when(compositionService.updateComposition(1L, 10L, request)).thenReturn(updatedComposition);
+    void updateAndGenerateDelegatePurposeSpecificRequests() {
+        CompositionController controller = controller();
+        CompositionResponse updated = response();
+        when(commandService.update(1L, 10L, new UpdateCompositionRequest("New", "Updated"))).thenReturn(updated);
+        when(commandService.generate(1L, new GenerateCompositionRequest("Generate"))).thenReturn(updated);
 
-        ResponseEntity<CompositionDTO> response =
-                controller.updateComposition(1L, "USER_FREE_TRIAL", 10L, request);
-
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(updatedComposition, response.getBody());
+        assertSame(updated, controller.updateComposition(1L, 10L, new UpdateCompositionRequest("New", "Updated")).getBody());
+        assertSame(updated, controller.generateComposition(1L, new GenerateCompositionRequest("Generate")).getBody());
     }
 
     @Test
-    void deleteCompositionReturnsNoContent() {
-        CompositionController controller = new CompositionController(compositionService);
+    void deleteAndGradingDelegateToCommandService() {
+        CompositionController controller = controller();
+        when(commandService.requestGrading(1L, 10L)).thenReturn(response());
 
-        ResponseEntity<Void> response =
-                controller.deleteComposition(1L, "USER_FREE_TRIAL", 10L);
-
-        assertEquals(204, response.getStatusCode().value());
-        assertNull(response.getBody());
-        verify(compositionService).deleteComposition(1L, 10L);
+        assertEquals(204, controller.deleteComposition(1L, 10L).getStatusCode().value());
+        assertEquals(200, controller.requestToGradeComposition(1L, 10L).getStatusCode().value());
+        verify(commandService).delete(1L, 10L);
+        verify(commandService).requestGrading(1L, 10L);
     }
 
-    @Test
-    void requestToGradeCompositionReturnsReviewingComposition() {
-        CompositionController controller = new CompositionController(compositionService);
-        CompositionDTO reviewingComposition = response();
-        reviewingComposition.setCompositionStatus(CompositionStatus.REVIEWING);
-        when(compositionService.requestToGradeComposition(1L, 10L)).thenReturn(reviewingComposition);
-
-        ResponseEntity<CompositionDTO> response =
-                controller.requestToGradeComposition(1L, "USER_FREE_TRIAL", 10L);
-
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(reviewingComposition, response.getBody());
+    private CompositionController controller() {
+        return new CompositionController(commandService, queryService);
     }
 
-    @Test
-    void generateCompositionReturnsGeneratingComposition() {
-        CompositionController controller = new CompositionController(compositionService);
-        CompositionDTO request = CompositionDTO.builder().title("Generate this").build();
-        CompositionDTO generatedComposition = response();
-        generatedComposition.setCompositionStatus(CompositionStatus.GENERATING);
-        when(compositionService.generateComposition(1L, request)).thenReturn(generatedComposition);
-
-        ResponseEntity<CompositionDTO> response =
-                controller.generateComposition(1L, "USER_FREE_TRIAL", request);
-
-        assertEquals(200, response.getStatusCode().value());
-        assertSame(generatedComposition, response.getBody());
-    }
-
-    private static CompositionDTO request() {
-        return CompositionDTO.builder()
-                .title("My title")
-                .content("This is my composition.")
-                .build();
-    }
-
-    private static CompositionDTO response() {
-        return CompositionDTO.builder()
-                .id(10L)
-                .userId(1L)
-                .title("My title")
-                .content("This is my composition.")
-                .compositionStatus(CompositionStatus.DRAFT)
-                .build();
+    private static CompositionResponse response() {
+        return new CompositionResponse(10L, 1L, "My title", "My composition", null, null,
+                CompositionStatus.DRAFT, null, null, null, null);
     }
 }

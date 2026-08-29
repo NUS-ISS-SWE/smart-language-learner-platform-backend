@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.nus.iss.dto.CompositionDTO;
-import com.nus.iss.service.CompositionService;
+import com.nus.iss.dto.CompositionResponse;
+import com.nus.iss.service.CompositionQueryService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +27,10 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AdminCompositionController {
 
-    private final CompositionService compositionService;
+    private final CompositionQueryService queryService;
 
     @GetMapping("/compositions")
-    public ResponseEntity<List<CompositionDTO>> getUserCompositions(
+    public ResponseEntity<List<CompositionResponse>> getUserCompositions(
             @RequestHeader("X-Sllp-Role") String role,
             @RequestParam Long userId,
             @RequestParam(defaultValue = "0") int page,
@@ -38,17 +38,17 @@ public class AdminCompositionController {
         assertAdmin(role);
         log.info("Admin retrieving compositions for userId={}", userId);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        List<CompositionDTO> compositions = compositionService.getAllCompositionByUserId(userId, pageable);
+        List<CompositionResponse> compositions = queryService.listForUser(userId, pageable);
         return ResponseEntity.ok(compositions);
     }
 
     @GetMapping("/compositions/{id}")
-    public ResponseEntity<CompositionDTO> getCompositionById(
+    public ResponseEntity<CompositionResponse> getCompositionById(
             @RequestHeader("X-Sllp-Role") String role,
             @PathVariable Long id) {
         assertAdmin(role);
         log.info("Admin retrieving single composition id={}", id);
-        return ResponseEntity.ok(compositionService.getCompositionByIdForAdmin(id));
+        return ResponseEntity.ok(queryService.getForAdmin(id));
     }
 
     private static void assertAdmin(String role) {

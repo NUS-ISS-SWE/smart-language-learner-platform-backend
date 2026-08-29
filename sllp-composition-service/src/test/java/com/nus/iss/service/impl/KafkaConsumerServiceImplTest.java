@@ -2,7 +2,7 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
-import com.nus.iss.service.CompositionService;
+import com.nus.iss.service.CompositionCompletionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,14 +20,14 @@ import static org.mockito.Mockito.when;
 class KafkaConsumerServiceImplTest {
 
     @Mock
-    private CompositionService compositionService;
+    private CompositionCompletionService completionService;
 
     @Mock
     private ObjectMapper objectMapper;
 
     @Test
-    void consumeCompositionGradingCompletedEventDeserializesAndDelegatesToCompositionService() throws JacksonException {
-        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
+    void consumeCompositionGradingCompletedEventDeserializesAndDelegatesToCompletionService() throws JacksonException {
+        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(completionService, objectMapper);
         CompositionGradingCompletedEvent event = CompositionGradingCompletedEvent.builder()
                 .compositionId(10L)
                 .userId(1L)
@@ -38,12 +38,12 @@ class KafkaConsumerServiceImplTest {
 
         service.consumeCompositionGradingCompletedEvent("payload");
 
-        verify(compositionService).completeCompositionGrading(event);
+        verify(completionService).completeGrading(event);
     }
 
     @Test
-    void consumeCompositionGenerationCompletedEventDeserializesAndDelegatesToCompositionService() throws JacksonException {
-        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
+    void consumeCompositionGenerationCompletedEventDeserializesAndDelegatesToCompletionService() throws JacksonException {
+        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(completionService, objectMapper);
         CompositionGenerationCompletedEvent event = CompositionGenerationCompletedEvent.builder()
                 .compositionId(20L)
                 .userId(1L)
@@ -54,32 +54,32 @@ class KafkaConsumerServiceImplTest {
 
         service.consumeCompositionGenerationCompletedEvent("payload");
 
-        verify(compositionService).completeCompositionGeneration(event);
+        verify(completionService).completeGeneration(event);
     }
 
     @Test
     void consumeCompositionGradingCompletedEvent_whenPayloadCannotDeserializeThrowsIllegalArgumentException()
             throws JacksonException {
-        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
+        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(completionService, objectMapper);
         when(objectMapper.readValue("payload", CompositionGradingCompletedEvent.class))
                 .thenThrow(Mockito.mock(JacksonException.class));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.consumeCompositionGradingCompletedEvent("payload"));
 
-        verifyNoInteractions(compositionService);
+        verifyNoInteractions(completionService);
     }
 
     @Test
     void consumeCompositionGenerationCompletedEvent_whenPayloadCannotDeserializeThrowsIllegalArgumentException()
             throws JacksonException {
-        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(compositionService, objectMapper);
+        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(completionService, objectMapper);
         when(objectMapper.readValue("payload", CompositionGenerationCompletedEvent.class))
                 .thenThrow(Mockito.mock(JacksonException.class));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.consumeCompositionGenerationCompletedEvent("payload"));
 
-        verifyNoInteractions(compositionService);
+        verifyNoInteractions(completionService);
     }
 }

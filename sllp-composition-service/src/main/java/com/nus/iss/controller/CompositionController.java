@@ -1,102 +1,85 @@
 package com.nus.iss.controller;
 
-import com.nus.iss.dto.CompositionDTO;
-import com.nus.iss.service.CompositionService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
-@Slf4j
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.nus.iss.dto.CompositionResponse;
+import com.nus.iss.dto.CreateCompositionRequest;
+import com.nus.iss.dto.GenerateCompositionRequest;
+import com.nus.iss.dto.UpdateCompositionRequest;
+import com.nus.iss.service.CompositionCommandService;
+import com.nus.iss.service.CompositionQueryService;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+/** HTTP-only adapter for composition commands and queries. */
 @RestController
 @RequestMapping("/api/v1")
 public class CompositionController {
+    private final CompositionCommandService commandService;
+    private final CompositionQueryService queryService;
 
-    private final CompositionService compositionService;
-
-    @Autowired
-    public CompositionController(CompositionService compositionService) {
-        this.compositionService = compositionService;
+    public CompositionController(CompositionCommandService commandService, CompositionQueryService queryService) {
+        this.commandService = commandService;
+        this.queryService = queryService;
     }
 
     @PostMapping("/composition")
-    public ResponseEntity<CompositionDTO> createNewComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                               @RequestHeader("X-Sllp-Role") String role,
-                                                               @RequestBody CompositionDTO compositionDTO) {
-        log.info("Creating new composition for user: {} with role: {}, title: {}, contentPreview: {}",
-                userId, role, compositionDTO.getTitle(), getContentPreview(compositionDTO.getContent()));
-        CompositionDTO createdComposition = compositionService.createNewComposition(userId, compositionDTO);
-        return ResponseEntity.ok(createdComposition);
+    public ResponseEntity<CompositionResponse> createNewComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                      @RequestBody @Valid @NotNull CreateCompositionRequest request) {
+        return ResponseEntity.ok(commandService.create(userId, request));
     }
 
     @GetMapping("/composition")
-    public ResponseEntity<List<CompositionDTO>> getAllCompositionByUserId(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                                          @RequestHeader("X-Sllp-Role") String role,
-                                                                          @RequestParam(defaultValue = "0") int page,
-                                                                          @RequestParam(defaultValue = "10") int size) {
-        log.info("Getting compositions for user: {} with role: {}, page: {}, size: {}", userId, role, page, size);
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        List<CompositionDTO> compositions = compositionService.getAllCompositionByUserId(userId, pageable);
-        return ResponseEntity.ok(compositions);
+    public ResponseEntity<List<CompositionResponse>> getAllCompositionByUserId(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                                 @RequestParam(defaultValue = "0") int page,
+                                                                                 @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(queryService.listForUser(userId, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))));
     }
 
     @GetMapping("/composition/{id}")
-    public ResponseEntity<CompositionDTO> getSingleCompositionById(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                                   @RequestHeader("X-Sllp-Role") String role,
-                                                                   @PathVariable Long id) {
-        log.info("Getting composition with ID: {} for user: {} with role: {}", id, userId, role);
-        CompositionDTO composition = compositionService.getSingleCompositionById(userId, id);
-        return ResponseEntity.ok(composition);
+    public ResponseEntity<CompositionResponse> getSingleCompositionById(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                          @PathVariable Long id) {
+        return ResponseEntity.ok(queryService.getForUser(userId, id));
     }
 
     @PutMapping("/composition/{id}")
-    public ResponseEntity<CompositionDTO> updateComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                            @RequestHeader("X-Sllp-Role") String role,
-                                                            @PathVariable Long id,
-                                                            @RequestBody CompositionDTO compositionDTO) {
-        log.info("Updating composition with ID: {} for user: {} with role: {}, title: {}, contentPreview: {}",
-                id, userId, role, compositionDTO.getTitle(), getContentPreview(compositionDTO.getContent()));
-        CompositionDTO updatedComposition = compositionService.updateComposition(userId, id, compositionDTO);
-        return ResponseEntity.ok(updatedComposition);
+    public ResponseEntity<CompositionResponse> updateComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                   @PathVariable Long id,
+                                                                   @RequestBody @Valid @NotNull UpdateCompositionRequest request) {
+        return ResponseEntity.ok(commandService.update(userId, id, request));
     }
 
     @DeleteMapping("/composition/{id}")
-    public ResponseEntity<Void> deleteComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                  @RequestHeader("X-Sllp-Role") String role,
-                                                  @PathVariable Long id) {
-        log.info("Deleting composition with ID: {} for user: {} with role: {}", id, userId, role);
-        compositionService.deleteComposition(userId, id);
+    public ResponseEntity<Void> deleteComposition(@RequestHeader("X-Sllp-User-Id") Long userId, @PathVariable Long id) {
+        commandService.delete(userId, id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/composition/{id}/grading")
-    public ResponseEntity<CompositionDTO> requestToGradeComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                                    @RequestHeader("X-Sllp-Role") String role,
-                                                                    @PathVariable Long id) {
-        log.info("Requesting grading for composition with ID: {} for user: {} with role: {}", id, userId, role);
-        CompositionDTO composition = compositionService.requestToGradeComposition(userId, id);
-        return ResponseEntity.ok(composition);
+    public ResponseEntity<CompositionResponse> requestToGradeComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                            @PathVariable Long id) {
+        return ResponseEntity.ok(commandService.requestGrading(userId, id));
     }
 
     @PostMapping("/composition/generate")
-    public ResponseEntity<CompositionDTO> generateComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
-                                                              @RequestHeader("X-Sllp-Role") String role,
-                                                              @RequestBody CompositionDTO compositionDTO) {
-        log.info("Generating composition for user: {} with role: {}, title: {}",
-                userId, role, compositionDTO.getTitle());
-        CompositionDTO composition = compositionService.generateComposition(userId, compositionDTO);
-        return ResponseEntity.ok(composition);
+    public ResponseEntity<CompositionResponse> generateComposition(@RequestHeader("X-Sllp-User-Id") Long userId,
+                                                                      @RequestBody @Valid @NotNull GenerateCompositionRequest request) {
+        return ResponseEntity.ok(commandService.generate(userId, request));
     }
 
-    private String getContentPreview(String content) {
-        if (content == null) {
-            return "";
-        }
-        return content.substring(0, Math.min(content.length(), 20));
-    }
 }

@@ -9,6 +9,7 @@ import com.nus.iss.exception.InvalidSubscriptionOperationException;
 import com.nus.iss.exception.PricingPlanNotFoundException;
 import com.nus.iss.repository.PricingPlanRepository;
 import com.nus.iss.service.PricingPlanService;
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class PricingPlanServiceImpl implements PricingPlanService {
     private static final int FEATURE_ORDER_STEP = 10;
 
     private final PricingPlanRepository repository;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -120,6 +122,11 @@ public class PricingPlanServiceImpl implements PricingPlanService {
 
     private void replaceFeatures(PricingPlan plan, List<String> features) {
         plan.getFeatures().clear();
+        // Hibernate otherwise inserts replacement rows before orphan-removal
+        // deletes, conflicting with the unique plan/order constraint.
+        if (plan.getId() != null) {
+            entityManager.flush();
+        }
         for (int index = 0; index < features.size(); index++) {
             plan.getFeatures().add(PricingPlanFeature.builder()
                     .pricingPlan(plan)

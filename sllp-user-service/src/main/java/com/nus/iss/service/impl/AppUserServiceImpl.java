@@ -15,6 +15,7 @@ import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
 import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.AppUser;
+import com.nus.iss.entity.PricingPlanRef;
 import com.nus.iss.entity.UserSubscription;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
@@ -22,6 +23,7 @@ import com.nus.iss.enums.Role;
 import com.nus.iss.enums.Status;
 import com.nus.iss.exception.UserAlreadyExistsException;
 import com.nus.iss.repository.AppUserRepository;
+import com.nus.iss.repository.PricingPlanReferenceRepository;
 import com.nus.iss.service.AppUserService;
 import com.nus.iss.service.AppUserMapper;
 import com.nus.iss.service.NotificationService;
@@ -34,12 +36,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class AppUserServiceImpl implements AppUserService {
 
-    private static final int PAID_PLAN_DURATION_DAYS = 30;
-
     private final AppUserRepository appUserRepository;
     private final NotificationService notificationService;
     private final PasswordEncoder passwordEncoder;
     private final JwtConfig jwtConfig;
+    private final PricingPlanReferenceRepository pricingPlanRepository;
     private final AppUserMapper appUserMapper = new AppUserMapper();
 
     @Override
@@ -51,7 +52,8 @@ public class AppUserServiceImpl implements AppUserService {
             throw new UserAlreadyExistsException("Account already exists");
         }
 
-        Role role = roleForPlan(appUserDTO.getPlanType());
+        PricingPlanRef selectedPlan = resolvePaidPlan(appUserDTO.getPlanType());
+        Role role = selectedPlan == null ? Role.USER_FREE_TRIAL : Role.valueOf(selectedPlan.getAccessRole());
 
         AppUser appUser = AppUser.builder()
                 .username(appUserDTO.getUsername())
@@ -69,7 +71,7 @@ public class AppUserServiceImpl implements AppUserService {
         AppUser savedUser = appUserRepository.save(appUser);
         log.info("User registered successfully with ID: {}", savedUser.getId());
 
-        createInitialSubscription(savedUser, appUserDTO.getPlanType());
+        if (selectedPlan != null) createInitialSubscription(savedUser, selectedPlan);
 
         try {
             notificationService.sendActivationEmail(savedUser);
@@ -186,30 +188,25 @@ public class AppUserServiceImpl implements AppUserService {
                 .build();
     }
 
-    private static Role roleForPlan(String planType) {
-        if ("BASIC".equals(planType)) return Role.USER_BASIC;
-        if ("PREMIUM".equals(planType)) return Role.USER_PREMIUM;
-        return Role.USER_FREE_TRIAL;
-    }
-
-    private void createInitialSubscription(AppUser user, String planType) {
-        if (!"BASIC".equals(planType) && !"PREMIUM".equals(planType)) {
-            return;
-        }
-        LocalDate today = LocalDate.now();
-        UserSubscription sub = UserSubscription.builder()
-                .user(user)
-                .planType(planType)
-                .startDate(today)
-                .endDate(today.plusDays(PAID_PLAN_DURATION_DAYS))
-                .durationDays(PAID_PLAN_DURATION_DAYS)
-                .build();
-        user.getSubscriptions().add(sub);
-        appUserRepository.save(user);
-        log.info("Created {} subscription for user {}", planType, user.getId());
-    }
-
     private AppUserDTO mapToDTO(AppUser user) {
         return appUserMapper.toUserDto(user);
+    }
+
+    private PricingPlanRef resolvePaidPlan(String planCode) {
+        if (planCode == null || "FREE_TRIAL".equals(planCode)) return null;
+        return pricingPlanRepository.findByCodeAndActiveTrue(planCode)
+                .orElseThrow(() -> new IllegalArgumentException("Selected pricing plan is not available"));
+    }
+
+    private void createInitialSubscription(AppUser user, PricingPlanRef plan) {
+        LocalDate today = LocalDate.now();
+        UserSubscription sub = UserSubscription.builder().user(user).pricingPlanId(plan.getId())
+                .planCodeSnapshot(plan.getCode()).planNameSnapshot(plan.getDisplayName()).priceMinorSnapshot(plan.getPriceMinor()).currencySnapshot(plan.getCurrency()).featuresSnapshot(featuresJson(plan))
+                .status("ACTIVE").startDate(today).endDate(plan.getDurationDays() == null ? null : today.plusDays(plan.getDurationDays())).durationDays(plan.getDurationDays()).build();
+        user.getSubscriptions().add(sub); appUserRepository.save(user);
+    }
+
+    private String featuresJson(PricingPlanRef plan) {
+        return plan.getFeatures().stream().map(feature -> "\"" + feature.getFeatureText().replace("\\", "\\\\").replace("\"", "\\\"") + "\"").collect(java.util.stream.Collectors.joining(",", "[", "]"));
     }
 }

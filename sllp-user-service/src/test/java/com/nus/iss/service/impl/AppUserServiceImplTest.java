@@ -11,6 +11,7 @@ import com.nus.iss.enums.Role;
 import com.nus.iss.enums.Status;
 import com.nus.iss.exception.UserAlreadyExistsException;
 import com.nus.iss.repository.AppUserRepository;
+import com.nus.iss.repository.PricingPlanReferenceRepository;
 import com.nus.iss.service.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +54,9 @@ class AppUserServiceImplTest {
 
     @Mock
     private JwtConfig jwtConfig;
+
+    @Mock
+    private PricingPlanReferenceRepository pricingPlanRepository;
 
     @InjectMocks
     private AppUserServiceImpl appUserService;

@@ -1,12 +1,12 @@
 package com.nus.iss.dto;
 
-import com.nus.iss.enums.SubscriptionPlan;
-
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 public record SelectPlanRequestDTO(
-        @NotNull(message = "plan is required")
-        SubscriptionPlan plan,
+        @NotBlank(message = "planCode is required")
+        @Pattern(regexp = "[A-Z][A-Z0-9_]{1,49}", message = "planCode must be an uppercase stable code")
+        String planCode,
 
         /**
          * Optional payment token forwarded by the client.

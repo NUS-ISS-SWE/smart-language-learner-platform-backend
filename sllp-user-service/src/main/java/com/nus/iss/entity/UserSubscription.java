@@ -23,8 +23,26 @@ public class UserSubscription {
     @JoinColumn(name = "user_id", nullable = false)
     private AppUser user;
 
+    @Column(name = "pricing_plan_id", nullable = false)
+    private Long pricingPlanId;
+
+    @Column(name = "plan_code_snapshot", nullable = false, length = 50)
+    private String planCodeSnapshot;
+
+    @Column(name = "plan_name_snapshot", nullable = false, length = 120)
+    private String planNameSnapshot;
+
+    @Column(name = "price_minor_snapshot", nullable = false)
+    private Long priceMinorSnapshot;
+
+    @Column(name = "currency_snapshot", nullable = false, length = 3)
+    private String currencySnapshot;
+
+    @Column(name = "features_snapshot", nullable = false, columnDefinition = "TEXT")
+    private String featuresSnapshot;
+
     @Column(nullable = false, length = 50)
-    private String planType;
+    private String status;
 
     private LocalDate startDate;
     private LocalDate endDate;

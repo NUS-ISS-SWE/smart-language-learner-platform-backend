@@ -17,6 +17,13 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(PricingPlanNotFoundException.class)
+    public ProblemDetail handlePlanNotFound(PricingPlanNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Pricing Plan Not Found");
+        return problem;
+    }
+
     @ExceptionHandler(InvalidSubscriptionOperationException.class)
     public ProblemDetail handleInvalidOperation(InvalidSubscriptionOperationException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());

@@ -1,6 +1,6 @@
 package com.nus.iss.payment;
 
-import com.nus.iss.enums.SubscriptionPlan;
+import com.nus.iss.entity.PricingPlan;
 
 /**
  * Abstraction over payment processing. The current implementation is a
@@ -24,5 +24,5 @@ public interface PaymentService {
      * @param paymentToken optional client-supplied token (e.g. Stripe PaymentIntent ID)
      * @return a {@link PaymentResult} indicating success or failure
      */
-    PaymentResult processPayment(Long userId, SubscriptionPlan plan, String paymentToken);
+    PaymentResult processPayment(Long userId, PricingPlan plan, String paymentToken);
 }

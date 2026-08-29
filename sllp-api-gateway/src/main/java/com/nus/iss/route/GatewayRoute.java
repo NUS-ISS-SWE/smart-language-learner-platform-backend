@@ -132,6 +132,9 @@ public class GatewayRoute {
                         .path("/api/v1/subscription/history")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getSubscriptionService()))
+                .route("admin_subscription_plans", r -> r.path("/api/v1/admin/subscription/plans", "/api/v1/admin/subscription/plans/**")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getSubscriptionService()))
 
                 // Admin rubric routes
                 .route("admin_rubrics", r -> r.path(

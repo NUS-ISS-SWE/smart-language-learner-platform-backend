@@ -3,12 +3,11 @@ package com.nus.iss.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.nus.iss.enums.SubscriptionPlan;
 import com.nus.iss.enums.SubscriptionStatus;
 
 public record UserSubscriptionDTO(
         Long id,
-        SubscriptionPlan planType,
+        SubscriptionPlanSnapshotDTO plan,
         SubscriptionStatus status,
         LocalDate startDate,
         LocalDate endDate,

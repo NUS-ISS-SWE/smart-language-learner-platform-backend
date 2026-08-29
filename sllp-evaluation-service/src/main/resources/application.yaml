@@ -6,12 +6,15 @@ spring:
     name: sllp-evaluation-service
   ai:
     model:
-      chat: ollama
-    ollama:
-      base-url: http://localhost:11434
+      chat: openai
+      embedding: openai
+    openai:
+      api-key: ${OPENAI_API_KEY}
       chat:
-        model: gemma4:e4b-it-q4_K_M
+        model: gpt-4o-mini
         temperature: 0.3
+      embedding:
+        model: text-embedding-3-small
 
 sllp:
   services:

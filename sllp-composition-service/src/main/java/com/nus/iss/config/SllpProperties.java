@@ -34,6 +34,7 @@ public class SllpProperties {
     public static class Topics {
         private String compositionGradingRequested;
         private String compositionGradingCompleted;
+        private String compositionGradingProgress;
         private String compositionGenerationRequested;
         private String compositionGenerationCompleted;
     }

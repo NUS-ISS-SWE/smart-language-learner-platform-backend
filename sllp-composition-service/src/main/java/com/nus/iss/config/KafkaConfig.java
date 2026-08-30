@@ -63,6 +63,14 @@ public class KafkaConfig {
     }
 
     @Bean
+    public NewTopic compositionGradingProgressTopic() {
+        return TopicBuilder.name(sllpProperties.getKafka().getTopics().getCompositionGradingProgress())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
     public NewTopic compositionGenerationRequestedTopic() {
         return TopicBuilder.name(sllpProperties.getKafka().getTopics().getCompositionGenerationRequested())
                 .partitions(1)

@@ -2,6 +2,7 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.service.CompositionCompletionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +56,18 @@ class KafkaConsumerServiceImplTest {
         service.consumeCompositionGenerationCompletedEvent("payload");
 
         verify(completionService).completeGeneration(event);
+    }
+
+    @Test
+    void consumeCompositionGradingProgressEventDeserializesAndDelegatesToCompletionService() throws JacksonException {
+        KafkaConsumerServiceImpl service = new KafkaConsumerServiceImpl(completionService, objectMapper);
+        CompositionGradingProgressEvent event = CompositionGradingProgressEvent.builder()
+                .compositionId(10L).userId(1L).stage("GRADING").message("Assessing your composition…").build();
+        when(objectMapper.readValue("payload", CompositionGradingProgressEvent.class)).thenReturn(event);
+
+        service.consumeCompositionGradingProgressEvent("payload");
+
+        verify(completionService).recordGradingProgress(event);
     }
 
     @Test

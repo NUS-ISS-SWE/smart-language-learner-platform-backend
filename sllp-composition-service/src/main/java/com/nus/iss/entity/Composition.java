@@ -30,6 +30,7 @@ public class Composition {
     @Enumerated(EnumType.STRING)
     private CompositionStatus compositionStatus;
     private String systemFeedback;
+    private String gradingProgressMessage;
     private String storagePath;
 
     private LocalDateTime createdAt;

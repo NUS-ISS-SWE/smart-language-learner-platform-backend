@@ -81,6 +81,8 @@ public class CompositionCommandService {
         }
         LocalDateTime now = LocalDateTime.now();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
+        composition.setSystemFeedback(null);
+        composition.setGradingProgressMessage("Preparing your assessment…");
         composition.setUpdatedAt(now);
         Composition saved = compositionRepository.save(composition);
         kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()

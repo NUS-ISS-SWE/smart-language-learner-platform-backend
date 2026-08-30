@@ -16,6 +16,7 @@ public record CompositionResponse(
         Language language,
         CompositionStatus compositionStatus,
         String systemFeedback,
+        String gradingProgressMessage,
         String storagePath,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

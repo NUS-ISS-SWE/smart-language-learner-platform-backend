@@ -31,11 +31,13 @@ class KafkaConfigTest {
 
         NewTopic gradingRequested = kafkaConfig.compositionGradingRequestedTopic();
         NewTopic gradingCompleted = kafkaConfig.compositionGradingCompletedTopic();
+        NewTopic gradingProgress = kafkaConfig.compositionGradingProgressTopic();
         NewTopic generationRequested = kafkaConfig.compositionGenerationRequestedTopic();
         NewTopic generationCompleted = kafkaConfig.compositionGenerationCompletedTopic();
 
         assertEquals("grading-requested-topic", gradingRequested.name());
         assertEquals("grading-completed-topic", gradingCompleted.name());
+        assertEquals("grading-progress-topic", gradingProgress.name());
         assertEquals("generation-requested-topic", generationRequested.name());
         assertEquals("generation-completed-topic", generationCompleted.name());
     }
@@ -68,6 +70,7 @@ class KafkaConfigTest {
         SllpProperties.Topics topics = new SllpProperties.Topics();
         topics.setCompositionGradingRequested("grading-requested-topic");
         topics.setCompositionGradingCompleted("grading-completed-topic");
+        topics.setCompositionGradingProgress("grading-progress-topic");
         topics.setCompositionGenerationRequested("generation-requested-topic");
         topics.setCompositionGenerationCompleted("generation-completed-topic");
         properties.getKafka().setTopics(topics);

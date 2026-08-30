@@ -1,12 +1,14 @@
 package com.nus.iss.service;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.entity.Evaluation;
 import com.nus.iss.enums.CompositionStatus;
@@ -17,6 +19,12 @@ import com.nus.iss.repository.EvaluationRepository;
 /** Applies asynchronous generation and grading outcomes to persisted compositions. */
 @Service
 public class CompositionCompletionService {
+    private static final Map<String, String> STUDENT_SAFE_PROGRESS_MESSAGES = Map.of(
+            "GRADING", "Assessing your composition…",
+            "REGRADING", "Refining your assessment…",
+            "REVIEWING", "Checking the assessment for accuracy…",
+            "SUGGESTING", "Creating personalised improvement suggestions…");
+
     private final CompositionRepository compositionRepository;
     private final EvaluationRepository evaluationRepository;
     private final CompositionAccessService compositionAccessService;
@@ -36,11 +44,24 @@ public class CompositionCompletionService {
         LocalDateTime completedAt = event.getCompletedAt() == null ? LocalDateTime.now() : event.getCompletedAt();
         composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
+        composition.setGradingProgressMessage(null);
         composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
         evaluationRepository.save(Evaluation.builder().compositionId(event.getCompositionId()).score(event.getScore())
                 .feedback(event.getFeedback()).success(event.isSuccess()).failureReason(event.getFailureReason())
                 .evaluatedAt(completedAt).build());
+    }
+
+    @Transactional
+    public void recordGradingProgress(CompositionGradingProgressEvent event) {
+        validateGradingProgressIdentity(event);
+        Composition composition = compositionAccessService.requireOwned(event.getUserId(), event.getCompositionId());
+        // Ignore delayed progress events after a completion has already been applied.
+        if (composition.getCompositionStatus() != CompositionStatus.REVIEWING) return;
+        validateGradingProgressPayload(event);
+        composition.setGradingProgressMessage(event.getMessage());
+        composition.setUpdatedAt(event.getUpdatedAt() == null ? LocalDateTime.now() : event.getUpdatedAt());
+        compositionRepository.save(composition);
     }
 
     @Transactional
@@ -80,6 +101,22 @@ public class CompositionCompletionService {
         }
         if (!event.isSuccess() && (event.getFailureReason() == null || event.getFailureReason().isBlank())) {
             throw new InvalidCompositionRequestException("Composition generation failure reason is required");
+        }
+    }
+
+    private void validateGradingProgressIdentity(CompositionGradingProgressEvent event) {
+        if (event == null) throw new InvalidCompositionRequestException("Composition grading progress event is required");
+        compositionAccessService.requireUserId(event.getUserId());
+        compositionAccessService.requireCompositionId(event.getCompositionId());
+    }
+
+    private void validateGradingProgressPayload(CompositionGradingProgressEvent event) {
+        if (event.getMessage() == null || event.getMessage().isBlank()) {
+            throw new InvalidCompositionRequestException("Composition grading progress message is required");
+        }
+        String expectedMessage = event.getStage() == null ? null : STUDENT_SAFE_PROGRESS_MESSAGES.get(event.getStage());
+        if (!event.getMessage().equals(expectedMessage)) {
+            throw new InvalidCompositionRequestException("Composition grading progress message is not supported");
         }
     }
 }

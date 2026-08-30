@@ -1,6 +1,7 @@
 package com.nus.iss.service.impl;
 
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.exception.InvalidCompositionRequestException;
 import com.nus.iss.service.CompositionCompletionService;
@@ -36,6 +37,21 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
             log.info("Consumed composition grading completed event for compositionId: {}", event.getCompositionId());
         } catch (JacksonException ex) {
             throw new InvalidCompositionRequestException("Failed to deserialize composition grading completed event", ex);
+        }
+    }
+
+    @Override
+    @KafkaListener(
+            topics = "${sllp.kafka.topics.composition-grading-progress}",
+            groupId = "${spring.application.name}"
+    )
+    public void consumeCompositionGradingProgressEvent(String payload) {
+        try {
+            CompositionGradingProgressEvent event = objectMapper.readValue(payload, CompositionGradingProgressEvent.class);
+            completionService.recordGradingProgress(event);
+            log.info("Consumed composition grading progress event for compositionId: {}, stage: {}", event.getCompositionId(), event.getStage());
+        } catch (JacksonException ex) {
+            throw new InvalidCompositionRequestException("Failed to deserialize composition grading progress event", ex);
         }
     }
 

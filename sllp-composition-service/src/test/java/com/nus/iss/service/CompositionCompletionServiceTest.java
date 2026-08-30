@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.repository.CompositionRepository;
@@ -52,9 +53,36 @@ class CompositionCompletionServiceTest {
 
         assertEquals(CompositionStatus.REVIEWED, composition.getCompositionStatus());
         assertEquals("Good work", composition.getSystemFeedback());
+        assertNull(composition.getGradingProgressMessage());
         assertEquals(completedAt, composition.getUpdatedAt());
         verify(compositionRepository).save(composition);
         verify(evaluationRepository).save(any());
+    }
+
+    @Test
+    void recordGradingProgressStoresStudentSafeMessageOnlyWhileReviewing() {
+        Composition composition = composition();
+        composition.setCompositionStatus(CompositionStatus.REVIEWING);
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+
+        completionService.recordGradingProgress(CompositionGradingProgressEvent.builder()
+                .compositionId(10L).userId(1L).stage("GRADING")
+                .message("Assessing your composition…").build());
+
+        assertEquals("Assessing your composition…", composition.getGradingProgressMessage());
+        verify(compositionRepository).save(composition);
+    }
+
+    @Test
+    void recordGradingProgressIgnoresDelayedEventsAfterCompletion() {
+        Composition composition = composition();
+        composition.setCompositionStatus(CompositionStatus.REVIEWED);
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+
+        completionService.recordGradingProgress(CompositionGradingProgressEvent.builder()
+                .compositionId(10L).userId(1L).message("Assessing your composition…").build());
+
+        verify(compositionRepository, never()).save(any());
     }
 
     @Test

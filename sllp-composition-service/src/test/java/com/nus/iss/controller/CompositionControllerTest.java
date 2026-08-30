@@ -87,6 +87,6 @@ class CompositionControllerTest {
 
     private static CompositionResponse response() {
         return new CompositionResponse(10L, 1L, "My title", "My composition", null, null,
-                CompositionStatus.DRAFT, null, null, null, null);
+                CompositionStatus.DRAFT, null, null, null, null, null);
     }
 }

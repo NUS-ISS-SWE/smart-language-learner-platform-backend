@@ -65,35 +65,36 @@ services:
     networks:
       - sllp-network
 
-#  ollama-service:
-#    image: ollama/ollama:latest
-#    container_name: ollama-service
-#    restart: always
-#    ports:
-#      - "11434:11434"
-#    volumes:
-#      - ollama-data:/root/.ollama
-#    healthcheck:
-#      test: ["CMD", "ollama", "list"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 30
-#      start_period: 10s
-#    networks:
-#      - sllp-network
-#
-#  ollama-model-pull:
-#    image: ollama/ollama:latest
-#    container_name: ollama-model-pull
-#    restart: "no"
-#    environment:
-#      OLLAMA_HOST: http://ollama-service:11434
-#    command: ["pull", "qwen3:0.6b"]
-#    depends_on:
-#      ollama-service:
-#        condition: service_healthy
-#    networks:
-#      - sllp-network
+  ollama-service:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      - sllp-network
+
+  ollama-model-pull:
+    image: ollama/ollama:latest
+    container_name: ollama-model-pull
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama-service:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:0.6b}
+    command: ["pull", "${OLLAMA_MODEL:-qwen3:0.6b}"]
+    depends_on:
+      ollama-service:
+        condition: service_healthy
+    networks:
+      - sllp-network
 
   user-service:
     build:
@@ -150,6 +151,32 @@ services:
 #    environment:
 #      - SPRING_PROFILES_ACTIVE=uat
 
+  orchestrator-service:
+    build:
+      context: .
+      dockerfile: sllp-orchestrator-service/Dockerfile
+    image: sllp-orchestrator-service:latest
+    container_name: orchestrator-service
+    ports:
+      - "8090:8090"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+      kafka-service:
+        condition: service_started
+      composition-service:
+        condition: service_started
+    environment:
+      - ORCHESTRATOR_DATABASE_URL=postgresql+psycopg://postgres:password@postgres-db:5432/sllp_main_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-service:9092
+      - KAFKA_GROUP_ID=sllp-orchestrator-group
+      - KAFKA_GRADING_REQUESTED_TOPIC=SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC
+      - KAFKA_GRADING_COMPLETED_TOPIC=SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
+      - KAFKA_GRADING_PROGRESS_TOPIC=SLLP_COMPOSITION_GRADING_PROGRESS_TOPIC
+      - AGENT_PROVIDER=${AGENT_PROVIDER:-placeholder}
+
   admin-service:
     build:
       context: .
@@ -186,6 +213,8 @@ services:
         condition: service_started
 #      evaluation-service:
 #        condition: service_started
+      orchestrator-service:
+        condition: service_started
       document-service:
         condition: service_started
       subscription-service:
@@ -260,5 +289,5 @@ networks:
 
 volumes:
   sllp-data:
-  ollama-data:
   minio-data:
+  ollama-data:

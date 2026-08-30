@@ -35,3 +35,11 @@ build/
 # IntelliJ file lock artifacts
 .LCK*.java~
 *.java~
+
+# Python orchestrator
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.test-deps/
+.codex-test-deps/

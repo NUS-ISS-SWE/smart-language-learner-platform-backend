@@ -72,9 +72,16 @@ The `-v` flag removes named volumes, wiping the PostgreSQL data directory. The n
 | Document Service | `document-service` | `8089` | File upload, text extraction |
 | API Gateway | `api-gateway` | `8080` | Single entry point |
 | Kafka | `kafka-service` | `9092` / `29092` | |
+| LangGraph Orchestrator | `orchestrator-service` | `8090` | Kafka workflow coordinator for assessment agents |
 | MinIO (S3-compatible) | `minio` | `9000` / `9001` | Console at `:9001` |
 
-> **Disabled services:** `evaluation-service` and `ollama-service` / `ollama-model-pull` are commented out in `docker-compose.yaml`.
+> **Disabled service:** The previous single-call `evaluation-service` remains commented out in `docker-compose.yaml`. The LangGraph orchestrator is the only grading-topic consumer. By default it uses a clearly labelled, contract-valid development placeholder while the team-owned agents are being built.
+
+When `AGENT_PROVIDER=a2a` is enabled later, the orchestrator verifies each peer's Agent Card before delegation and uses its advertised A2A endpoint for `SendMessage`. Agent owners should follow [the SLLP A2A agent contract](sllp-orchestrator-service/AGENT_CONTRACT.md), including `/.well-known/agent-card.json` discovery.
+
+The default `AGENT_PROVIDER=placeholder` exercises Kafka, workflow persistence, completion publication, and the existing frontend flow without an LLM. Its score and suggestions are explicitly labelled as development placeholders and must not be used as a real assessment.
+
+Set `AGENT_PROVIDER=a2a` when the team-owned peers are ready. The A2A provider rejects malformed, low-confidence, or unreviewed assessments.
 
 ---
 

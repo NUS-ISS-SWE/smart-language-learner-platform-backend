@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +27,7 @@ import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.enums.CompositionStatus;
+import com.nus.iss.repository.AiUsageEventRepository;
 import com.nus.iss.repository.CompositionRepository;
 import com.nus.iss.repository.EvaluationRepository;
 
@@ -32,12 +35,13 @@ import com.nus.iss.repository.EvaluationRepository;
 class CompositionCompletionServiceTest {
     @Mock private CompositionRepository compositionRepository;
     @Mock private EvaluationRepository evaluationRepository;
+    @Mock private AiUsageEventRepository aiUsageEventRepository;
 
     private CompositionCompletionService completionService;
 
     @BeforeEach
     void setUp() {
-        completionService = new CompositionCompletionService(compositionRepository, evaluationRepository,
+        completionService = new CompositionCompletionService(compositionRepository, evaluationRepository, aiUsageEventRepository,
                 new CompositionAccessService(compositionRepository));
     }
 
@@ -46,6 +50,7 @@ class CompositionCompletionServiceTest {
         Composition composition = composition();
         LocalDateTime completedAt = LocalDateTime.of(2026, 6, 25, 10, 0);
         when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+        stubEvaluationInsert(1);
 
         completionService.completeGrading(CompositionGradingCompletedEvent.builder()
                 .compositionId(10L).userId(1L).success(true).score(BigDecimal.valueOf(90)).feedback("Good work")
@@ -56,7 +61,7 @@ class CompositionCompletionServiceTest {
         assertNull(composition.getGradingProgressMessage());
         assertEquals(completedAt, composition.getUpdatedAt());
         verify(compositionRepository).save(composition);
-        verify(evaluationRepository).save(any());
+        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -90,6 +95,7 @@ class CompositionCompletionServiceTest {
         Composition composition = composition();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+        stubEvaluationInsert(1);
 
         completionService.completeGrading(CompositionGradingCompletedEvent.builder()
                 .compositionId(10L).userId(1L).success(false).failureReason("Evaluator unavailable").build());
@@ -97,7 +103,38 @@ class CompositionCompletionServiceTest {
         assertEquals(CompositionStatus.DRAFT, composition.getCompositionStatus());
         assertEquals("Evaluator unavailable", composition.getSystemFeedback());
         assertNotNull(composition.getUpdatedAt());
-        verify(evaluationRepository).save(any());
+        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void completeGradingIgnoresAnAlreadyRecordedRequest() {
+        Composition composition = composition();
+        java.util.UUID requestId = java.util.UUID.randomUUID();
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+        stubEvaluationInsert(0);
+
+        completionService.completeGrading(CompositionGradingCompletedEvent.builder()
+                .requestId(requestId).compositionId(10L).userId(1L).success(true).feedback("Good work").build());
+
+        verify(compositionRepository, never()).save(any());
+        verify(aiUsageEventRepository, never()).save(any());
+    }
+
+    @Test
+    void completeGradingPersistsUsageOnlyWithTheNewEvaluation() {
+        Composition composition = composition();
+        java.util.UUID requestId = java.util.UUID.randomUUID();
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+        stubEvaluationInsert(1);
+
+        completionService.completeGrading(CompositionGradingCompletedEvent.builder()
+                .requestId(requestId).compositionId(10L).userId(1L).success(true).feedback("Good work")
+                .totalTokens(12L).promptTokens(8L).completionTokens(4L).cachedInputTokens(0L)
+                .estimatedCostMicros(7L).aiProvider("OPENAI").aiModel("gpt-4o-mini")
+                .pricingVersion("test").inputPriceMicrosPerMillion(1L)
+                .cachedInputPriceMicrosPerMillion(1L).outputPriceMicrosPerMillion(1L).build());
+
+        verify(aiUsageEventRepository).save(any());
     }
 
     @Test
@@ -168,5 +205,10 @@ class CompositionCompletionServiceTest {
     private static Composition composition() {
         return Composition.builder().id(10L).userId(1L).title("Title").content("Original")
                 .compositionStatus(CompositionStatus.DRAFT).build();
+    }
+
+    private void stubEvaluationInsert(int result) {
+        when(evaluationRepository.insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+                .thenReturn(result);
     }
 }

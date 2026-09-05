@@ -7,12 +7,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 public class CompositionGradingRequestedEvent {
+    private UUID requestId;
     private Long compositionId;
     private Long userId;
     private String title;

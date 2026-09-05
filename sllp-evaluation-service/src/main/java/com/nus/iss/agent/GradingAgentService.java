@@ -4,6 +4,12 @@ import com.nus.iss.agent.tool.GradingToolContext;
 import com.nus.iss.agent.tool.MarkingRubricTool;
 import com.nus.iss.agent.tool.UserDifficultyTool;
 import com.nus.iss.dto.CompositionEvaluationResult;
+import com.nus.iss.dto.AiUsage;
+import com.nus.iss.config.AiUsageProperties;
+import com.nus.iss.service.AiUsageCostCalculator;
+import org.springframework.ai.chat.client.ResponseEntity;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
@@ -23,12 +29,16 @@ public class GradingAgentService {
     private final ChatClient chatClient;
     private final UserDifficultyTool userDifficultyTool;
     private final MarkingRubricTool markingRubricTool;
+    private final AiUsageCostCalculator aiUsageCostCalculator;
 
+    @Autowired
     public GradingAgentService(ChatClient.Builder chatClientBuilder,
                                UserDifficultyTool userDifficultyTool,
-                               MarkingRubricTool markingRubricTool) {
+                               MarkingRubricTool markingRubricTool,
+                               AiUsageCostCalculator aiUsageCostCalculator) {
         this.userDifficultyTool = userDifficultyTool;
         this.markingRubricTool = markingRubricTool;
+        this.aiUsageCostCalculator = aiUsageCostCalculator;
         this.chatClient = chatClientBuilder
                 .defaultSystem("""
                         You are the grading agent for English and Chinese student compositions.
@@ -56,10 +66,17 @@ public class GradingAgentService {
                 .build();
     }
 
+    public GradingAgentService(ChatClient.Builder chatClientBuilder,
+                               UserDifficultyTool userDifficultyTool,
+                               MarkingRubricTool markingRubricTool) {
+        this(chatClientBuilder, userDifficultyTool, markingRubricTool,
+                new AiUsageCostCalculator(new AiUsageProperties()));
+    }
+
     public CompositionEvaluationResult grade(GradingAgentRequest request) {
         GradingToolContext gradingContext = new GradingToolContext(request.userId(), request.language());
 
-        CompositionEvaluationResult result = chatClient.prompt()
+        ResponseEntity<ChatResponse, CompositionEvaluationResult> response = chatClient.prompt()
                 .user(userSpec -> userSpec.text("""
                         Grade this student composition.
 
@@ -86,10 +103,16 @@ public class GradingAgentService {
                 .tools(userDifficultyTool, markingRubricTool)
                 .toolContext(Map.of(GradingToolContext.CONTEXT_KEY, gradingContext))
                 .call()
-                .entity(CompositionEvaluationResult.class);
+                .responseEntity(CompositionEvaluationResult.class);
 
         gradingContext.verifyRequiredToolsCalled();
-        return normalizeResult(result);
+        CompositionEvaluationResult result = response.getEntity();
+        ChatResponse chatResponse = response.getResponse();
+        AiUsage usage = chatResponse == null || chatResponse.getMetadata() == null
+                ? null
+                : aiUsageCostCalculator.from(chatResponse.getMetadata().getUsage(),
+                chatResponse.getMetadata().getModel());
+        return normalizeResult(new CompositionEvaluationResult(result.score(), result.feedback(), usage));
     }
 
     static String formatEvidence(java.util.List<String> evidence) {
@@ -116,6 +139,6 @@ public class GradingAgentService {
                 .max(MIN_SCORE)
                 .min(MAX_SCORE)
                 .setScale(2, RoundingMode.HALF_UP);
-        return new CompositionEvaluationResult(score, result.feedback().trim());
+        return new CompositionEvaluationResult(score, result.feedback().trim(), result.usage());
     }
 }

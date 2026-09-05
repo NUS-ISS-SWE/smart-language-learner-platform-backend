@@ -1,6 +1,7 @@
 package com.nus.iss.service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,7 +87,7 @@ public class CompositionCommandService {
         composition.setUpdatedAt(now);
         Composition saved = compositionRepository.save(composition);
         kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
-                .compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
+                .requestId(UUID.randomUUID()).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
                 .language(saved.getLanguage()).requestedAt(now).build());
         return compositionMapper.toResponse(saved);
     }

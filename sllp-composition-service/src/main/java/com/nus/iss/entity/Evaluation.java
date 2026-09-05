@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -23,6 +24,12 @@ public class Evaluation {
 
     @Column(name = "composition_id", nullable = false)
     private Long compositionId;
+
+    @Column(name = "request_id", unique = true)
+    private UUID requestId;
+
+    @Column(name = "requested_at")
+    private LocalDateTime requestedAt;
 
     @Column(precision = 5, scale = 2)
     private BigDecimal score;

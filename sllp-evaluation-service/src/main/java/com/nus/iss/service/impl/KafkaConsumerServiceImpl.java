@@ -14,6 +14,8 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 
+import com.nus.iss.dto.AiUsage;
+
 @Slf4j
 @Service
 public class KafkaConsumerServiceImpl implements KafkaConsumerService {
@@ -40,18 +42,21 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
         CompositionGradingRequestedEvent request = deserializeRequest(payload);
         try {
             CompositionEvaluationResult result = compositionEvaluationService.evaluate(request);
-            kafkaProducerService.sendCompositionGradingCompletedEvent(CompositionGradingCompletedEvent.builder()
+            CompositionGradingCompletedEvent.CompositionGradingCompletedEventBuilder event = CompositionGradingCompletedEvent.builder()
+                    .requestId(request.getRequestId()).requestedAt(request.getRequestedAt())
                     .compositionId(request.getCompositionId())
                     .userId(request.getUserId())
                     .score(result.score())
                     .feedback(result.feedback())
                     .success(true)
-                    .completedAt(LocalDateTime.now())
-                    .build());
+                    .completedAt(LocalDateTime.now());
+            addUsage(event, result.usage());
+            kafkaProducerService.sendCompositionGradingCompletedEvent(event.build());
             log.info("Completed composition grading for compositionId: {}", request.getCompositionId());
         } catch (RuntimeException ex) {
             log.error("Failed to grade compositionId: {}", request.getCompositionId(), ex);
             kafkaProducerService.sendCompositionGradingCompletedEvent(CompositionGradingCompletedEvent.builder()
+                    .requestId(request.getRequestId()).requestedAt(request.getRequestedAt())
                     .compositionId(request.getCompositionId())
                     .userId(request.getUserId())
                     .success(false)
@@ -59,6 +64,16 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
                     .completedAt(LocalDateTime.now())
                     .build());
         }
+    }
+
+    private static void addUsage(CompositionGradingCompletedEvent.CompositionGradingCompletedEventBuilder event, AiUsage usage) {
+        if (usage == null) return;
+        event.promptTokens(usage.promptTokens()).completionTokens(usage.completionTokens())
+                .cachedInputTokens(usage.cachedInputTokens()).totalTokens(usage.totalTokens())
+                .estimatedCostMicros(usage.estimatedCostMicros()).aiProvider(usage.provider()).aiModel(usage.model())
+                .pricingVersion(usage.pricingVersion()).inputPriceMicrosPerMillion(usage.inputPriceMicrosPerMillion())
+                .cachedInputPriceMicrosPerMillion(usage.cachedInputPriceMicrosPerMillion())
+                .outputPriceMicrosPerMillion(usage.outputPriceMicrosPerMillion());
     }
 
     private String failureReason(RuntimeException ex) {

@@ -4,6 +4,10 @@ import java.math.BigDecimal;
 
 public record CompositionEvaluationResult(
         BigDecimal score,
-        String feedback
+        String feedback,
+        AiUsage usage
 ) {
+    public CompositionEvaluationResult(BigDecimal score, String feedback) {
+        this(score, feedback, null);
+    }
 }

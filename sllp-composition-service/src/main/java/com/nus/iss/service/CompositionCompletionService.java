@@ -10,11 +10,12 @@ import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.dto.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
-import com.nus.iss.entity.Evaluation;
+import com.nus.iss.entity.AiUsageEvent;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.exception.InvalidCompositionRequestException;
 import com.nus.iss.repository.CompositionRepository;
 import com.nus.iss.repository.EvaluationRepository;
+import com.nus.iss.repository.AiUsageEventRepository;
 
 /** Applies asynchronous generation and grading outcomes to persisted compositions. */
 @Service
@@ -27,13 +28,16 @@ public class CompositionCompletionService {
 
     private final CompositionRepository compositionRepository;
     private final EvaluationRepository evaluationRepository;
+    private final AiUsageEventRepository aiUsageEventRepository;
     private final CompositionAccessService compositionAccessService;
 
     public CompositionCompletionService(CompositionRepository compositionRepository,
                                         EvaluationRepository evaluationRepository,
+                                        AiUsageEventRepository aiUsageEventRepository,
                                         CompositionAccessService compositionAccessService) {
         this.compositionRepository = compositionRepository;
         this.evaluationRepository = evaluationRepository;
+        this.aiUsageEventRepository = aiUsageEventRepository;
         this.compositionAccessService = compositionAccessService;
     }
 
@@ -42,14 +46,39 @@ public class CompositionCompletionService {
         validateGradingEvent(event);
         Composition composition = compositionAccessService.requireOwned(event.getUserId(), event.getCompositionId());
         LocalDateTime completedAt = event.getCompletedAt() == null ? LocalDateTime.now() : event.getCompletedAt();
+        if (evaluationRepository.insertIfAbsent(event.getCompositionId(), event.getRequestId(), event.getRequestedAt(),
+                event.getScore(), event.getFeedback(), event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
+            return;
+        }
         composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
         composition.setGradingProgressMessage(null);
         composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
-        evaluationRepository.save(Evaluation.builder().compositionId(event.getCompositionId()).score(event.getScore())
-                .feedback(event.getFeedback()).success(event.isSuccess()).failureReason(event.getFailureReason())
-                .evaluatedAt(completedAt).build());
+        saveAiUsage(event, completedAt);
+    }
+
+    private void saveAiUsage(CompositionGradingCompletedEvent event, LocalDateTime completedAt) {
+        if (event.getRequestId() == null || event.getTotalTokens() == null
+                || event.getAiProvider() == null || event.getAiModel() == null || event.getPricingVersion() == null
+                || event.getInputPriceMicrosPerMillion() == null || event.getCachedInputPriceMicrosPerMillion() == null || event.getOutputPriceMicrosPerMillion() == null
+                ) {
+            return;
+        }
+        aiUsageEventRepository.save(AiUsageEvent.builder()
+                .requestId(event.getRequestId()).userId(event.getUserId()).compositionId(event.getCompositionId())
+                .operation("COMPOSITION_GRADING").provider(event.getAiProvider()).model(event.getAiModel())
+                .promptTokens(valueOrZero(event.getPromptTokens())).completionTokens(valueOrZero(event.getCompletionTokens()))
+                .cachedInputTokens(valueOrZero(event.getCachedInputTokens())).totalTokens(valueOrZero(event.getTotalTokens()))
+                .estimatedCostMicros(valueOrZero(event.getEstimatedCostMicros())).currency("USD")
+                .pricingVersion(event.getPricingVersion()).inputPriceMicrosPerMillion(valueOrZero(event.getInputPriceMicrosPerMillion()))
+                .cachedInputPriceMicrosPerMillion(valueOrZero(event.getCachedInputPriceMicrosPerMillion()))
+                .outputPriceMicrosPerMillion(valueOrZero(event.getOutputPriceMicrosPerMillion())).createdAt(completedAt)
+                .build());
+    }
+
+    private static long valueOrZero(Long value) {
+        return value == null ? 0L : value;
     }
 
     @Transactional

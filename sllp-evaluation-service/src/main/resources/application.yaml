@@ -17,6 +17,13 @@ spring:
         model: text-embedding-3-small
 
 sllp:
+  ai-usage:
+    provider: OPENAI
+    default-model: gpt-4o-mini
+    pricing-version: openai-gpt-4o-mini-2026-08
+    input-price-micros-per-million: 150000
+    cached-input-price-micros-per-million: 75000
+    output-price-micros-per-million: 600000
   services:
     user-service-url: http://localhost:8082
     admin-service-url: http://localhost:8086

@@ -41,8 +41,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleMalformedRequest(Exception ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
-                "The request contains an invalid value. Supported languages are ENGLISH and CHINESE; "
-                        + "supported difficulty levels are BEGINNER, INTERMEDIATE and ADVANCED.");
+                "The request contains an invalid value.");
         problem.setTitle("Invalid Request");
         return problem;
     }

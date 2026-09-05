@@ -1,15 +1,11 @@
 package com.nus.iss.controller;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -22,13 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.nus.iss.dto.AdminUserResponseDTO;
-import com.nus.iss.dto.SystemUsageMetricsResponse;
 import com.nus.iss.dto.UpdateRoleRequest;
 import com.nus.iss.dto.UpdateStatusRequest;
 import com.nus.iss.enums.Role;
 import com.nus.iss.enums.Status;
 import com.nus.iss.service.AdminUserService;
-import com.nus.iss.service.UsageMetricsService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,19 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminController {
 
     private final AdminUserService adminUserService;
-    private final UsageMetricsService usageMetricsService;
-
-    @GetMapping("/metrics")
-    public ResponseEntity<SystemUsageMetricsResponse> getUsageMetrics(
-            @RequestHeader("X-Sllp-Role") String role,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        assertAdmin(role);
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        LocalDate resolvedTo = to == null ? today : to;
-        LocalDate resolvedFrom = from == null ? resolvedTo.minusDays(29) : from;
-        return ResponseEntity.ok(usageMetricsService.getMetrics(resolvedFrom, resolvedTo));
-    }
 
     @GetMapping("/users")
     public ResponseEntity<Page<AdminUserResponseDTO>> listUsers(

@@ -1,6 +1,6 @@
 package com.nus.iss.service;
 
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
 
 public interface KafkaProducerService {

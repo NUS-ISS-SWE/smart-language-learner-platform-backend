@@ -19,6 +19,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.nus.iss</groupId>
+            <artifactId>sllp-contracts</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-h2console</artifactId>
         </dependency>

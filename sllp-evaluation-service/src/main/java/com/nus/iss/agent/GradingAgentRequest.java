@@ -1,6 +1,6 @@
 package com.nus.iss.agent;
 
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.enums.Language;
 
 import java.util.List;
@@ -22,7 +22,7 @@ public record GradingAgentRequest(
                 event.getUserId(),
                 event.getTitle(),
                 event.getContent(),
-                event.getLanguage(),
+                Language.valueOf(event.getLanguage()),
                 List.of());
     }
 }

@@ -3,7 +3,7 @@ package com.nus.iss.service.impl;
 import com.nus.iss.agent.GradingAgentRequest;
 import com.nus.iss.agent.GradingAgentService;
 import com.nus.iss.dto.CompositionEvaluationResult;
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.enums.Language;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -68,13 +68,26 @@ class CompositionEvaluationServiceImplTest {
         assertEquals("User ID is required", exception.getMessage());
     }
 
+    @Test
+    void rejectsEventsWithAnUnsupportedLanguageBeforeCallingAgent() {
+        GradingAgentService gradingAgent = mock(GradingAgentService.class);
+        CompositionEvaluationServiceImpl service = new CompositionEvaluationServiceImpl(gradingAgent);
+        CompositionGradingRequestedEvent event = validEvent();
+        event.setLanguage("KLINGON");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class, () -> service.evaluate(event));
+
+        assertEquals("Composition language is invalid", exception.getMessage());
+    }
+
     private static CompositionGradingRequestedEvent validEvent() {
         return CompositionGradingRequestedEvent.builder()
                 .compositionId(10L)
                 .userId(1L)
                 .title("My title")
                 .content("My composition")
-                .language(Language.ENGLISH)
+                .language(Language.ENGLISH.name())
                 .build();
     }
 }

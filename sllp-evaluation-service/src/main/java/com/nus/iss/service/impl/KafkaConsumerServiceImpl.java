@@ -1,8 +1,8 @@
 package com.nus.iss.service.impl;
 
 import com.nus.iss.dto.CompositionEvaluationResult;
-import com.nus.iss.dto.CompositionGradingCompletedEvent;
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingCompletedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.service.CompositionEvaluationService;
 import com.nus.iss.service.KafkaConsumerService;
 import com.nus.iss.service.KafkaProducerService;

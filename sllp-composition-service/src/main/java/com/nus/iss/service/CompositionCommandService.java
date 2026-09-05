@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
 import com.nus.iss.dto.CompositionResponse;
 import com.nus.iss.dto.CreateCompositionRequest;
@@ -88,7 +88,7 @@ public class CompositionCommandService {
         Composition saved = compositionRepository.save(composition);
         kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
                 .requestId(UUID.randomUUID()).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
-                .language(saved.getLanguage()).requestedAt(now).build());
+                .language(saved.getLanguage().name()).requestedAt(now).build());
         return compositionMapper.toResponse(saved);
     }
 

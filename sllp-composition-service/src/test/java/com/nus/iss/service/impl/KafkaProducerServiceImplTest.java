@@ -2,7 +2,7 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -23,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
-import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.enums.CompositionStatus;

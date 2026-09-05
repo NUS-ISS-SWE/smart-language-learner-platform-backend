@@ -22,6 +22,7 @@
         <developer/>
     </developers>
     <modules>
+        <module>sllp-contracts</module>
         <module>sllp-liquibase-service</module>
         <module>sllp-user-service</module>
         <module>sllp-document-service</module>

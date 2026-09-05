@@ -3,7 +3,8 @@ package com.nus.iss.service.impl;
 import com.nus.iss.agent.GradingAgentRequest;
 import com.nus.iss.agent.GradingAgentService;
 import com.nus.iss.dto.CompositionEvaluationResult;
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
+import com.nus.iss.enums.Language;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -39,6 +40,11 @@ public class CompositionEvaluationServiceImpl implements com.nus.iss.service.Com
         }
         if (event.getLanguage() == null) {
             throw new IllegalArgumentException("Composition language is required");
+        }
+        try {
+            Language.valueOf(event.getLanguage());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Composition language is invalid", exception);
         }
     }
 }

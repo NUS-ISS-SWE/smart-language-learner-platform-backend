@@ -1,14 +1,15 @@
-package com.nus.iss.dto;
+package com.nus.iss.contracts.grading;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
+/** Versioned payload sent after asynchronous composition grading completes. */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

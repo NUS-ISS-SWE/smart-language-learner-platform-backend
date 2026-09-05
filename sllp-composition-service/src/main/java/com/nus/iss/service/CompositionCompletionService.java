@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
-import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingCompletedEvent;
 import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.entity.AiUsageEvent;

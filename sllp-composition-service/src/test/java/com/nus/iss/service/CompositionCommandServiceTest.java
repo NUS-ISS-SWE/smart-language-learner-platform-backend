@@ -20,7 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
-import com.nus.iss.dto.CompositionGradingRequestedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.dto.CompositionResponse;
 import com.nus.iss.dto.CreateCompositionRequest;
 import com.nus.iss.dto.GenerateCompositionRequest;
@@ -140,7 +140,7 @@ class CompositionCommandServiceTest {
         assertEquals(1L, captor.getValue().getUserId());
         assertEquals("My title", captor.getValue().getTitle());
         assertEquals("English text", captor.getValue().getContent());
-        assertEquals(Language.ENGLISH, captor.getValue().getLanguage());
+        assertEquals(Language.ENGLISH.name(), captor.getValue().getLanguage());
         assertNotNull(captor.getValue().getRequestedAt());
     }
 

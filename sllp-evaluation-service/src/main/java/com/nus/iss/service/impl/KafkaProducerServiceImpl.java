@@ -1,7 +1,7 @@
 package com.nus.iss.service.impl;
 
 import com.nus.iss.config.SllpProperties;
-import com.nus.iss.dto.CompositionGradingCompletedEvent;
+import com.nus.iss.contracts.grading.CompositionGradingCompletedEvent;
 import com.nus.iss.service.KafkaProducerService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;

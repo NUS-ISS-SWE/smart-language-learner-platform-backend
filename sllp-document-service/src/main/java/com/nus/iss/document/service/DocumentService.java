@@ -1,6 +1,7 @@
 package com.nus.iss.document.service;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -80,11 +81,21 @@ public class DocumentService {
             log.info("Document saved: id={}, userId={}", document.getId(), userId);
 
             // Extract text synchronously
-            String extractedText = textExtractionService.extract(
-                new java.io.ByteArrayInputStream(fileBytes), originalFilename);
+            String extractedText;
+            try {
+                extractedText = textExtractionService.extract(
+                        new java.io.ByteArrayInputStream(fileBytes), originalFilename);
+            } catch (RuntimeException ex) {
+                log.warn("Document extraction failed for documentId={}", document.getId(), ex);
+                document.setStatus("FAILED");
+                document.setProcessedAt(Instant.now());
+                document = documentRepository.save(document);
+                return toUploadResponse(document);
+            }
 
             document.setExtractedText(extractedText);
             document.setStatus(extractedText != null ? "READY" : "FAILED");
+            document.setProcessedAt(Instant.now());
             document = documentRepository.save(document);
 
             String downloadUrl = s3Service.generatePresignedUrl(s3Key);

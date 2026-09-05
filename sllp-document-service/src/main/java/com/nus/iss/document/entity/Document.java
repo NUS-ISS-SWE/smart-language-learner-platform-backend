@@ -57,6 +57,9 @@ public class Document {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "processed_at")
+    private Instant processedAt;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

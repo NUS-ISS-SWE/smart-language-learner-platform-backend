@@ -104,6 +104,25 @@ class DocumentServiceTest {
     }
 
     @Test
+    void testUploadDocument_RecordsFailedProcessingWhenExtractionThrows() throws IOException {
+        MultipartFile mockFile = new MockMultipartFile(
+                "file", "test.pdf", "application/pdf", "PDF content".getBytes());
+        doNothing().when(fileValidationService).validateFile(mockFile);
+        when(fileValidationService.sanitizeFilename(anyString())).thenReturn("test.pdf");
+        when(fileValidationService.getFileExtension(anyString())).thenReturn("pdf");
+        when(s3Service.uploadFile(anyString(), anyString(), any(), anyLong(), anyString()))
+                .thenReturn("documents/user-123/1234567890_test.pdf");
+        when(documentRepository.save(any(Document.class))).thenReturn(testDocument);
+        when(textExtractionService.extract(any(), anyString())).thenThrow(new RuntimeException("Parser unavailable"));
+
+        DocumentUploadResponse response = documentService.uploadDocument(testUserId, mockFile);
+
+        assertEquals("FAILED", response.document().status());
+        assertNotNull(testDocument.getProcessedAt());
+        verify(documentRepository, times(2)).save(any(Document.class));
+    }
+
+    @Test
     void testGetDocument_Success() {
         // Arrange
         when(documentRepository.findByIdAndUserId(testDocumentId, Long.parseLong(testUserId)))

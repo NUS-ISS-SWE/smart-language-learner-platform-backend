@@ -23,8 +23,8 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
      */
     @Modifying
     @Query(value = """
-            INSERT INTO evaluation (composition_id, request_id, requested_at, score, feedback, success, failure_reason, evaluated_at)
-            VALUES (:compositionId, :requestId, :requestedAt, :score, :feedback, :success, :failureReason, :evaluatedAt)
+            INSERT INTO evaluation (composition_id, request_id, requested_at, score, feedback, suggestion_status, suggestions, success, failure_reason, evaluated_at)
+            VALUES (:compositionId, :requestId, :requestedAt, :score, :feedback, :suggestionStatus, :suggestions, :success, :failureReason, :evaluatedAt)
             ON CONFLICT (request_id) WHERE request_id IS NOT NULL DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(
@@ -33,6 +33,8 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
             @Param("requestedAt") LocalDateTime requestedAt,
             @Param("score") BigDecimal score,
             @Param("feedback") String feedback,
+            @Param("suggestionStatus") String suggestionStatus,
+            @Param("suggestions") String suggestions,
             @Param("success") boolean success,
             @Param("failureReason") String failureReason,
             @Param("evaluatedAt") LocalDateTime evaluatedAt);

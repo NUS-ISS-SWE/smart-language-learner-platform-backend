@@ -29,6 +29,12 @@ class Settings:
     review_agent_card_url: str | None
     suggestion_agent_card_url: str | None
     agent_provider: str = "placeholder"
+    workflow_poll_interval_seconds: float = 0.5
+    outbox_poll_interval_seconds: float = 0.25
+    worker_lease_seconds: int = 60
+    outbox_lease_seconds: int = 30
+    worker_heartbeat_seconds: int = 15
+    otel_exporter_otlp_endpoint: str | None = None
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -61,4 +67,10 @@ class Settings:
             review_agent_card_url=os.getenv("REVIEW_AGENT_CARD_URL") or None,
             suggestion_agent_card_url=os.getenv("SUGGESTION_AGENT_CARD_URL") or None,
             agent_provider=os.getenv("AGENT_PROVIDER", "placeholder").strip().lower(),
+            workflow_poll_interval_seconds=float(os.getenv("WORKFLOW_POLL_INTERVAL_SECONDS", "0.5")),
+            outbox_poll_interval_seconds=float(os.getenv("OUTBOX_POLL_INTERVAL_SECONDS", "0.25")),
+            worker_lease_seconds=int(os.getenv("WORKER_LEASE_SECONDS", "60")),
+            outbox_lease_seconds=int(os.getenv("OUTBOX_LEASE_SECONDS", "30")),
+            worker_heartbeat_seconds=int(os.getenv("WORKER_HEARTBEAT_SECONDS", "15")),
+            otel_exporter_otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
         )

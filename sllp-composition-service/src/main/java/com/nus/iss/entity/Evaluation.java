@@ -1,11 +1,14 @@
 package com.nus.iss.entity;
 
 import jakarta.persistence.*;
+import com.nus.iss.contracts.grading.ImprovementSuggestion;
+import com.nus.iss.persistence.ImprovementSuggestionListConverter;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -36,6 +39,13 @@ public class Evaluation {
 
     @Column(columnDefinition = "TEXT")
     private String feedback;
+
+    @Column(name = "suggestion_status", length = 64)
+    private String suggestionStatus;
+
+    @Convert(converter = ImprovementSuggestionListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<ImprovementSuggestion> suggestions;
 
     @Column(nullable = false)
     @Builder.Default

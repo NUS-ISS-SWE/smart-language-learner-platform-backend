@@ -9,7 +9,9 @@ public record SystemUsageMetricsResponse(
         LocalDate to,
         Summary summary,
         List<DailyUsageMetric> daily,
-        List<RetentionCohortMetric> retentionCohorts) {
+        List<RetentionCohortMetric> retentionCohorts,
+        WorkflowReliabilityMetric workflowReliability,
+        List<AgentMetrics> agentMetrics) {
 
     public record Summary(
             long totalUsers,

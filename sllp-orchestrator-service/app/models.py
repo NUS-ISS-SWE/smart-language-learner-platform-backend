@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Literal
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+
+from app.event_time import composition_service_timestamp
 
 
 def _camel_case(value: str) -> str:
@@ -23,10 +25,18 @@ class WorkflowStatus(StrEnum):
     FAILED = "FAILED"
 
 
+TERMINAL_WORKFLOW_STATUSES = frozenset({WorkflowStatus.COMPLETED, WorkflowStatus.FAILED})
+
+
 class ReviewDecision(StrEnum):
     APPROVE = "APPROVE"
     REGRADE = "REGRADE"
     REJECT = "REJECT"
+
+
+class SuggestionStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    NOT_AVAILABLE_FOR_LANGUAGE = "NOT_AVAILABLE_FOR_LANGUAGE"
 
 
 class CompositionContext(BaseModel):
@@ -48,7 +58,8 @@ class WorkflowSubmission(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True, alias_generator=_camel_case)
 
     schema_version: str = Field(default="1.0", validation_alias=AliasChoices("schemaVersion", "schema_version"))
-    event_id: str | None = Field(default=None, validation_alias=AliasChoices("eventId", "event_id", "requestId", "request_id"))
+    event_id: str | None = Field(default=None, validation_alias=AliasChoices("eventId", "event_id"))
+    request_id: UUID | None = Field(default=None, validation_alias=AliasChoices("requestId", "request_id"))
     correlation_id: str | None = Field(
         default=None, validation_alias=AliasChoices("correlationId", "correlation_id")
     )
@@ -77,10 +88,99 @@ class WorkflowSubmission(BaseModel):
             },
         }
 
+    def idempotency_key(self, kafka_position: str) -> str:
+        """Select the stable identity used to deduplicate a workflow request."""
+        return str(self.request_id or self.event_id or kafka_position)
+
+    def completion_request_id(self, workflow_id: UUID) -> UUID:
+        """Return the producer request ID, with a workflow-stable legacy fallback."""
+        if self.request_id is not None:
+            return self.request_id
+        return uuid5(NAMESPACE_URL, f"sllp-grading-completion:{workflow_id}")
+
+
+class GradingCompletionEvent(BaseModel):
+    """Python representation of the shared grading-completed Kafka contract."""
+
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
+    request_id: UUID
+    requested_at: datetime | None = None
+    composition_id: int
+    user_id: int
+    score: float | None
+    feedback: str | None
+    success: bool
+    failure_reason: str | None
+    suggestion_status: SuggestionStatus | None = None
+    suggestions: list[dict[str, Any]] = Field(default_factory=list)
+    completed_at: datetime
+
+    @classmethod
+    def from_submission(
+        cls,
+        submission: WorkflowSubmission,
+        workflow_id: UUID,
+        score: float | None,
+        feedback: str | None,
+        success: bool,
+        failure_reason: str | None,
+        suggestion_status: SuggestionStatus | None = None,
+        suggestions: list[dict[str, Any]] | None = None,
+    ) -> "GradingCompletionEvent":
+        return cls(
+            request_id=submission.completion_request_id(workflow_id),
+            requested_at=submission.composition.requested_at,
+            composition_id=submission.composition.composition_id,
+            user_id=submission.composition.user_id,
+            score=score,
+            feedback=feedback,
+            success=success,
+            failure_reason=failure_reason,
+            suggestion_status=suggestion_status,
+            suggestions=suggestions or [],
+            completed_at=datetime.now(timezone.utc),
+        )
+
+    def to_kafka_payload(self) -> dict[str, Any]:
+        """Serialize the shared Java grading-completed event contract."""
+        payload = self.model_dump(by_alias=True, mode="json")
+        payload["requestedAt"] = (
+            composition_service_timestamp(self.requested_at) if self.requested_at is not None else None
+        )
+        payload["completedAt"] = composition_service_timestamp(self.completed_at)
+        return payload
+
 
 class Evidence(BaseModel):
     excerpt: str = Field(min_length=1, max_length=2_000)
     location: str | None = None
+
+
+class AgentUsage(BaseModel):
+    """Provider-reported token usage plus the immutable price snapshot for one call."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", alias_generator=_camel_case)
+
+    provider: str = Field(min_length=1, max_length=50)
+    model: str = Field(min_length=1, max_length=100)
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    pricing_version: str = Field(min_length=1, max_length=100)
+    input_price_micros_per_million: int = Field(ge=0)
+    cached_input_price_micros_per_million: int = Field(ge=0)
+    output_price_micros_per_million: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_token_counts(self) -> "AgentUsage":
+        if self.cached_input_tokens > self.prompt_tokens:
+            raise ValueError("cachedInputTokens cannot exceed promptTokens")
+        expected_total = self.prompt_tokens + self.completion_tokens
+        if self.total_tokens is not None and self.total_tokens < expected_total:
+            raise ValueError("totalTokens cannot be smaller than promptTokens plus completionTokens")
+        return self
 
 
 class CriterionAssessment(BaseModel):
@@ -104,6 +204,7 @@ class GradingResponse(BaseModel):
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
     prompt_version: str | None = Field(default=None, validation_alias=AliasChoices("promptVersion", "prompt_version"))
     token_usage: int | None = Field(default=None, validation_alias=AliasChoices("tokenUsage", "token_usage"))
+    usage: AgentUsage | None = None
 
 
 class ReviewFinding(BaseModel):
@@ -120,23 +221,40 @@ class ReviewResponse(BaseModel):
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
     prompt_version: str | None = Field(default=None, validation_alias=AliasChoices("promptVersion", "prompt_version"))
     token_usage: int | None = Field(default=None, validation_alias=AliasChoices("tokenUsage", "token_usage"))
+    usage: AgentUsage | None = None
 
 
 class Suggestion(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
     criterion: str = Field(min_length=1)
     priority: Literal["HIGH", "MEDIUM", "LOW"]
     recommendation: str = Field(min_length=1)
     example_revision: str | None = Field(default=None, validation_alias=AliasChoices("exampleRevision", "example_revision"))
     learning_tip: str | None = Field(default=None, validation_alias=AliasChoices("learningTip", "learning_tip"))
+    supporting_evidence: Evidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 
 
 class SuggestionResponse(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True, alias_generator=_camel_case)
 
-    suggestions: list[Suggestion] = Field(min_length=1)
+    suggestion_status: SuggestionStatus = Field(
+        default=SuggestionStatus.AVAILABLE,
+        validation_alias=AliasChoices("suggestionStatus", "suggestion_status"),
+    )
+    suggestions: list[Suggestion] = Field(default_factory=list, max_length=3)
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
     prompt_version: str | None = Field(default=None, validation_alias=AliasChoices("promptVersion", "prompt_version"))
     token_usage: int | None = Field(default=None, validation_alias=AliasChoices("tokenUsage", "token_usage"))
+    usage: AgentUsage | None = None
+
+    @model_validator(mode="after")
+    def validate_availability(self) -> "SuggestionResponse":
+        if self.suggestion_status is SuggestionStatus.AVAILABLE and not self.suggestions:
+            raise ValueError("available suggestion results must include at least one suggestion")
+        if self.suggestion_status is not SuggestionStatus.AVAILABLE and self.suggestions:
+            raise ValueError("unavailable suggestion results must not include suggestions")
+        return self
 
 
 class WorkflowRecord(BaseModel):
@@ -154,3 +272,28 @@ class WorkflowRecord(BaseModel):
     error_details: dict[str, Any] | None = None
     grading_passes: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WorkflowClaim(BaseModel):
+    """Fencing token returned when a durable worker claims a workflow."""
+
+    workflow_id: UUID
+    owner: str
+    lock_version: int
+
+
+class OutboxEvent(BaseModel):
+    event_id: UUID = Field(default_factory=uuid4)
+    workflow_id: UUID
+    event_type: str
+    dedupe_key: str
+    topic: str
+    key: str
+    payload: dict[str, Any]
+    attempt_count: int = 0
+
+
+class OutboxClaim(BaseModel):
+    event: OutboxEvent
+    owner: str
+    lock_version: int

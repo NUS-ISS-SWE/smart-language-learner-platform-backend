@@ -13,7 +13,7 @@ public class CompositionMapper {
         return new CompositionResponse(
                 composition.getId(), composition.getUserId(), composition.getTitle(), composition.getContent(),
                 composition.getCompositionSource(), composition.getLanguage(), composition.getCompositionStatus(),
-                composition.getSystemFeedback(), composition.getGradingProgressMessage(), composition.getStoragePath(), composition.getCreatedAt(),
+                composition.getSystemFeedback(), composition.getSuggestionStatus(), composition.getSuggestions(), composition.getGradingProgressMessage(), composition.getGradingProgressStage(), composition.getStoragePath(), composition.getCreatedAt(),
                 composition.getUpdatedAt());
     }
 }

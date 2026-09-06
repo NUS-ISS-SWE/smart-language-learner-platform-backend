@@ -31,7 +31,7 @@ class SystemUsageMetricsControllerTest {
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 2);
         SystemUsageMetricsResponse metrics = new SystemUsageMetricsResponse(from, to,
-                new SystemUsageMetricsResponse.Summary(1, 1, 0, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, 0, 0, 0), List.of(), List.of());
+                new SystemUsageMetricsResponse.Summary(1, 1, 0, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, 0, 0, 0), List.of(), List.of(), null, List.of());
         when(service.getMetrics(from, to)).thenReturn(metrics);
 
         ResponseEntity<SystemUsageMetricsResponse> response = new SystemUsageMetricsController(service)

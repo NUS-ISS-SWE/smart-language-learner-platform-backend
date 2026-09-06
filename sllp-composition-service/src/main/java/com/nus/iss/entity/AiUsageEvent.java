@@ -28,14 +28,20 @@ public class AiUsageEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "request_id", nullable = false, unique = true)
+    @Column(name = "event_id", nullable = false, unique = true)
+    private UUID eventId;
+    @Column(name = "request_id")
     private UUID requestId;
+    @Column(name = "workflow_id")
+    private UUID workflowId;
     @Column(name = "user_id", nullable = false)
     private Long userId;
     @Column(name = "composition_id")
     private Long compositionId;
     @Column(nullable = false)
     private String operation;
+    @Column(nullable = false)
+    private String agent;
     @Column(nullable = false)
     private String provider;
     @Column(nullable = false)

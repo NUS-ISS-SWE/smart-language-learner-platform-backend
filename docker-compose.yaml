@@ -176,6 +176,50 @@ services:
       - KAFKA_GRADING_COMPLETED_TOPIC=SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
       - KAFKA_GRADING_PROGRESS_TOPIC=SLLP_COMPOSITION_GRADING_PROGRESS_TOPIC
       - AGENT_PROVIDER=${AGENT_PROVIDER:-placeholder}
+      - SUGGESTION_AGENT_CARD_URL=${SUGGESTION_AGENT_CARD_URL:-http://suggestions-agent:8091/.well-known/agent-card.json}
+      - WORKER_LEASE_SECONDS=${WORKER_LEASE_SECONDS:-60}
+      - OUTBOX_LEASE_SECONDS=${OUTBOX_LEASE_SECONDS:-30}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  suggestions-agent:
+    profiles: ["agents"]
+    build:
+      context: .
+      dockerfile: sllp-suggestions-agent/Dockerfile
+    image: sllp-suggestions-agent:latest
+    container_name: suggestions-agent
+    ports:
+      - "8091:8091"
+    networks:
+      - sllp-network
+    environment:
+      - SUGGESTIONS_PUBLIC_BASE_URL=http://suggestions-agent:8091
+      - SUGGESTIONS_USER_SERVICE_URL=http://user-service:8082
+      - SUGGESTIONS_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SUGGESTIONS_OPENAI_MODEL=${SUGGESTIONS_OPENAI_MODEL:-gpt-4o-mini}
+      # TODO(DEEP owner): replace unavailable with the canonical DEEP/MOE provider.
+      - DEEP_FRAMEWORK_PROVIDER=${DEEP_FRAMEWORK_PROVIDER:-unavailable}
+    depends_on:
+      user-service:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - sllp-network
+    depends_on:
+      orchestrator-service:
+        condition: service_started
 
   admin-service:
     build:
@@ -183,8 +227,6 @@ services:
       dockerfile: sllp-admin-service/Dockerfile
     image: sllp-admin-service:latest
     container_name: admin-service
-    ports:
-      - "8086:8086"
     networks:
       - sllp-network
     depends_on:
@@ -193,6 +235,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_PASSWORD=password
+      - TZ=UTC
 
   api-gateway:
     build:

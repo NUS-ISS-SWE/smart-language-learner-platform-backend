@@ -6,9 +6,9 @@ import java.time.LocalDate;
 public record RetentionCohortMetric(
         LocalDate cohortStart,
         long cohortSize,
-        long week0Retained,
-        long week1Retained,
-        long week2Retained,
-        long week3Retained,
-        long week4Retained) {
+        Long week0Retained,
+        Long week1Retained,
+        Long week2Retained,
+        Long week3Retained,
+        Long week4Retained) {
 }

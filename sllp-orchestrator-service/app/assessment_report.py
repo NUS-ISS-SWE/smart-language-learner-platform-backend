@@ -3,8 +3,14 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from app.event_time import composition_service_timestamp
-from app.models import GradingResponse, ReviewResponse, SuggestionResponse, WorkflowSubmission
+from app.models import (
+    GradingCompletionEvent,
+    GradingResponse,
+    ReviewResponse,
+    SuggestionResponse,
+    SuggestionStatus,
+    WorkflowSubmission,
+)
 
 SAFE_FAILURE_MESSAGE = "Your assessment is temporarily unavailable. Please try again shortly."
 
@@ -24,28 +30,38 @@ def completed_assessment(
         "review": review.model_dump(by_alias=True, mode="json"),
         "suggestions": suggestions.model_dump(by_alias=True, mode="json"),
     }
-    return report, completion_event(submission, grading.overall_score, render_feedback(grading, suggestions), True)
+    return report, completion_event(
+        submission,
+        workflow_id,
+        grading.overall_score,
+        render_feedback(grading, suggestions),
+        True,
+        suggestions,
+    )
 
 
-def failed_assessment(submission: WorkflowSubmission) -> dict[str, Any]:
-    return completion_event(submission, None, None, False)
+def failed_assessment(submission: WorkflowSubmission, workflow_id: UUID) -> dict[str, Any]:
+    return completion_event(submission, workflow_id, None, None, False, None)
 
 
 def completion_event(
     submission: WorkflowSubmission,
+    workflow_id: UUID,
     score: float | None,
     feedback: str | None,
     success: bool,
+    suggestions: SuggestionResponse | None,
 ) -> dict[str, Any]:
-    return {
-        "compositionId": submission.composition.composition_id,
-        "userId": submission.composition.user_id,
-        "score": score,
-        "feedback": feedback,
-        "success": success,
-        "failureReason": None if success else SAFE_FAILURE_MESSAGE,
-        "completedAt": composition_service_timestamp(),
-    }
+    return GradingCompletionEvent.from_submission(
+        submission,
+        workflow_id,
+        score,
+        feedback,
+        success,
+        None if success else SAFE_FAILURE_MESSAGE,
+        suggestions.suggestion_status if suggestions is not None else None,
+        [item.model_dump(by_alias=True, mode="json") for item in suggestions.suggestions] if suggestions is not None else [],
+    ).to_kafka_payload()
 
 
 def render_feedback(grading: GradingResponse, suggestions: SuggestionResponse) -> str:
@@ -59,6 +75,8 @@ def render_feedback(grading: GradingResponse, suggestions: SuggestionResponse) -
         excerpts = "; ".join(evidence.excerpt for evidence in criterion.evidence)
         lines.append(f"- {criterion.criterion} ({criterion.score:.0f}/100): {criterion.rationale} Evidence: {excerpts}")
     lines.extend(["", "Review outcome: Approved", "", "Improvement suggestions:"])
+    if suggestions.suggestion_status is SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE:
+        return "\n".join(lines)
     for suggestion in suggestions.suggestions:
         lines.append(f"- [{suggestion.priority}] {suggestion.criterion}: {suggestion.recommendation}")
         if suggestion.example_revision:

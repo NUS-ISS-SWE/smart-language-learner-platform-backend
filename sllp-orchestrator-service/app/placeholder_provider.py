@@ -17,7 +17,7 @@ class PlaceholderAgentProvider:
 
     name = "placeholder"
 
-    def ensure_ready(self) -> dict[str, str]:
+    def ensure_ready(self, include_suggestions: bool = True) -> dict[str, str]:
         return {"mode": "development-placeholder", "version": "placeholder-v1"}
 
     def invoke(self, agent: AgentName, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
@@ -62,6 +62,7 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
                 "recommendation": "Replace this placeholder provider with the team-owned assessment agents before release.",
                 "exampleRevision": "Use the actual grading, review, and suggestion agent outputs here.",
                 "learningTip": "This result verifies the integration flow only; it is not writing advice.",
+                "supportingEvidence": {"excerpt": "Submitted composition", "location": "development mode"},
             }
         ],
         **metadata,

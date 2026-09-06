@@ -88,21 +88,24 @@ class AgentRegistry:
     def close(self) -> None:
         self.client.close()
 
-    def ensure_ready(self) -> dict[str, dict[str, str]]:
+    def ensure_ready(self, include_suggestions: bool = True) -> dict[str, dict[str, str]]:
         if not self.settings.agent_card_discovery_enabled:
             raise AgentDiscoveryError("agent card discovery is disabled; A2A delegation requires verified cards")
         verified: dict[str, dict[str, str]] = {}
         for peer in self.peers:
+            if peer.key == "suggestion" and not include_suggestions:
+                continue
             card = self._get_verified(peer)
             verified[peer.key] = card.trace_details()
         return verified
 
     def get(self, key: str) -> VerifiedAgentCard:
-        self.ensure_ready()
-        card = self._cache.get(key)
-        if card is None:
+        if not self.settings.agent_card_discovery_enabled:
+            raise AgentDiscoveryError("agent card discovery is disabled; A2A delegation requires verified cards")
+        peer = next((peer for peer in self.peers if peer.key == key), None)
+        if peer is None:
             raise AgentDiscoveryError(f"{key} agent card is not available")
-        return card
+        return self._get_verified(peer)
 
     def _get_verified(self, peer: PeerAgent) -> VerifiedAgentCard:
         now = time.monotonic()

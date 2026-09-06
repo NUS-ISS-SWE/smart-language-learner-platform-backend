@@ -3,6 +3,7 @@ package com.nus.iss.contracts.grading;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,8 @@ public class CompositionGradingCompletedEvent {
     private String feedback;
     private boolean success;
     private String failureReason;
+    private String suggestionStatus;
+    private List<ImprovementSuggestion> suggestions;
     private LocalDateTime completedAt;
     private Long promptTokens;
     private Long completionTokens;

@@ -2,6 +2,7 @@ package com.nus.iss.service;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +65,11 @@ public class CompositionCommandService {
         composition.setContent(request.content());
         composition.setLanguage(detectLanguage(request.content()));
         composition.setCompositionStatus(CompositionStatus.DRAFT);
+        composition.setSystemFeedback(null);
+        composition.setSuggestionStatus(null);
+        composition.setSuggestions(List.of());
+        composition.setGradingProgressMessage(null);
+        composition.setGradingProgressStage(null);
         composition.setUpdatedAt(LocalDateTime.now());
         return compositionMapper.toResponse(compositionRepository.save(composition));
     }
@@ -83,7 +89,10 @@ public class CompositionCommandService {
         LocalDateTime now = LocalDateTime.now();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         composition.setSystemFeedback(null);
+        composition.setSuggestionStatus(null);
+        composition.setSuggestions(List.of());
         composition.setGradingProgressMessage("Preparing your assessment…");
+        composition.setGradingProgressStage("PREPARING");
         composition.setUpdatedAt(now);
         Composition saved = compositionRepository.save(composition);
         kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()

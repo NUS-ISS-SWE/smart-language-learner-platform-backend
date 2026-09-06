@@ -1,0 +1,18 @@
+[project]
+name = "sllp-suggestions-agent"
+version = "0.1.0"
+description = "A2A writing-suggestions agent for SLLP assessments"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "httpx>=0.27,<1.0",
+  "pydantic>=2.7,<3.0",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -85,7 +85,18 @@ The following is a complete, representative `SendMessage` response from a gradin
           "confidence": 0.87,
           "modelVersion": "grading-model",
           "promptVersion": "grading-v1",
-          "tokenUsage": 321
+          "usage": {
+            "provider": "provider-name",
+            "model": "model-name",
+            "promptTokens": 240,
+            "cachedInputTokens": 40,
+            "completionTokens": 81,
+            "totalTokens": 321,
+            "pricingVersion": "provider-price-catalog-v1",
+            "inputPriceMicrosPerMillion": 250000,
+            "cachedInputPriceMicrosPerMillion": 125000,
+            "outputPriceMicrosPerMillion": 2000000
+          }
         }}]
       }]
     }
@@ -129,11 +140,17 @@ The Review request additionally includes `grading`; the Suggestion request inclu
   "confidence": 0.87,
   "modelVersion": "model-name",
   "promptVersion": "grading-v1",
-  "tokenUsage": 321
+  "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 240, "cachedInputTokens": 40, "completionTokens": 81, "totalTokens": 321, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
 }
 ```
 
 `overallScore`, each criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Scores are 0-100; confidence is 0-1.
+
+### Provider usage and cost snapshot
+
+Every production agent response must include a `usage` object like the example above. It is the provider-reported token breakdown for that one successful call plus the immutable, versioned per-million-token price snapshot used for the estimate. All prices are integer USD micros (one millionth of a dollar); cached input tokens must not exceed prompt tokens, and `totalTokens`, when supplied, must be at least prompt plus completion tokens.
+
+The orchestrator stores one idempotent event for each successful agent call, keyed by workflow, agent, grading pass, and provider task ID. It derives the displayed estimate as non-cached input × input price + cached input × cached-input price + completion × output price, rounding half up to USD micros. This makes grading, review, and suggestion costs independently auditable and prevents a replay of the same provider task from being counted twice. A recovery that creates a new billable provider task is counted separately, even within the same grading pass. `tokenUsage` is retained only for backward-compatible metadata and does not produce a cost event; agents that omit `usage` will therefore be absent from accurate token/cost reporting.
 
 ## Review response artifact
 
@@ -144,7 +161,7 @@ The Review request additionally includes `grading`; the Suggestion request inclu
   "findings": [{"criterion": "Description", "message": "Evidence supports the score."}],
   "modelVersion": "model-name",
   "promptVersion": "review-v1",
-  "tokenUsage": 210
+  "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 160, "cachedInputTokens": 0, "completionTokens": 50, "totalTokens": 210, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
 }
 ```
 
@@ -154,11 +171,12 @@ The Review request additionally includes `grading`; the Suggestion request inclu
 
 ```json
 {
-  "suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Name the feeling and its cause.", "exampleRevision": "I felt proud because...", "learningTip": "Pair each feeling with a detail."}],
+  "suggestionStatus": "AVAILABLE",
+  "suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Name the feeling and its cause.", "exampleRevision": "I felt proud because...", "learningTip": "Pair each feeling with a detail.", "supportingEvidence": {"excerpt": "I clenched the certificate", "location": "paragraph 3"}}],
   "modelVersion": "model-name",
   "promptVersion": "suggestion-v1",
-  "tokenUsage": 180
+  "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 130, "cachedInputTokens": 0, "completionTokens": 50, "totalTokens": 180, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
 }
 ```
 
-`priority` is `HIGH`, `MEDIUM`, or `LOW`. At least one actionable suggestion is required.
+`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence. `AVAILABLE` results contain one to three actionable suggestions. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.

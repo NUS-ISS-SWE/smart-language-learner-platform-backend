@@ -6,10 +6,11 @@ The canonical plan lives in the sibling frontend repository:
 
 - [Plan, user decisions and fresh-session instructions](../smart-language-learner-platform-frontend/UX_REDESIGN_PLAN.md)
 - [Visual and screen specification](../smart-language-learner-platform-frontend/docs/ux-redesign/DESIGN_SPEC.md)
+- [Visual craft guide: composition, blueprints and refinement](../smart-language-learner-platform-frontend/docs/ux-redesign/VISUAL_CRAFT.md)
 - [Workflow contract and functionality retention inventory](../smart-language-learner-platform-frontend/docs/ux-redesign/WORKFLOW_CONTRACT.md)
 - [Execution checklist, acceptance criteria and continuation record](../smart-language-learner-platform-frontend/docs/ux-redesign/EXECUTION.md)
 
-Read all four before continuing. Keep decisions and progress in that canonical set rather than maintaining a second divergent backend plan. If the sibling is absent, check out `smart-language-learner-platform-frontend` on `feature/calm-writing-studio-20260906` alongside this repository, or obtain those documents before implementation.
+Read all five before continuing. Keep decisions and progress in that canonical set rather than maintaining a second divergent backend plan. If the sibling is absent, check out `smart-language-learner-platform-frontend` on `feature/calm-writing-studio-20260906` alongside this repository, or obtain those documents before implementation.
 
 ## Checkpoints
 

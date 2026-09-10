@@ -17,4 +17,7 @@ public interface SubscriptionService {
     UserSubscriptionDTO cancelSubscription(Long userId);
 
     List<SubscriptionPlanInfoDTO> getAvailablePlans();
+
+    /** Activates a user's PENDING subscription once Stripe confirms payment via webhook. */
+    void confirmPendingSubscription(Long userId, String stripeReference);
 }

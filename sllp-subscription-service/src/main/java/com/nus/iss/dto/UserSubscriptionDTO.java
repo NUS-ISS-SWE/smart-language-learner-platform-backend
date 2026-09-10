@@ -12,5 +12,8 @@ public record UserSubscriptionDTO(
         LocalDate startDate,
         LocalDate endDate,
         Integer durationDays,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** Set only when {@code status} is PENDING — where the frontend should redirect
+         *  the user to complete payment on Stripe's hosted checkout page. */
+        String checkoutUrl
 ) {}

@@ -135,6 +135,10 @@ public class GatewayRoute {
                 .route("admin_subscription_plans", r -> r.path("/api/v1/admin/subscription/plans", "/api/v1/admin/subscription/plans/**")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
                         .uri(sllpProperties.getSubscriptionService()))
+                .route("subscription_webhook", r -> r.method(HttpMethod.POST)
+                        .and()
+                        .path("/api/v1/subscription/webhook")
+                        .uri(sllpProperties.getSubscriptionService()))
 
                 // Admin rubric routes
                 .route("admin_rubrics", r -> r.path(

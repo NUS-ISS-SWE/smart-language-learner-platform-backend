@@ -21,3 +21,13 @@ spring:
     show-sql: false
   jackson:
     default-property-inclusion: non_null
+
+stripe:
+  # Signing secret for the webhook endpoint (starts with whsec_). NOT the API secret key —
+  # we never call the Stripe API, only verify inbound webhook signatures.
+  # Local dev: printed by `stripe listen --forward-to ...`. Prod: from the endpoint
+  # created in the Stripe Dashboard, stored as a real secret (e.g. AWS Secrets Manager).
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  # Static Payment Link URLs configured in the Stripe Dashboard for each paid plan.
+  payment-link-basic: ${STRIPE_PAYMENT_LINK_BASIC:}
+  payment-link-premium: ${STRIPE_PAYMENT_LINK_PREMIUM:}

@@ -39,6 +39,13 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Used only for webhook signature verification (Webhook.constructEvent) —
+             we never call out to the Stripe API. -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>33.3.0</version>
+        </dependency>
         <!-- Swagger annotations only — no Spring dependency, compatible with Spring Boot 4 -->
         <dependency>
             <groupId>io.swagger.core.v3</groupId>

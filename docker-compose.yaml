@@ -282,6 +282,9 @@ services:
         condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PAYMENT_LINK_BASIC=${STRIPE_PAYMENT_LINK_BASIC:-}
+      - STRIPE_PAYMENT_LINK_PREMIUM=${STRIPE_PAYMENT_LINK_PREMIUM:-}
 
 networks:
   sllp-network:

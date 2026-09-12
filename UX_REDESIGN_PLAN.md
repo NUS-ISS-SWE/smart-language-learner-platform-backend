@@ -1,6 +1,6 @@
 # UX redesign handoff: start here
 
-**Implementation is paused awaiting explicit user approval.** Documentation preparation is authorized; redesign application changes have not started.
+**Implementation is approved and underway in the frontend.** Approval was granted on 7 September and continuation reaffirmed on 12 September 2026. Preserve the independent audit-logging working-tree changes in both repositories.
 
 The canonical plan lives in the sibling frontend repository:
 
@@ -32,4 +32,4 @@ The user's incoming changes plus review fixes were committed for separate testin
 
 Earlier verification: targeted Maven reactor BUILD SUCCESS, with 87 executed tests and **2 skipped admin repository integration tests**; orchestrator 33 passed, suggestions 6 passed; migrations 001-013 had a disposable-database SQL smoke test. These are baseline results, not redesign acceptance. Local Java log if retained: `target/review/java-tests.log` (ignored). See the canonical handoff for limitations and frontend checks.
 
-Last updated: 7 September 2026. Next action: review the documented plan with the user; start execution task T00 only after implementation approval.
+Last updated: 12 September 2026. Next action: consult the frontend execution record and continue the first unfinished work package. No repeat approval is needed for the agreed scope.

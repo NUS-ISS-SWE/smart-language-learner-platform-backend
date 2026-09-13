@@ -29,12 +29,12 @@ class ReviewScoringCriterion(BaseModel):
 
 
 class ReviewScoringRequest(BaseModel):
-    """Untrusted composition plus upstream grading and optional rubric evidence."""
+    """Student work and proposed student-facing review to quality-check."""
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     composition: dict[str, Any]
-    grading: dict[str, Any]
+    review: dict[str, Any]
     rubric: list[dict[str, Any]] = Field(default_factory=list)
     evidence: list[ReviewScoringEvidence] = Field(default_factory=list)
 
@@ -54,14 +54,15 @@ class ReviewScoringFinding(BaseModel):
 
 
 class ReviewScoringResult(BaseModel):
-    """Auditable quality score for a grading result, not a replacement student score."""
+    """Auditable quality score for feedback before it is shown to a student."""
 
     model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
 
     overall_score: float = Field(ge=0, le=100)
-    score_alignment: float = Field(ge=0, le=100)
+    review_grounding: float = Field(ge=0, le=100)
+    rubric_alignment: float = Field(ge=0, le=100)
+    actionability: float = Field(ge=0, le=100)
     evidence_grounding: float = Field(ge=0, le=100)
-    rubric_compliance: float = Field(ge=0, le=100)
     findings: list[ReviewScoringFinding] = Field(default_factory=list)
     confidence: float = Field(ge=0, le=1)
     model_version: str = "review-scoring-deterministic-v1"
@@ -75,15 +76,16 @@ class ReviewScoringResult(BaseModel):
 class _ReviewScoringState(TypedDict, total=False):
     request: ReviewScoringRequest
     evidence_grounding: float
-    rubric_compliance: float
-    score_alignment: float
+    review_grounding: float
+    rubric_alignment: float
+    actionability: float
     findings: list[ReviewScoringFinding]
     result: ReviewScoringResult
     error: str
 
 
 class ReviewScoringAgent:
-    """LangGraph agent that audits grading quality in small, testable stages."""
+    """LangGraph quality gate for feedback before it reaches the student."""
 
     def __init__(self) -> None:
         self.graph = self._build_graph()
@@ -97,7 +99,7 @@ class ReviewScoringAgent:
                 {
                     "id": "review-scoring",
                     "name": "Review scoring",
-                    "description": "Audits score alignment, evidence grounding, and rubric coverage.",
+                    "description": "Checks student-facing review grounding, rubric alignment, and actionability.",
                 }
             ],
             "sllp": {"contractVersion": "1.0"},
@@ -117,15 +119,17 @@ class ReviewScoringAgent:
     def _build_graph(self):
         graph = StateGraph(_ReviewScoringState)
         graph.add_node("validate", self._validate)
-        graph.add_node("analyze_evidence", self._analyze_evidence)
-        graph.add_node("check_rubric", self._check_rubric)
-        graph.add_node("check_consistency", self._check_consistency)
+        graph.add_node("check_review_grounding", self._check_review_grounding)
+        graph.add_node("check_rubric_alignment", self._check_rubric_alignment)
+        graph.add_node("check_actionability", self._check_actionability)
+        graph.add_node("check_evidence", self._check_evidence)
         graph.add_node("assemble", self._assemble)
         graph.add_edge(START, "validate")
-        graph.add_conditional_edges("validate", self._after_validate, {"analyze_evidence": "analyze_evidence", "fail": END})
-        graph.add_edge("analyze_evidence", "check_rubric")
-        graph.add_edge("check_rubric", "check_consistency")
-        graph.add_edge("check_consistency", "assemble")
+        graph.add_conditional_edges("validate", self._after_validate, {"check_review_grounding": "check_review_grounding", "fail": END})
+        graph.add_edge("check_review_grounding", "check_rubric_alignment")
+        graph.add_edge("check_rubric_alignment", "check_actionability")
+        graph.add_edge("check_actionability", "check_evidence")
+        graph.add_edge("check_evidence", "assemble")
         graph.add_edge("assemble", END)
         return graph.compile()
 
@@ -140,83 +144,94 @@ class ReviewScoringAgent:
         return "fail" if state.get("error") else "analyze_evidence"
 
     @staticmethod
-    def _analyze_evidence(state: _ReviewScoringState) -> _ReviewScoringState:
+    def _check_review_grounding(state: _ReviewScoringState) -> _ReviewScoringState:
         request = state["request"]
         content = str(request.composition["content"]).casefold()
-        criteria = _grading_criteria(request.grading)
-        evidence = request.evidence or [item for criterion in criteria for item in criterion.evidence]
+        review_text = _review_text(request.review)
+        claims = _review_claims(request.review)
+        grounded = sum(_excerpt_is_grounded(claim, content) for claim in claims)
+        score = round(100 * grounded / len(claims), 2) if claims else 0.0
+        findings = []
+        if score < 70:
+            findings.append(ReviewScoringFinding(criterion="review", message="The student-facing review contains claims that are not grounded in the composition.", severity="HIGH"))
+        elif score < 90:
+            findings.append(ReviewScoringFinding(criterion="review", message="Some review claims are weakly grounded in the composition.", severity="MEDIUM"))
+        return {"review_grounding": score, "findings": findings}
+
+    @staticmethod
+    def _check_rubric_alignment(state: _ReviewScoringState) -> _ReviewScoringState:
+        request = state["request"]
+        if not request.rubric:
+            return {"rubric_alignment": 100.0}
+        review_text = _review_text(request.review)
+        matched = sum(_name(item.get("criterion") or item.get("name")) in _name(review_text) for item in request.rubric)
+        score = round(100 * matched / len(request.rubric), 2)
+        findings = list(state.get("findings", []))
+        if score < 100:
+            findings.append(ReviewScoringFinding(criterion="rubric", message="The review does not address every rubric criterion.", severity="HIGH" if score < 70 else "MEDIUM"))
+        return {"rubric_alignment": score, "findings": findings}
+
+    @staticmethod
+    def _check_actionability(state: _ReviewScoringState) -> _ReviewScoringState:
+        review_text = _review_text(state["request"].review)
+        action_words = ("add", "explain", "describe", "use", "revise", "change", "include", "try")
+        has_action = any(word in review_text.casefold().split() for word in action_words)
+        score = 100.0 if has_action else 40.0
+        findings = list(state.get("findings", []))
+        if not has_action:
+            findings.append(ReviewScoringFinding(criterion="actionability", message="The review does not give the student a clear next step.", severity="MEDIUM"))
+        return {"actionability": score, "findings": findings}
+
+    @staticmethod
+    def _check_evidence(state: _ReviewScoringState) -> _ReviewScoringState:
+        request = state["request"]
+        content = str(request.composition["content"]).casefold()
+        evidence = request.evidence
         if not evidence:
-            return {
-                "evidence_grounding": 0.0,
-                "findings": [ReviewScoringFinding(criterion="evidence", message="No evidence was supplied for the grading result.", severity="HIGH")],
-            }
+            return {"evidence_grounding": 100.0}
 
         grounded = sum(_excerpt_is_grounded(item.excerpt, content) for item in evidence)
         score = round(100 * grounded / len(evidence), 2)
         findings = []
         if score < 70:
-            findings.append(ReviewScoringFinding(criterion="evidence", message="Several grading excerpts cannot be located in the submitted composition.", severity="HIGH"))
+            findings.append(ReviewScoringFinding(criterion="evidence", message="Some cited review evidence cannot be located in the composition.", severity="HIGH"))
         elif score < 90:
-            findings.append(ReviewScoringFinding(criterion="evidence", message="Some grading excerpts are weakly grounded in the submitted composition.", severity="MEDIUM"))
+            findings.append(ReviewScoringFinding(criterion="evidence", message="Some cited review evidence is weakly grounded in the composition.", severity="MEDIUM"))
         return {"evidence_grounding": score, "findings": findings}
-
-    @staticmethod
-    def _check_rubric(state: _ReviewScoringState) -> _ReviewScoringState:
-        request = state["request"]
-        criteria = _grading_criteria(request.grading)
-        if not request.rubric:
-            return {"rubric_compliance": 100.0}
-
-        rubric_names = {_name(item.get("criterion") or item.get("name")) for item in request.rubric}
-        graded_names = {_name(item.criterion) for item in criteria}
-        matched = len(rubric_names & graded_names)
-        compliance = round(100 * matched / len(rubric_names), 2)
-        findings = list(state.get("findings", []))
-        if compliance < 100:
-            findings.append(ReviewScoringFinding(criterion="rubric", message="The grading result does not cover every rubric criterion.", severity="HIGH" if compliance < 70 else "MEDIUM"))
-        return {"rubric_compliance": compliance, "findings": findings}
-
-    @staticmethod
-    def _check_consistency(state: _ReviewScoringState) -> _ReviewScoringState:
-        request = state["request"]
-        criteria = _grading_criteria(request.grading)
-        average = sum(item.score for item in criteria) / len(criteria)
-        overall = _number(request.grading.get("overallScore", request.grading.get("score", 0)))
-        difference = abs(average - overall)
-        alignment = round(max(0.0, 100.0 - difference * 2.0), 2)
-        findings = list(state.get("findings", []))
-        if alignment < 80:
-            findings.append(ReviewScoringFinding(criterion="score", message="The overall score is materially inconsistent with the criterion scores.", severity="HIGH"))
-        return {"score_alignment": alignment, "findings": findings}
 
     @staticmethod
     def _assemble(state: _ReviewScoringState) -> _ReviewScoringState:
         evidence = state["evidence_grounding"]
-        rubric = state["rubric_compliance"]
-        alignment = state["score_alignment"]
-        overall = round(evidence * 0.4 + rubric * 0.3 + alignment * 0.3, 2)
+        grounding = state["review_grounding"]
+        rubric = state["rubric_alignment"]
+        actionability = state["actionability"]
+        overall = round(grounding * 0.35 + rubric * 0.25 + actionability * 0.25 + evidence * 0.15, 2)
         findings = state.get("findings", [])
         confidence = round(max(0.0, min(1.0, overall / 100.0)), 2)
         return {
             "result": ReviewScoringResult(
                 overall_score=overall,
-                score_alignment=alignment,
+                review_grounding=grounding,
+                rubric_alignment=rubric,
+                actionability=actionability,
                 evidence_grounding=evidence,
-                rubric_compliance=rubric,
                 findings=findings,
                 confidence=confidence,
             )
         }
 
 
-def _grading_criteria(grading: Mapping[str, Any]) -> list[ReviewScoringCriterion]:
-    criteria = grading.get("criteria")
-    if not isinstance(criteria, list) or not criteria:
-        raise ValueError("grading.criteria must contain at least one criterion")
-    try:
-        return [ReviewScoringCriterion.model_validate(item) for item in criteria]
-    except ValidationError as error:
-        raise ValueError("grading criteria are invalid") from error
+def _review_text(review: Mapping[str, Any]) -> str:
+    parts = [review.get("message"), review.get("feedback"), review.get("recommendation")]
+    for item in review.get("findings", []) if isinstance(review.get("findings"), list) else []:
+        if isinstance(item, Mapping):
+            parts.append(item.get("message"))
+    return " ".join(str(part) for part in parts if part)
+
+
+def _review_claims(review: Mapping[str, Any]) -> list[str]:
+    claims = review.get("evidence", [])
+    return [str(item.get("excerpt")) for item in claims if isinstance(item, Mapping) and item.get("excerpt")]
 
 
 def _excerpt_is_grounded(excerpt: str, content: str) -> bool:
@@ -227,13 +242,6 @@ def _excerpt_is_grounded(excerpt: str, content: str) -> bool:
 
 def _name(value: Any) -> str:
     return str(value or "").strip().casefold()
-
-
-def _number(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError) as error:
-        raise ValueError("grading overall score must be numeric") from error
 
 
 __all__ = ["ReviewScoringAgent", "ReviewScoringRequest", "ReviewScoringResult"]

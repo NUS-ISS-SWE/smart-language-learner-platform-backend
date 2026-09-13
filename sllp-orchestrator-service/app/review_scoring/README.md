@@ -1,14 +1,17 @@
 # Review Scoring Agent
 
-This folder contains the fifth SLLP assessment specialist. `ReviewScoringAgent` is a LangGraph workflow that audits grading quality before the existing Review Agent decides whether to approve, re-grade, or reject an assessment.
+This folder contains the Review Scoring Agent. It uses LangGraph to quality-check the review and feedback that will be shown to the student.
+
+It is independent from the Grading Agent, Evidence Agent, Review Agent, and Suggestion Agent. It does not consume another agent's output. It receives a composition, a proposed student-facing review, and optional rubric/evidence context, then decides whether that review is up to standard.
 
 ## Stages
 
-- `validate`: validate the composition and grading artifact.
-- `analyze_evidence`: check that grading excerpts appear in the composition.
-- `check_rubric`: check coverage of supplied rubric criteria.
-- `check_consistency`: compare the overall score with criterion scores.
-- `assemble`: return the versioned audit artifact.
+- `validate`: validate the composition and proposed student-facing review.
+- `check_review_grounding`: check that review claims are grounded in the composition.
+- `check_rubric_alignment`: check that the review addresses the supplied rubric.
+- `check_actionability`: check that the student receives a clear next step.
+- `check_evidence`: check any evidence cited by the review.
+- `assemble`: return the versioned quality-gate artifact.
 
 ## Usage
 
@@ -17,19 +20,14 @@ from app.review_scoring import ReviewScoringAgent
 
 result = ReviewScoringAgent().run({
     "composition": {"content": "The waves sparkled."},
-    "grading": {
-        "overallScore": 78,
-        "criteria": [{
-            "criterion": "Description",
-            "score": 78,
-            "rationale": "The image is specific.",
-            "evidence": [{"excerpt": "The waves sparkled"}]
-        }]
+    "review": {
+        "findings": [{"criterion": "Description", "message": "Add more details about the setting."}],
+        "evidence": [{"excerpt": "The waves sparkled"}]
     },
     "rubric": [{"criterion": "Description"}]
 })
 ```
 
-`result.as_artifact()` produces the camelCase contract artifact. The audit score never replaces the student's grading score.
+`result.as_artifact()` produces the camelCase contract artifact. The quality score is not the student's writing score; it is a release check for student-facing feedback.
 
 The capability definition is available through `ReviewScoringAgent.definition()` and advertises the `review-scoring` skill under SLLP contract v1.0.

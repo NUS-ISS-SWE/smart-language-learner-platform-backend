@@ -1,4 +1,5 @@
 sllp:
+  product-guide-service: ${PRODUCT_GUIDE_SERVICE_URL:http://product-guide-service:8087}
   user-service: http://user-service:8082
   composition-service: http://composition-service:8083
   document-service: http://document-service:8089

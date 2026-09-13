@@ -131,6 +131,25 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
+  product-guide-service:
+    build:
+      context: .
+      dockerfile: sllp-product-guide-service/Dockerfile
+    image: sllp-product-guide-service:latest
+    container_name: product-guide-service
+    expose:
+      - "8087"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+
 #  evaluation-service:
 #    build:
 #      context: .
@@ -210,6 +229,8 @@ services:
       user-service:
         condition: service_started
       composition-service:
+        condition: service_started
+      product-guide-service:
         condition: service_started
 #      evaluation-service:
 #        condition: service_started

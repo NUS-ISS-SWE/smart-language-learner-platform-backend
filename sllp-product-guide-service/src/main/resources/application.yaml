@@ -1,0 +1,23 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: sllp-product-guide-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sllp_main_db
+    username: postgres
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  ai:
+    model:
+      chat: openai
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never

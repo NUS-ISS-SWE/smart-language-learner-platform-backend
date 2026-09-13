@@ -51,6 +51,11 @@ public class JwtAuthenticationFilter {
             }
 
             ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate()
+                    .headers(headers -> {
+                        headers.remove("X-Sllp-Username");
+                        headers.remove("X-Sllp-Role");
+                        headers.remove("X-Sllp-User-Id");
+                    })
                     .header("X-Sllp-Username", username)
                     .header("X-Sllp-Role", role);
             if (userId != null) {

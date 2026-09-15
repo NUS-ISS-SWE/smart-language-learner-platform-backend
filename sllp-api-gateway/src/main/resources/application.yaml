@@ -27,6 +27,7 @@ spring:
             maxAge: 3600
 
 sllp:
+  product-guide-service: ${PRODUCT_GUIDE_SERVICE_URL:http://localhost:8087}
   user-service: http://localhost:8082
   composition-service: http://localhost:8083
   document-service: http://localhost:8089

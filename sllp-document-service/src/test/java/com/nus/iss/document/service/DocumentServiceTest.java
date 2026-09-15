@@ -15,6 +15,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.Mock;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.nus.iss.document.dto.DocumentUploadResponse;
 import com.nus.iss.document.entity.Document;
 import com.nus.iss.document.exception.DocumentNotFoundException;
+import com.nus.iss.document.exception.MalwareDetectedException;
 import com.nus.iss.document.repository.DocumentRepository;
 
 /**
@@ -43,6 +46,9 @@ class DocumentServiceTest {
     private FileValidationService fileValidationService;
 
     @Mock
+    private ClamAvService clamAvService;
+
+    @Mock
     private TextExtractionService textExtractionService;
 
     private DocumentService documentService;
@@ -59,6 +65,7 @@ class DocumentServiceTest {
             documentRepository,
             s3Service,
             fileValidationService,
+            clamAvService,
             textExtractionService,
             new DocumentAccessService(documentRepository),
             new DocumentMapper()
@@ -101,6 +108,26 @@ class DocumentServiceTest {
         assertEquals("pdf", response.document().fileType());
         assertNotNull(response.downloadUrl());
         verify(documentRepository, times(2)).save(any(Document.class));
+        verify(clamAvService).scan(any(byte[].class));
+    }
+
+    @Test
+    void testUploadDocument_DoesNotStoreMalware() throws IOException {
+        MultipartFile mockFile = new MockMultipartFile(
+                "file", "malicious.pdf", "application/pdf", "malicious content".getBytes());
+        doNothing().when(fileValidationService).validateFile(mockFile);
+        when(fileValidationService.sanitizeFilename(anyString())).thenReturn("malicious.pdf");
+        when(fileValidationService.getFileExtension(anyString())).thenReturn("pdf");
+        doThrow(new MalwareDetectedException())
+                .when(clamAvService).scan(any(byte[].class));
+
+        assertThrows(MalwareDetectedException.class,
+                () -> documentService.uploadDocument(testUserId, mockFile));
+
+        verify(s3Service, never())
+                .uploadFile(anyString(), anyString(), any(), anyLong(), anyString());
+        verify(documentRepository, never()).save(any(Document.class));
+        verify(textExtractionService, never()).extract(any(), anyString());
     }
 
     @Test

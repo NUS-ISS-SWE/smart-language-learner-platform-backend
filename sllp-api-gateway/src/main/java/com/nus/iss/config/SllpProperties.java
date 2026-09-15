@@ -17,4 +17,5 @@ public class SllpProperties {
     public String documentService;
     public String subscriptionService;
     public String adminService;
+    public String productGuideService;
 }

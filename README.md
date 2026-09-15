@@ -2,6 +2,11 @@
 
 Spring Boot 4 microservices backend for the SLLP application.
 
+The Product Guide Service adds authenticated
+application-help chat with streaming responses and per-user PostgreSQL conversation memory.
+It retrieves platform feature information from pgvector before answering and is available
+through the API gateway when the main Docker Compose stack is running.
+
 ## Prerequisites
 
 | Tool | Version |
@@ -14,6 +19,9 @@ Spring Boot 4 microservices backend for the SLLP application.
 ---
 
 ## Quick start
+
+The Product Guide Service requires `OPENAI_API_KEY`. Export it in your shell or keep it in
+the ignored `.env.local` file and add `--env-file .env.local` to the Compose commands below.
 
 ### First run (build images from source)
 
@@ -70,10 +78,14 @@ The `-v` flag removes named volumes, wiping the PostgreSQL data directory. The n
 | User Service | `user-service` | `8082` | Auth, registration |
 | Composition Service | `composition-service` | `8083` | Composition CRUD + Kafka |
 | Document Service | `document-service` | `8089` | File upload, text extraction |
+| Product Guide Service | `product-guide-service` | `8087` (internal) | Streaming AI help grounded by pgvector |
 | API Gateway | `api-gateway` | `8080` | Single entry point |
 | Kafka | `kafka-service` | `9092` / `29092` | |
 | LangGraph Orchestrator | `orchestrator-service` | `8090` | Kafka workflow coordinator for assessment agents |
 | MinIO (S3-compatible) | `minio` | `9000` / `9001` | Console at `:9001` |
+
+The Product Guide Service indexes its feature catalogue with the configured OpenAI embedding model
+whenever the service starts. Existing entries are updated using their stable identifiers.
 
 > **Disabled service:** The previous single-call `evaluation-service` remains commented out in `docker-compose.yaml`. The LangGraph orchestrator is the only grading-topic consumer. By default it uses a clearly labelled, contract-valid development placeholder while the team-owned agents are being built.
 

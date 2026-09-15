@@ -29,6 +29,9 @@ public class GatewayRoute {
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
         return builder.routes()
+                .route("product_guide", r -> r.path("/api/v1/product-guide/**")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
+                        .uri(sllpProperties.getProductGuideService()))
                 .route("user_register", r -> r.method(HttpMethod.POST)
                         .and()
                         .path("/api/v1/auth/register")

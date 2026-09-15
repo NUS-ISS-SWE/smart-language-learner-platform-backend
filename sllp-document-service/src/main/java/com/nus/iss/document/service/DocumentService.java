@@ -32,6 +32,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final S3Service s3Service;
     private final FileValidationService fileValidationService;
+    private final ClamAvService clamAvService;
     private final TextExtractionService textExtractionService;
     private final DocumentAccessService documentAccessService;
     private final DocumentMapper documentMapper;
@@ -57,6 +58,9 @@ public class DocumentService {
 
             // Read bytes once - used for both S3 upload and text extraction
             byte[] fileBytes = file.getBytes();
+
+            // Fail closed unless ClamAV confirms that the file is clean
+            clamAvService.scan(fileBytes);
 
             // Upload to S3 (use userIdStr as the S3 key prefix)
             String s3Key = s3Service.uploadFile(

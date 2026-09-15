@@ -41,3 +41,8 @@ application:
   file:
     max-size: 52428800
     allowed-types: pdf,docx,pptx,txt
+  malware-scan:
+    host: ${CLAMAV_HOST:localhost}
+    port: ${CLAMAV_PORT:3310}
+    connect-timeout-ms: ${CLAMAV_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${CLAMAV_READ_TIMEOUT_MS:30000}

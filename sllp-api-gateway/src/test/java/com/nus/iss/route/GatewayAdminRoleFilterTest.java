@@ -78,4 +78,22 @@ class GatewayAdminRoleFilterTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer token")
                 .build());
     }
+
+    @Test
+    void clientUserIdIsRemovedWhenTokenHasNoUserId() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/v1/product-guide/conversations")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer token")
+                .header("X-Sllp-User-Id", "999")
+                .header("X-Sllp-Username", "forged")
+                .build());
+        when(jwtConfig.getClaims("token")).thenReturn(claims);
+        when(claims.get("ROLE", String.class)).thenReturn("ADMIN");
+        when(claims.getSubject()).thenReturn("alextan");
+        when(chain.filter(any(ServerWebExchange.class))).thenReturn(Mono.empty());
+        authenticationFilter.jwtRoleFilter(GatewayRoute.ADMIN_ONLY).filter(exchange, chain).block();
+        ArgumentCaptor<ServerWebExchange> captor = ArgumentCaptor.forClass(ServerWebExchange.class);
+        verify(chain).filter(captor.capture());
+        assertEquals(null, captor.getValue().getRequest().getHeaders().getFirst("X-Sllp-User-Id"));
+        assertEquals("alextan", captor.getValue().getRequest().getHeaders().getFirst("X-Sllp-Username"));
+    }
 }

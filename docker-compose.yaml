@@ -1,6 +1,6 @@
 services:
   postgres-db:
-    image: postgres:18
+    image: pgvector/pgvector:pg18
     container_name: postgres-db
     restart: always
     environment:
@@ -131,6 +131,26 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
 
+  product-guide-service:
+    build:
+      context: .
+      dockerfile: sllp-product-guide-service/Dockerfile
+    image: sllp-product-guide-service:latest
+    container_name: product-guide-service
+    expose:
+      - "8087"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+
 #  evaluation-service:
 #    build:
 #      context: .
@@ -211,6 +231,8 @@ services:
         condition: service_started
       composition-service:
         condition: service_started
+      product-guide-service:
+        condition: service_started
 #      evaluation-service:
 #        condition: service_started
       orchestrator-service:
@@ -240,6 +262,14 @@ services:
     networks:
       - sllp-network
 
+  clamav:
+    image: clamav/clamav:stable
+    container_name: clamav
+    ports:
+      - "3310:3310"
+    networks:
+      - sllp-network
+
   document-service:
     build:
       context: .
@@ -255,6 +285,8 @@ services:
         condition: service_completed_successfully
       minio:
         condition: service_started
+      clamav:
+        condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_PASSWORD=password
@@ -265,6 +297,8 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin123}
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-http://minio:9000}
+      - CLAMAV_HOST=${CLAMAV_HOST:-clamav}
+      - CLAMAV_PORT=${CLAMAV_PORT:-3310}
       - AWS_S3_PUBLIC_ENDPOINT=${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
 
   subscription-service:

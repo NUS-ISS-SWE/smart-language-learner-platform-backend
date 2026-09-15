@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.nus.iss.document.exception.DocumentNotFoundException;
 import com.nus.iss.document.exception.FileUploadException;
+import com.nus.iss.document.exception.MalwareDetectedException;
+import com.nus.iss.document.exception.MalwareScanUnavailableException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,6 +25,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FileUploadException.class)
     public ProblemDetail handleFileUploadException(FileUploadException ex) {
         return problem(HttpStatus.BAD_REQUEST, "FILE_UPLOAD_ERROR", ex.getMessage());
+    }
+
+    @ExceptionHandler(MalwareDetectedException.class)
+    public ProblemDetail handleMalwareDetected(MalwareDetectedException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "MALWARE_DETECTED", ex.getMessage());
+    }
+
+    @ExceptionHandler(MalwareScanUnavailableException.class)
+    public ProblemDetail handleMalwareScanUnavailable(MalwareScanUnavailableException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "MALWARE_SCAN_UNAVAILABLE", ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

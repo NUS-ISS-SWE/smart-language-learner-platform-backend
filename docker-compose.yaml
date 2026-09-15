@@ -262,6 +262,14 @@ services:
     networks:
       - sllp-network
 
+  clamav:
+    image: clamav/clamav:stable
+    container_name: clamav
+    ports:
+      - "3310:3310"
+    networks:
+      - sllp-network
+
   document-service:
     build:
       context: .
@@ -277,6 +285,8 @@ services:
         condition: service_completed_successfully
       minio:
         condition: service_started
+      clamav:
+        condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_PASSWORD=password
@@ -287,6 +297,8 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin123}
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-http://minio:9000}
+      - CLAMAV_HOST=${CLAMAV_HOST:-clamav}
+      - CLAMAV_PORT=${CLAMAV_PORT:-3310}
       - AWS_S3_PUBLIC_ENDPOINT=${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
 
   subscription-service:

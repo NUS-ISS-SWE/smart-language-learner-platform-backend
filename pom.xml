@@ -30,6 +30,7 @@
         <module>sllp-api-gateway</module>
         <module>sllp-composition-service</module>
         <module>sllp-evaluation-service</module>
+        <module>sllp-evidence-service</module>
         <module>sllp-subscription-service</module>
         <module>sllp-admin-service</module>
         <!--        <module>sllp-knowledge-service</module>-->

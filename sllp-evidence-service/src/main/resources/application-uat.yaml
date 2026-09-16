@@ -1,0 +1,5 @@
+sllp:
+  services:
+    composition-service-url: http://composition-service:8083
+    admin-service-url: http://admin-service:8086
+    user-service-url: http://user-service:8082

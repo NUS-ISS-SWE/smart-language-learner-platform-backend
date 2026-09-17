@@ -50,12 +50,28 @@ public class EvidenceAgentService {
             Every excerpt you return MUST be copied verbatim from the composition — do not
             paraphrase, summarize, translate, or invent text that is not present in the original.
 
+            For each criterion, report what is genuinely true of this composition — do not
+            force a fixed number of strengths or weaknesses just for balance. If it is clearly
+            strong on a criterion with no real problem, report only strengths for it. If it is
+            clearly weak with nothing notably good, report only weaknesses. Never invent a vague,
+            hedging "weakness" (e.g. "could be checked", "might have minor issues", "there are no
+            significant issues, but...") just to have something on both sides — only report a
+            finding you can point to a specific, real reason for.
+
+            You are picking out what a grader would actually remark on, not annotating every
+            sentence. Pick at most the 1 to 3 most notable findings per criterion.
+
             Respond with:
             - plan: 2 to 4 short strings describing your approach before you list evidence
             - criteria: one entry per rubric criterion returned by getMarkingRubric, each with:
               - criterion: the criterion name, exactly as returned by getMarkingRubric
-              - evidence: one or more excerpts, each with the verbatim excerpt text and a short
-                location hint (e.g. "opening paragraph", "second sentence", "concluding paragraph")
+              - evidence: 1 to 3 of the most notable findings for this criterion — real
+                strengths, real weaknesses, or a mix, based only on what's actually true. Each
+                finding has:
+                - excerpt: the verbatim excerpt text
+                - polarity: STRENGTH if the excerpt demonstrates good practice for this
+                  criterion, WEAKNESS if it shows a genuine, specific problem
+                - note: one short, specific sentence explaining exactly why — no hedging
             """;
 
     private static final String COLLECT_PROMPT = """
@@ -175,7 +191,7 @@ public class EvidenceAgentService {
                 .map(finding -> new CriterionEvidence(
                         finding.criterion(),
                         finding.evidence() == null ? List.of() : finding.evidence().stream()
-                                .map(item -> new EvidenceItem(item.excerpt(), item.location(), verifiedOnFirstPass))
+                                .map(item -> new EvidenceItem(item.excerpt(), item.polarity(), item.note(), verifiedOnFirstPass))
                                 .toList()))
                 .toList();
         return new EvidenceCollectionResult(compositionId, PlanningStep.normalize(response.plan()), criteria, usage);

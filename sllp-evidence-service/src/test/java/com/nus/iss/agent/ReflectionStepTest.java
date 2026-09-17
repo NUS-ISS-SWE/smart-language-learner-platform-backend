@@ -1,5 +1,6 @@
 package com.nus.iss.agent;
 
+import com.nus.iss.enums.EvidencePolarity;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,7 +20,7 @@ class ReflectionStepTest {
                 List.of("plan step"),
                 List.of(new EvidenceAgentResponse.CriterionFinding("Imagery", List.of(
                         new EvidenceAgentResponse.ExcerptFinding(
-                                "The sun rose slowly over the quiet village.", "opening sentence")))));
+                                "The sun rose slowly over the quiet village.", EvidencePolarity.STRENGTH, "vivid opening image")))));
 
         assertTrue(ReflectionStep.findInvalidExcerpts(response, COMPOSITION).isEmpty());
     }
@@ -30,7 +31,7 @@ class ReflectionStepTest {
                 List.of("plan step"),
                 List.of(new EvidenceAgentResponse.CriterionFinding("Imagery", List.of(
                         new EvidenceAgentResponse.ExcerptFinding(
-                                "The sun rose quickly over the busy city.", "opening sentence")))));
+                                "The sun rose quickly over the busy city.", EvidencePolarity.WEAKNESS, "not from the original text")))));
 
         List<String> invalid = ReflectionStep.findInvalidExcerpts(response, COMPOSITION);
 
@@ -43,8 +44,8 @@ class ReflectionStepTest {
         EvidenceAgentResponse response = new EvidenceAgentResponse(
                 List.of("plan step"),
                 List.of(new EvidenceAgentResponse.CriterionFinding("Imagery", List.of(
-                        new EvidenceAgentResponse.ExcerptFinding(null, "opening sentence"),
-                        new EvidenceAgentResponse.ExcerptFinding("   ", "opening sentence")))));
+                        new EvidenceAgentResponse.ExcerptFinding(null, EvidencePolarity.WEAKNESS, "missing"),
+                        new EvidenceAgentResponse.ExcerptFinding("   ", EvidencePolarity.WEAKNESS, "blank")))));
 
         assertEquals(2, ReflectionStep.findInvalidExcerpts(response, COMPOSITION).size());
     }

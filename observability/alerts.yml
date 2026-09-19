@@ -1,0 +1,11 @@
+groups:
+  - name: audit-logging
+    rules:
+      - alert: AuditWriteFailures
+        expr: increase(audit_write_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Audit event ingestion is failing
+          description: "{{ $labels.service }} has failed to persist one or more audit events in the last five minutes."

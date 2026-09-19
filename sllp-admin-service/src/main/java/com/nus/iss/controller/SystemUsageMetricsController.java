@@ -53,7 +53,11 @@ public class SystemUsageMetricsController {
     }
 
     private static DateRange resolveDateRange(LocalDate from, LocalDate to) {
-        LocalDate resolvedTo = to == null ? LocalDate.now(ZoneOffset.UTC) : to;
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        if ((from != null && from.isAfter(today)) || (to != null && to.isAfter(today))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Metrics dates cannot be in the future");
+        }
+        LocalDate resolvedTo = to == null ? today : to;
         return new DateRange(from == null ? resolvedTo.minusDays(29) : from, resolvedTo);
     }
 

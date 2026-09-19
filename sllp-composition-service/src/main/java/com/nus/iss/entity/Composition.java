@@ -3,10 +3,13 @@ package com.nus.iss.entity;
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
+import com.nus.iss.contracts.grading.ImprovementSuggestion;
+import com.nus.iss.persistence.ImprovementSuggestionListConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,7 +33,12 @@ public class Composition {
     @Enumerated(EnumType.STRING)
     private CompositionStatus compositionStatus;
     private String systemFeedback;
+    private String suggestionStatus;
+    @Convert(converter = ImprovementSuggestionListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<ImprovementSuggestion> suggestions;
     private String gradingProgressMessage;
+    private String gradingProgressStage;
     private String storagePath;
 
     private LocalDateTime createdAt;

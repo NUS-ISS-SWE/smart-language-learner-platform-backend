@@ -5,8 +5,10 @@ RUN apk add --no-cache maven
 
 WORKDIR /build
 
-# Copy parent pom and service pom first for dependency caching
+# Copy the parent, shared-library, and service POMs first for dependency caching.
+# The document service depends on the local sllp-contracts module.
 COPY pom.xml .
+COPY sllp-contracts/pom.xml sllp-contracts/pom.xml
 COPY sllp-document-service/pom.xml sllp-document-service/pom.xml
 
 # Download dependencies (best-effort, layer-cached)
@@ -14,9 +16,13 @@ RUN mvn -f sllp-document-service/pom.xml \
     dependency:go-offline \
     -q 2>/dev/null || true
 
-# Copy source and build
+# Install the shared library before packaging the service. The root POM includes
+# modules that are intentionally not copied into this service-specific image.
+COPY sllp-contracts/src sllp-contracts/src
 COPY sllp-document-service/src sllp-document-service/src
-RUN mvn -f sllp-document-service/pom.xml package -DskipTests -q
+RUN mvn -N install -DskipTests -q \
+    && mvn -f sllp-contracts/pom.xml install -DskipTests -q \
+    && mvn -f sllp-document-service/pom.xml package -DskipTests -q
 
 # ---- Runtime stage ----
 FROM azul/zulu-openjdk-alpine:25.0.2-25.32

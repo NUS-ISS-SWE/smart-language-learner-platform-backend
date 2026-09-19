@@ -80,3 +80,18 @@ def test_rejects_a_card_without_a2a_v1_protocol_version():
 
     with pytest.raises(AgentDiscoveryError):
         registry.ensure_ready()
+
+
+def test_chinese_workflow_does_not_require_the_english_suggestion_peer():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "grading.test":
+            return httpx.Response(200, json=card("Grading", "http://grading.test/a2a", "composition-grading"))
+        if request.url.host == "review.test":
+            return httpx.Response(200, json=card("Review", "http://review.test/a2a", "assessment-review"))
+        return httpx.Response(503)
+
+    registry = AgentRegistry(settings(), httpx.Client(transport=httpx.MockTransport(handler)))
+    assert set(registry.ensure_ready(include_suggestions=False)) == {"grading", "review"}
+    assert registry.get("grading").service_url == "http://grading.test/a2a"
+    with pytest.raises(AgentDiscoveryError):
+        registry.ensure_ready()

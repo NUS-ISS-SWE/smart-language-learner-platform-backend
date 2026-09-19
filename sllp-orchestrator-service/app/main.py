@@ -10,8 +10,9 @@ from sqlalchemy import text
 from app.agent_client import AgentClient
 from app.agent_registry import AgentRegistry
 from app.config import Settings
+from app.observability import configure_observability
 from app.repository import WorkflowRepository
-from app.worker import KafkaWorkflowWorker
+from app.worker import DatabaseWorkflowRunner, KafkaWorkflowWorker, OutboxPublisher
 from app.workflow import OrchestrationWorkflow
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -28,18 +29,31 @@ async def lifespan(app: FastAPI):
     app.state.repository = repository
     app.state.agent_registry = agent_registry
     app.state.agent_client = agent_client
-    app.state.worker = None
-    app.state.worker_task = None
+    app.state.intake_worker = None
+    app.state.workflow_runner = None
+    app.state.outbox_publisher = None
+    app.state.worker_tasks = []
     if settings.kafka_enabled:
-        worker = KafkaWorkflowWorker(settings, repository, workflow)
-        app.state.worker = worker
-        app.state.worker_task = asyncio.create_task(worker.run(), name="kafka-workflow-worker")
+        intake_worker = KafkaWorkflowWorker(settings, repository)
+        workflow_runner = DatabaseWorkflowRunner(settings, repository, workflow)
+        outbox_publisher = OutboxPublisher(settings, repository)
+        app.state.intake_worker = intake_worker
+        app.state.workflow_runner = workflow_runner
+        app.state.outbox_publisher = outbox_publisher
+        app.state.worker_tasks = [
+            asyncio.create_task(intake_worker.run(), name="kafka-workflow-intake"),
+            asyncio.create_task(workflow_runner.run(), name="database-workflow-runner"),
+            asyncio.create_task(outbox_publisher.run(), name="workflow-outbox-publisher"),
+        ]
     try:
         yield
     finally:
-        task = app.state.worker_task
-        if task:
+        for worker in (app.state.intake_worker, app.state.workflow_runner, app.state.outbox_publisher):
+            if worker is not None:
+                await worker.stop()
+        for task in app.state.worker_tasks:
             task.cancel()
+        for task in app.state.worker_tasks:
             try:
                 await task
             except asyncio.CancelledError:
@@ -51,6 +65,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SLLP Orchestrator Service", version="1.0", lifespan=lifespan)
+configure_observability(app, Settings.from_environment().otel_exporter_otlp_endpoint)
 
 
 @app.get("/health")
@@ -65,9 +80,10 @@ def ready() -> dict[str, str]:
             connection.execute(text("SELECT 1"))
     except Exception as error:
         raise HTTPException(status_code=503, detail="database is unavailable") from error
-    worker = app.state.worker
-    if app.state.settings.kafka_enabled and (worker is None or not worker.running):
-        raise HTTPException(status_code=503, detail="Kafka worker is unavailable")
+    if app.state.settings.kafka_enabled:
+        components = (app.state.intake_worker, app.state.workflow_runner, app.state.outbox_publisher)
+        if any(component is None or not component.running for component in components):
+            raise HTTPException(status_code=503, detail="orchestrator workers are unavailable")
     try:
         app.state.agent_client.ensure_ready()
     except Exception as error:

@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.nus.iss.dto.CompositionGenerationCompletedEvent;
 import com.nus.iss.contracts.grading.CompositionGradingCompletedEvent;
+import com.nus.iss.contracts.grading.ImprovementSuggestion;
+import com.nus.iss.contracts.grading.SuggestionEvidence;
 import com.nus.iss.dto.CompositionGradingProgressEvent;
 import com.nus.iss.entity.Composition;
 import com.nus.iss.enums.CompositionStatus;
@@ -33,6 +37,8 @@ import com.nus.iss.repository.EvaluationRepository;
 
 @ExtendWith(MockitoExtension.class)
 class CompositionCompletionServiceTest {
+    private static final UUID REQUEST_ID = UUID.fromString("9b6efdf7-9ed7-4dcc-b1e5-d617b9c644a0");
+
     @Mock private CompositionRepository compositionRepository;
     @Mock private EvaluationRepository evaluationRepository;
     @Mock private AiUsageEventRepository aiUsageEventRepository;
@@ -53,7 +59,7 @@ class CompositionCompletionServiceTest {
         stubEvaluationInsert(1);
 
         completionService.completeGrading(CompositionGradingCompletedEvent.builder()
-                .compositionId(10L).userId(1L).success(true).score(BigDecimal.valueOf(90)).feedback("Good work")
+                .requestId(REQUEST_ID).compositionId(10L).userId(1L).success(true).score(BigDecimal.valueOf(90)).feedback("Good work")
                 .completedAt(completedAt).build());
 
         assertEquals(CompositionStatus.REVIEWED, composition.getCompositionStatus());
@@ -61,7 +67,24 @@ class CompositionCompletionServiceTest {
         assertNull(composition.getGradingProgressMessage());
         assertEquals(completedAt, composition.getUpdatedAt());
         verify(compositionRepository).save(composition);
-        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any());
+        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
+    }
+
+    @Test
+    void completeGradingStoresTypedSuggestionsForTheCompositionResponse() {
+        Composition composition = composition();
+        when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
+        stubEvaluationInsert(1);
+        ImprovementSuggestion suggestion = new ImprovementSuggestion(
+                "Emotion", "HIGH", "Show your reaction.", "I held my breath.", "Pair a feeling with an action.",
+                new SuggestionEvidence("I walked home", "paragraph 1"));
+
+        completionService.completeGrading(CompositionGradingCompletedEvent.builder()
+                .requestId(REQUEST_ID).compositionId(10L).userId(1L).success(true).score(BigDecimal.valueOf(90))
+                .feedback("Good work").suggestionStatus("AVAILABLE").suggestions(List.of(suggestion)).build());
+
+        assertEquals("AVAILABLE", composition.getSuggestionStatus());
+        assertEquals(List.of(suggestion), composition.getSuggestions());
     }
 
     @Test
@@ -98,12 +121,12 @@ class CompositionCompletionServiceTest {
         stubEvaluationInsert(1);
 
         completionService.completeGrading(CompositionGradingCompletedEvent.builder()
-                .compositionId(10L).userId(1L).success(false).failureReason("Evaluator unavailable").build());
+                .requestId(REQUEST_ID).compositionId(10L).userId(1L).success(false).failureReason("Evaluator unavailable").build());
 
         assertEquals(CompositionStatus.DRAFT, composition.getCompositionStatus());
         assertEquals("Evaluator unavailable", composition.getSystemFeedback());
         assertNotNull(composition.getUpdatedAt());
-        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any());
+        verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
     }
 
     @Test
@@ -138,18 +161,35 @@ class CompositionCompletionServiceTest {
     }
 
     @Test
-    void completeGradingRejectsInvalidEventsAndMissingComposition() {
+    void completeGradingRejectsMissingRequestId() {
         assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(null));
         assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
-                CompositionGradingCompletedEvent.builder().compositionId(10L).userId(null).success(true).feedback("Good").build()));
-        assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
-                CompositionGradingCompletedEvent.builder().compositionId(10L).userId(1L).success(true).feedback(" ").build()));
-        assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
-                CompositionGradingCompletedEvent.builder().compositionId(10L).userId(1L).success(false).failureReason(" ").build()));
+                CompositionGradingCompletedEvent.builder().compositionId(10L).userId(1L).success(true).feedback("Good").build()));
+    }
 
+    @Test
+    void completeGradingRejectsMissingUserId() {
+        assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
+                CompositionGradingCompletedEvent.builder().requestId(REQUEST_ID).compositionId(10L).userId(null).success(true).feedback("Good").build()));
+    }
+
+    @Test
+    void completeGradingRejectsBlankFeedbackForSuccessfulCompletion() {
+        assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
+                CompositionGradingCompletedEvent.builder().requestId(REQUEST_ID).compositionId(10L).userId(1L).success(true).feedback(" ").build()));
+    }
+
+    @Test
+    void completeGradingRejectsBlankFailureReasonForFailedCompletion() {
+        assertThrows(IllegalArgumentException.class, () -> completionService.completeGrading(
+                CompositionGradingCompletedEvent.builder().requestId(REQUEST_ID).compositionId(10L).userId(1L).success(false).failureReason(" ").build()));
+    }
+
+    @Test
+    void completeGradingDoesNotSaveWhenCompositionIsMissing() {
         when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
         assertThrows(NoSuchElementException.class, () -> completionService.completeGrading(
-                CompositionGradingCompletedEvent.builder().compositionId(10L).userId(1L).success(true).feedback("Good").build()));
+                CompositionGradingCompletedEvent.builder().requestId(REQUEST_ID).compositionId(10L).userId(1L).success(true).feedback("Good").build()));
         verify(compositionRepository, never()).save(any());
     }
 
@@ -208,7 +248,7 @@ class CompositionCompletionServiceTest {
     }
 
     private void stubEvaluationInsert(int result) {
-        when(evaluationRepository.insertIfAbsent(anyLong(), any(), any(), any(), any(), anyBoolean(), any(), any()))
+        when(evaluationRepository.insertIfAbsent(anyLong(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(result);
     }
 }

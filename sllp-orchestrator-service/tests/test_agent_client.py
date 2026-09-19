@@ -136,5 +136,7 @@ def test_placeholder_provider_runs_the_full_contract_without_http_calls():
     assert client.client is None
     assert grading.provider == "placeholder"
     assert grading.response.model_version == "placeholder-v1"
+    assert grading.response.usage is not None
+    assert grading.response.usage.total_tokens == 0
     assert review.response.decision == "APPROVE"
     assert suggestions.response.suggestions[0].criterion == "Development placeholder"

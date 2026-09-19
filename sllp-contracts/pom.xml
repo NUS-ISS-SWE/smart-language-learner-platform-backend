@@ -13,6 +13,12 @@
     <name>SLLP Service Contracts</name>
 
     <!-- This module is a shared library, not a runnable Spring Boot application. -->
+    <dependencies>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
     <build>
         <plugins>
             <plugin>

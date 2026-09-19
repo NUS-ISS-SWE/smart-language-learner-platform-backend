@@ -13,7 +13,13 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
     show-sql: false
+  jackson:
+    time-zone: UTC
   h2:
     console:
       enabled: true
@@ -22,6 +28,9 @@ spring:
         web-allow-others: true
 
 sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
   kafka:
     bootstrap-servers: localhost:29092
     group-id: sllp-composition-service
@@ -35,3 +44,9 @@ sllp:
     retry-backoff-ms: 1000
     request-timeout-ms: 30000
     default-api-timeout-ms: 60000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://postgres-db:5432/sllp_main_db
-    username: postgres
-    password: password
+    username: ${DB_USERNAME:sllp_runtime}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect

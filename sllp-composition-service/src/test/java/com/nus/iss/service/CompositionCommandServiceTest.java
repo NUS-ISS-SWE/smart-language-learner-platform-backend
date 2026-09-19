@@ -136,6 +136,7 @@ class CompositionCommandServiceTest {
                 ArgumentCaptor.forClass(CompositionGradingRequestedEvent.class);
         verify(kafkaProducerService).sendCompositionGradingRequestedEvent(captor.capture());
         assertEquals(CompositionStatus.REVIEWING, response.compositionStatus());
+        assertEquals("PREPARING", response.gradingProgressStage());
         assertEquals(10L, captor.getValue().getCompositionId());
         assertEquals(1L, captor.getValue().getUserId());
         assertEquals("My title", captor.getValue().getTitle());

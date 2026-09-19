@@ -112,8 +112,8 @@ class A2AAgentProvider(RetryingAgentProvider):
         super().__init__(settings, client, sleeper)
         self.registry = registry
 
-    def ensure_ready(self) -> dict[str, dict[str, str]]:
-        return self.registry.ensure_ready()
+    def ensure_ready(self, include_suggestions: bool = True) -> dict[str, dict[str, str]]:
+        return self.registry.ensure_ready(include_suggestions=include_suggestions)
 
     def _request(self, agent: AgentName, payload: dict[str, Any], parser: type[BaseModel], retry: int) -> ProviderResponse:
         request_id = str(uuid4())

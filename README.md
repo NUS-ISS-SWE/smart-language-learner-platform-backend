@@ -23,6 +23,17 @@ through the API gateway when the main Docker Compose stack is running.
 The Product Guide Service requires `OPENAI_API_KEY`. Export it in your shell or keep it in
 the ignored `.env.local` file and add `--env-file .env.local` to the Compose commands below.
 
+### Local audit configuration
+
+Copy `.env.example` to `.env` and set the two required values before running Docker Compose:
+
+```bash
+AUDIT_INGEST_SECRET=<high-entropy HMAC secret>
+AUDIT_DB_PASSWORD=<strong database password>
+```
+
+`AUDIT_INGEST_SECRET` is for backend services only. Do not expose either value through a `NEXT_PUBLIC_*` frontend variable.
+
 ### First run (build images from source)
 
 ```bash

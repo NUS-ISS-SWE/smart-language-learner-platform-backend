@@ -6,8 +6,8 @@ spring:
     name: sllp-admin-service
   datasource:
     url: jdbc:postgresql://localhost:5432/sllp_main_db
-    username: postgres
-    password: ${DB_PASSWORD:postgres}
+    username: ${DB_USERNAME:sllp_runtime}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -16,6 +16,19 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        jdbc:
+          time_zone: UTC
     show-sql: false
   jackson:
     default-property-inclusion: non_null
+    time-zone: UTC
+
+sllp:
+  audit:
+    ingest-secret: ${AUDIT_INGEST_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

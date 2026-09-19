@@ -31,3 +31,14 @@ stripe:
   # Static Payment Link URLs configured in the Stripe Dashboard for each paid plan.
   payment-link-basic: ${STRIPE_PAYMENT_LINK_BASIC:}
   payment-link-premium: ${STRIPE_PAYMENT_LINK_PREMIUM:}
+
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

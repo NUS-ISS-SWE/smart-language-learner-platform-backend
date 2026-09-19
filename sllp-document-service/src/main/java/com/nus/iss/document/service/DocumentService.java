@@ -98,7 +98,10 @@ public class DocumentService {
             }
 
             document.setExtractedText(extractedText);
-            document.setStatus(extractedText != null ? "READY" : "FAILED");
+            // A successful parser can still return no usable text (for example, a scanned
+            // PDF without OCR).  Treat that as a processing failure rather than advertising
+            // a document as ready when it cannot support learning features.
+            document.setStatus(extractedText != null && !extractedText.isBlank() ? "READY" : "FAILED");
             document.setProcessedAt(Instant.now());
             document = documentRepository.save(document);
 

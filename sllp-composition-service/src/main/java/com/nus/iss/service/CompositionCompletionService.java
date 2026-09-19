@@ -2,6 +2,9 @@ package com.nus.iss.service;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.List;
+
+import com.nus.iss.persistence.ImprovementSuggestionListConverter;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ import com.nus.iss.repository.AiUsageEventRepository;
 /** Applies asynchronous generation and grading outcomes to persisted compositions. */
 @Service
 public class CompositionCompletionService {
+    private static final ImprovementSuggestionListConverter SUGGESTION_CONVERTER = new ImprovementSuggestionListConverter();
     private static final Map<String, String> STUDENT_SAFE_PROGRESS_MESSAGES = Map.of(
             "GRADING", "Assessing your composition…",
             "REGRADING", "Refining your assessment…",
@@ -47,12 +51,16 @@ public class CompositionCompletionService {
         Composition composition = compositionAccessService.requireOwned(event.getUserId(), event.getCompositionId());
         LocalDateTime completedAt = event.getCompletedAt() == null ? LocalDateTime.now() : event.getCompletedAt();
         if (evaluationRepository.insertIfAbsent(event.getCompositionId(), event.getRequestId(), event.getRequestedAt(),
-                event.getScore(), event.getFeedback(), event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
+                event.getScore(), event.getFeedback(), event.getSuggestionStatus(), serializeSuggestions(event.getSuggestions()),
+                event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
             return;
         }
         composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
+        composition.setSuggestionStatus(event.isSuccess() ? event.getSuggestionStatus() : null);
+        composition.setSuggestions(event.isSuccess() && event.getSuggestions() != null ? event.getSuggestions() : List.of());
         composition.setGradingProgressMessage(null);
+        composition.setGradingProgressStage(null);
         composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
         saveAiUsage(event, completedAt);
@@ -66,8 +74,8 @@ public class CompositionCompletionService {
             return;
         }
         aiUsageEventRepository.save(AiUsageEvent.builder()
-                .requestId(event.getRequestId()).userId(event.getUserId()).compositionId(event.getCompositionId())
-                .operation("COMPOSITION_GRADING").provider(event.getAiProvider()).model(event.getAiModel())
+                .eventId(event.getRequestId()).requestId(event.getRequestId()).userId(event.getUserId()).compositionId(event.getCompositionId())
+                .operation("COMPOSITION_GRADING").agent("grading").provider(event.getAiProvider()).model(event.getAiModel())
                 .promptTokens(valueOrZero(event.getPromptTokens())).completionTokens(valueOrZero(event.getCompletionTokens()))
                 .cachedInputTokens(valueOrZero(event.getCachedInputTokens())).totalTokens(valueOrZero(event.getTotalTokens()))
                 .estimatedCostMicros(valueOrZero(event.getEstimatedCostMicros())).currency("USD")
@@ -81,6 +89,10 @@ public class CompositionCompletionService {
         return value == null ? 0L : value;
     }
 
+    private static String serializeSuggestions(List<com.nus.iss.contracts.grading.ImprovementSuggestion> suggestions) {
+        return SUGGESTION_CONVERTER.convertToDatabaseColumn(suggestions);
+    }
+
     @Transactional
     public void recordGradingProgress(CompositionGradingProgressEvent event) {
         validateGradingProgressIdentity(event);
@@ -89,6 +101,7 @@ public class CompositionCompletionService {
         if (composition.getCompositionStatus() != CompositionStatus.REVIEWING) return;
         validateGradingProgressPayload(event);
         composition.setGradingProgressMessage(event.getMessage());
+        composition.setGradingProgressStage(event.getStage());
         composition.setUpdatedAt(event.getUpdatedAt() == null ? LocalDateTime.now() : event.getUpdatedAt());
         compositionRepository.save(composition);
     }
@@ -101,6 +114,8 @@ public class CompositionCompletionService {
             composition.setContent(event.getGeneratedContent());
             composition.setCompositionStatus(CompositionStatus.DRAFT);
             composition.setSystemFeedback(null);
+            composition.setSuggestionStatus(null);
+            composition.setSuggestions(List.of());
         } else {
             composition.setCompositionStatus(CompositionStatus.GENERATION_FAILED);
             composition.setSystemFeedback(event.getFailureReason());
@@ -111,6 +126,9 @@ public class CompositionCompletionService {
 
     private void validateGradingEvent(CompositionGradingCompletedEvent event) {
         if (event == null) throw new InvalidCompositionRequestException("Composition grading completed event is required");
+        if (event.getRequestId() == null) {
+            throw new InvalidCompositionRequestException("Composition grading request ID is required");
+        }
         compositionAccessService.requireUserId(event.getUserId());
         compositionAccessService.requireCompositionId(event.getCompositionId());
         if (event.isSuccess() && (event.getFeedback() == null || event.getFeedback().isBlank())) {

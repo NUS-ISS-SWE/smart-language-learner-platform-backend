@@ -5,6 +5,9 @@ import java.time.LocalDateTime;
 import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
+import com.nus.iss.contracts.grading.ImprovementSuggestion;
+
+import java.util.List;
 
 /** Immutable representation returned by the composition API. */
 public record CompositionResponse(
@@ -16,7 +19,10 @@ public record CompositionResponse(
         Language language,
         CompositionStatus compositionStatus,
         String systemFeedback,
+        String suggestionStatus,
+        List<ImprovementSuggestion> suggestions,
         String gradingProgressMessage,
+        String gradingProgressStage,
         String storagePath,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

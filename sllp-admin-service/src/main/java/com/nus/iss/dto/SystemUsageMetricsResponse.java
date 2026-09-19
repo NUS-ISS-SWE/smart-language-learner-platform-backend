@@ -9,7 +9,9 @@ public record SystemUsageMetricsResponse(
         LocalDate to,
         Summary summary,
         List<DailyUsageMetric> daily,
-        List<RetentionCohortMetric> retentionCohorts) {
+        List<RetentionCohortMetric> retentionCohorts,
+        WorkflowReliabilityMetric workflowReliability,
+        List<AgentMetrics> agentMetrics) {
 
     public record Summary(
             long totalUsers,
@@ -20,11 +22,15 @@ public record SystemUsageMetricsResponse(
             long reviewRequests,
             long successfulReviews,
             long failedReviews,
+            Double reviewSuccessPercent,
+            Double reviewFailurePercent,
             Long averageReviewLatencyMillis,
             long documentsUploaded,
             long documentsProcessed,
             long documentsReady,
             long documentsFailed,
+            Double documentSuccessPercent,
+            Double documentFailurePercent,
             long totalAiTokensUsed,
             long aiTokensUsed,
             long estimatedAiCostMicros) {

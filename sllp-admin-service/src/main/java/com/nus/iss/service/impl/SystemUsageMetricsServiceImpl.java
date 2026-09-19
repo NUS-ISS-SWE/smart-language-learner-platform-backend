@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nus.iss.dto.SystemUsageMetricsResponse;
 import com.nus.iss.dto.UserUsageMetricsResponse;
+import com.nus.iss.repository.AgentWorkflowMetricsQueryRepository;
 import com.nus.iss.repository.SystemUsageMetricsQueryRepository;
+import com.nus.iss.repository.UserUsageMetricsQueryRepository;
 import com.nus.iss.service.SystemUsageMetricsService;
 
 import lombok.RequiredArgsConstructor;
@@ -19,7 +21,9 @@ public class SystemUsageMetricsServiceImpl implements SystemUsageMetricsService 
 
     static final int MAXIMUM_RANGE_DAYS = 366;
 
-    private final SystemUsageMetricsQueryRepository metricsQueryRepository;
+    private final SystemUsageMetricsQueryRepository systemMetricsQueryRepository;
+    private final AgentWorkflowMetricsQueryRepository agentWorkflowMetricsQueryRepository;
+    private final UserUsageMetricsQueryRepository userUsageMetricsQueryRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -28,9 +32,11 @@ public class SystemUsageMetricsServiceImpl implements SystemUsageMetricsService 
         return new SystemUsageMetricsResponse(
                 from,
                 to,
-                metricsQueryRepository.getSummary(range.start(), range.endExclusive()),
-                metricsQueryRepository.getDailyActivity(range.start(), range.endExclusive()),
-                metricsQueryRepository.getRetentionCohorts(range.start(), range.endExclusive()));
+                systemMetricsQueryRepository.getSummary(range.start(), range.endExclusive()),
+                systemMetricsQueryRepository.getDailyActivity(range.start(), range.endExclusive()),
+                systemMetricsQueryRepository.getRetentionCohorts(range.start(), range.endExclusive()),
+                agentWorkflowMetricsQueryRepository.getWorkflowReliability(range.start(), range.endExclusive()),
+                agentWorkflowMetricsQueryRepository.getAgentMetrics(range.start(), range.endExclusive()));
     }
 
     @Override
@@ -39,8 +45,8 @@ public class SystemUsageMetricsServiceImpl implements SystemUsageMetricsService 
         if (userId < 1) throw new IllegalArgumentException("User ID must be positive.");
         DateRange range = validateRange(from, to);
         return new UserUsageMetricsResponse(userId, from, to,
-                metricsQueryRepository.getUserSummary(userId, range.start(), range.endExclusive()),
-                metricsQueryRepository.getUserDailyActivity(userId, range.start(), range.endExclusive()));
+                userUsageMetricsQueryRepository.getUserSummary(userId, range.start(), range.endExclusive()),
+                userUsageMetricsQueryRepository.getUserDailyActivity(userId, range.start(), range.endExclusive()));
     }
 
     private static DateRange validateRange(LocalDate from, LocalDate to) {

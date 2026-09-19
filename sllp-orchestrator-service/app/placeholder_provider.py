@@ -17,7 +17,7 @@ class PlaceholderAgentProvider:
 
     name = "placeholder"
 
-    def ensure_ready(self) -> dict[str, str]:
+    def ensure_ready(self, include_suggestions: bool = True) -> dict[str, str]:
         return {"mode": "development-placeholder", "version": "placeholder-v1"}
 
     def invoke(self, agent: AgentName, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
@@ -31,7 +31,25 @@ class PlaceholderAgentProvider:
 
 
 def _placeholder_response(agent: AgentName) -> dict[str, Any]:
-    metadata = {"modelVersion": "placeholder-v1", "promptVersion": "placeholder-v1", "tokenUsage": 0}
+    # The placeholder makes no provider call, so its recorded usage is an explicit,
+    # auditable zero rather than an absent ledger event.
+    metadata = {
+        "modelVersion": "placeholder-v1",
+        "promptVersion": "placeholder-v1",
+        "tokenUsage": 0,
+        "usage": {
+            "provider": "placeholder",
+            "model": "placeholder-v1",
+            "promptTokens": 0,
+            "cachedInputTokens": 0,
+            "completionTokens": 0,
+            "totalTokens": 0,
+            "pricingVersion": "placeholder-v1",
+            "inputPriceMicrosPerMillion": 0,
+            "cachedInputPriceMicrosPerMillion": 0,
+            "outputPriceMicrosPerMillion": 0,
+        },
+    }
     if agent == "grading":
         return {
             "overallScore": 75,
@@ -62,6 +80,7 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
                 "recommendation": "Replace this placeholder provider with the team-owned assessment agents before release.",
                 "exampleRevision": "Use the actual grading, review, and suggestion agent outputs here.",
                 "learningTip": "This result verifies the integration flow only; it is not writing advice.",
+                "supportingEvidence": {"excerpt": "Submitted composition", "location": "development mode"},
             }
         ],
         **metadata,

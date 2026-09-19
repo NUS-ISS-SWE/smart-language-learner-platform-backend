@@ -47,8 +47,8 @@ class AgentClient:
         if self.client is not None:
             self.client.close()
 
-    def ensure_ready(self) -> object | None:
-        return self.provider.ensure_ready()
+    def ensure_ready(self, include_suggestions: bool = True) -> object | None:
+        return self.provider.ensure_ready(include_suggestions=include_suggestions)
 
     def grade(self, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
         return self.provider.invoke("grading", payload, parser)

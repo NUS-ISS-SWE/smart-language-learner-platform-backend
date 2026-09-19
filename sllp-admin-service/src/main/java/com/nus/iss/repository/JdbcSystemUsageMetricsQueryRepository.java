@@ -1,5 +1,7 @@
 package com.nus.iss.repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -64,11 +66,15 @@ public class JdbcSystemUsageMetricsQueryRepository implements SystemUsageMetrics
                     (SELECT COUNT(*) FROM review_requests) AS review_requests,
                     (SELECT COUNT(*) FROM evaluation WHERE success = TRUE AND evaluated_at >= :start AND evaluated_at < :endExclusive) AS successful_reviews,
                     (SELECT COUNT(*) FROM evaluation WHERE success = FALSE AND evaluated_at >= :start AND evaluated_at < :endExclusive) AS failed_reviews,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE success = TRUE) / NULLIF(COUNT(*), 0), 2) FROM evaluation WHERE evaluated_at >= :start AND evaluated_at < :endExclusive) AS review_success_percent,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE success = FALSE) / NULLIF(COUNT(*), 0), 2) FROM evaluation WHERE evaluated_at >= :start AND evaluated_at < :endExclusive) AS review_failure_percent,
                     (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (evaluated_at - requested_at)) * 1000)) FROM evaluation WHERE requested_at IS NOT NULL AND evaluated_at >= :start AND evaluated_at < :endExclusive) AS average_review_latency_millis,
                     (SELECT COUNT(*) FROM documents WHERE created_at >= :start AND created_at < :endExclusive) AS documents_uploaded,
-                    (SELECT COUNT(*) FROM documents WHERE processed_at >= :start AND processed_at < :endExclusive) AS documents_processed,
+                    (SELECT COUNT(*) FROM documents WHERE status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS documents_processed,
                     (SELECT COUNT(*) FROM documents WHERE status = 'READY' AND processed_at >= :start AND processed_at < :endExclusive) AS documents_ready,
                     (SELECT COUNT(*) FROM documents WHERE status = 'FAILED' AND processed_at >= :start AND processed_at < :endExclusive) AS documents_failed,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'READY') / NULLIF(COUNT(*), 0), 2) FROM documents WHERE status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS document_success_percent,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'FAILED') / NULLIF(COUNT(*), 0), 2) FROM documents WHERE status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS document_failure_percent,
                     (SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage_event) AS total_ai_tokens_used,
                     (SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage_event WHERE created_at >= :start AND created_at < :endExclusive) AS ai_tokens_used,
                     (SELECT COALESCE(SUM(estimated_cost_micros), 0) FROM ai_usage_event WHERE created_at >= :start AND created_at < :endExclusive) AS estimated_ai_cost_micros
@@ -79,8 +85,10 @@ public class JdbcSystemUsageMetricsQueryRepository implements SystemUsageMetrics
             return new SystemUsageMetricsResponse.Summary(rs.getLong("total_users"), rs.getLong("active_users"),
                     rs.getLong("new_users"), rs.getLong("compositions_created"), rs.getLong("active_learners"),
                     rs.getLong("review_requests"), rs.getLong("successful_reviews"), rs.getLong("failed_reviews"),
+                    nullableDouble(rs, "review_success_percent"), nullableDouble(rs, "review_failure_percent"),
                     latencyNull ? null : latency, rs.getLong("documents_uploaded"), rs.getLong("documents_processed"),
-                    rs.getLong("documents_ready"), rs.getLong("documents_failed"), rs.getLong("total_ai_tokens_used"),
+                    rs.getLong("documents_ready"), rs.getLong("documents_failed"), nullableDouble(rs, "document_success_percent"),
+                    nullableDouble(rs, "document_failure_percent"), rs.getLong("total_ai_tokens_used"),
                     rs.getLong("ai_tokens_used"), rs.getLong("estimated_ai_cost_micros"));
         });
     }
@@ -125,6 +133,11 @@ public class JdbcSystemUsageMetricsQueryRepository implements SystemUsageMetrics
 
     private static MapSqlParameterSource parameters(LocalDateTime start, LocalDateTime endExclusive) {
         return new MapSqlParameterSource().addValue("start", start).addValue("endExclusive", endExclusive);
+    }
+
+    private static Double nullableDouble(ResultSet resultSet, String column) throws SQLException {
+        double value = resultSet.getDouble(column);
+        return resultSet.wasNull() ? null : value;
     }
 
 }

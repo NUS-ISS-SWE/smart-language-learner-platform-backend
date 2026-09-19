@@ -40,7 +40,7 @@ class SystemUsageMetricsServiceImplTest {
         LocalDate to = LocalDate.of(2026, 8, 3);
         LocalDateTime start = from.atStartOfDay();
         LocalDateTime endExclusive = to.plusDays(1).atStartOfDay();
-        SystemUsageMetricsResponse.Summary summary = new SystemUsageMetricsResponse.Summary(10, 8, 2, 4, 5, 6, 3, 1, 500L, 2, 2, 1, 1, 99, 30, 45);
+        SystemUsageMetricsResponse.Summary summary = new SystemUsageMetricsResponse.Summary(10, 8, 2, 4, 5, 6, 3, 1, 75.0, 25.0, 500L, 2, 2, 1, 1, 50.0, 50.0, 99, 30, 45);
         List<DailyUsageMetric> daily = List.of(new DailyUsageMetric(from, 1, 2, 1, 0, 30, 45));
         List<RetentionCohortMetric> cohorts = List.of(new RetentionCohortMetric(from, 2, 1L, 1L, 0L, 0L, 0L));
         WorkflowReliabilityMetric workflowReliability = new WorkflowReliabilityMetric(3, 2, 1, 0, 66.67, 33.33, 500L);
@@ -84,7 +84,7 @@ class SystemUsageMetricsServiceImplTest {
         LocalDateTime start = from.atStartOfDay();
         LocalDateTime endExclusive = to.plusDays(1).atStartOfDay();
         UserUsageMetricsResponse.Summary summary = new UserUsageMetricsResponse.Summary(
-                2, 1, 1, 1, 0, 0, 0, 0, 99, 45, null);
+                2, 1, 1, 1, 0, 100.0, 0.0, 0, 0, 0, 0, null, null, 99, 45, null);
         List<DailyUsageMetric> daily = List.of(new DailyUsageMetric(from, 1, 1, 0, 0, 0, 0));
         when(userRepository.getUserSummary(42L, start, endExclusive)).thenReturn(summary);
         when(userRepository.getUserDailyActivity(42L, start, endExclusive)).thenReturn(daily);

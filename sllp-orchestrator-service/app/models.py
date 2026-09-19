@@ -178,8 +178,8 @@ class AgentUsage(BaseModel):
         if self.cached_input_tokens > self.prompt_tokens:
             raise ValueError("cachedInputTokens cannot exceed promptTokens")
         expected_total = self.prompt_tokens + self.completion_tokens
-        if self.total_tokens is not None and self.total_tokens < expected_total:
-            raise ValueError("totalTokens cannot be smaller than promptTokens plus completionTokens")
+        if self.total_tokens is not None and self.total_tokens != expected_total:
+            raise ValueError("totalTokens must equal promptTokens plus completionTokens")
         return self
 
 

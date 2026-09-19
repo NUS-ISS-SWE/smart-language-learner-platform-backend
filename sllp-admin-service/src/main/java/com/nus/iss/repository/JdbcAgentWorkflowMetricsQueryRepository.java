@@ -23,21 +23,18 @@ public class JdbcAgentWorkflowMetricsQueryRepository implements AgentWorkflowMet
     public WorkflowReliabilityMetric getWorkflowReliability(LocalDateTime start, LocalDateTime endExclusive) {
         String sql = """
                 WITH received AS (
-                    SELECT workflow_id, status FROM agent_workflow_run
+                    SELECT workflow_id, status, created_at, completed_at FROM agent_workflow_run
                     WHERE created_at >= (:start AT TIME ZONE 'UTC') AND created_at < (:endExclusive AT TIME ZONE 'UTC')
-                ), terminal_outcomes AS (
-                    SELECT status, created_at, completed_at FROM agent_workflow_run
-                    WHERE status IN ('COMPLETED', 'FAILED')
-                      AND completed_at >= (:start AT TIME ZONE 'UTC') AND completed_at < (:endExclusive AT TIME ZONE 'UTC')
                 )
                 SELECT
-                    (SELECT COUNT(*) FROM received) AS received,
-                    (SELECT COUNT(*) FROM terminal_outcomes WHERE status = 'COMPLETED') AS completed,
-                    (SELECT COUNT(*) FROM terminal_outcomes WHERE status = 'FAILED') AS failed,
-                    (SELECT COUNT(*) FROM received WHERE status NOT IN ('COMPLETED', 'FAILED')) AS pending,
-                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'COMPLETED') / NULLIF(COUNT(*), 0), 2) FROM terminal_outcomes) AS completion_percent,
-                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'FAILED') / NULLIF(COUNT(*), 0), 2) FROM terminal_outcomes) AS failure_percent,
-                    (SELECT ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000)) FROM terminal_outcomes) AS average_completion_latency_millis
+                    COUNT(*) AS received,
+                    COUNT(*) FILTER (WHERE status = 'COMPLETED' AND completed_at < (:endExclusive AT TIME ZONE 'UTC')) AS completed,
+                    COUNT(*) FILTER (WHERE status = 'FAILED' AND completed_at < (:endExclusive AT TIME ZONE 'UTC')) AS failed,
+                    COUNT(*) FILTER (WHERE completed_at IS NULL OR completed_at >= (:endExclusive AT TIME ZONE 'UTC')) AS pending,
+                    ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'COMPLETED' AND completed_at < (:endExclusive AT TIME ZONE 'UTC')) / NULLIF(COUNT(*), 0), 2) AS completion_percent,
+                    ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'FAILED' AND completed_at < (:endExclusive AT TIME ZONE 'UTC')) / NULLIF(COUNT(*), 0), 2) AS failure_percent,
+                    ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) * 1000) FILTER (WHERE status = 'COMPLETED' AND completed_at < (:endExclusive AT TIME ZONE 'UTC'))) AS average_completion_latency_millis
+                FROM received
                 """;
         return jdbcTemplate.queryForObject(sql, parameters(start, endExclusive), (rs, rowNum) -> {
             long latency = rs.getLong("average_completion_latency_millis");

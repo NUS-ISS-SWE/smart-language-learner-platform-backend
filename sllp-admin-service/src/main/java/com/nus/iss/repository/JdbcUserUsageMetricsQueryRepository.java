@@ -1,5 +1,7 @@
 package com.nus.iss.repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -59,9 +61,14 @@ public class JdbcUserUsageMetricsQueryRepository implements UserUsageMetricsQuer
                     (SELECT COUNT(*) FROM review_requests) AS review_requests,
                     (SELECT COUNT(*) FROM evaluation e JOIN composition c ON c.id = e.composition_id WHERE c.user_id = :userId AND e.success = TRUE AND e.evaluated_at >= :start AND e.evaluated_at < :endExclusive) AS successful_reviews,
                     (SELECT COUNT(*) FROM evaluation e JOIN composition c ON c.id = e.composition_id WHERE c.user_id = :userId AND e.success = FALSE AND e.evaluated_at >= :start AND e.evaluated_at < :endExclusive) AS failed_reviews,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE e.success = TRUE) / NULLIF(COUNT(*), 0), 2) FROM evaluation e JOIN composition c ON c.id = e.composition_id WHERE c.user_id = :userId AND e.evaluated_at >= :start AND e.evaluated_at < :endExclusive) AS review_success_percent,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE e.success = FALSE) / NULLIF(COUNT(*), 0), 2) FROM evaluation e JOIN composition c ON c.id = e.composition_id WHERE c.user_id = :userId AND e.evaluated_at >= :start AND e.evaluated_at < :endExclusive) AS review_failure_percent,
                     (SELECT COUNT(*) FROM documents WHERE user_id = :userId AND created_at >= :start AND created_at < :endExclusive) AS documents_uploaded,
+                    (SELECT COUNT(*) FROM documents WHERE user_id = :userId AND status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS documents_processed,
                     (SELECT COUNT(*) FROM documents WHERE user_id = :userId AND status = 'READY' AND processed_at >= :start AND processed_at < :endExclusive) AS documents_ready,
                     (SELECT COUNT(*) FROM documents WHERE user_id = :userId AND status = 'FAILED' AND processed_at >= :start AND processed_at < :endExclusive) AS documents_failed,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'READY') / NULLIF(COUNT(*), 0), 2) FROM documents WHERE user_id = :userId AND status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS document_success_percent,
+                    (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'FAILED') / NULLIF(COUNT(*), 0), 2) FROM documents WHERE user_id = :userId AND status IN ('READY', 'FAILED') AND processed_at >= :start AND processed_at < :endExclusive) AS document_failure_percent,
                     (SELECT COALESCE(SUM(total_tokens), 0) FROM ai_usage_event WHERE user_id = :userId AND created_at >= :start AND created_at < :endExclusive) AS ai_tokens_used,
                     (SELECT COALESCE(SUM(estimated_cost_micros), 0) FROM ai_usage_event WHERE user_id = :userId AND created_at >= :start AND created_at < :endExclusive) AS estimated_ai_cost_micros,
                     (SELECT MAX(activity_at) FROM activity) AS last_activity_at
@@ -71,8 +78,11 @@ public class JdbcUserUsageMetricsQueryRepository implements UserUsageMetricsQuer
             Instant instant = lastActivity == null ? null : lastActivity.toLocalDateTime().toInstant(ZoneOffset.UTC);
             return new UserUsageMetricsResponse.Summary(rs.getLong("active_days"), rs.getLong("compositions_created"),
                     rs.getLong("review_requests"), rs.getLong("successful_reviews"), rs.getLong("failed_reviews"),
-                    rs.getLong("documents_uploaded"), rs.getLong("documents_ready"), rs.getLong("documents_failed"),
-                    rs.getLong("ai_tokens_used"), rs.getLong("estimated_ai_cost_micros"), instant);
+                    nullableDouble(rs, "review_success_percent"), nullableDouble(rs, "review_failure_percent"),
+                    rs.getLong("documents_uploaded"), rs.getLong("documents_processed"), rs.getLong("documents_ready"),
+                    rs.getLong("documents_failed"), nullableDouble(rs, "document_success_percent"),
+                    nullableDouble(rs, "document_failure_percent"), rs.getLong("ai_tokens_used"),
+                    rs.getLong("estimated_ai_cost_micros"), instant);
         });
     }
 
@@ -85,5 +95,10 @@ public class JdbcUserUsageMetricsQueryRepository implements UserUsageMetricsQuer
 
     private static MapSqlParameterSource parameters(long userId, LocalDateTime start, LocalDateTime endExclusive) {
         return new MapSqlParameterSource().addValue("start", start).addValue("endExclusive", endExclusive).addValue("userId", userId);
+    }
+
+    private static Double nullableDouble(ResultSet resultSet, String column) throws SQLException {
+        double value = resultSet.getDouble(column);
+        return resultSet.wasNull() ? null : value;
     }
 }

@@ -76,7 +76,7 @@ class JdbcSystemUsageMetricsQueryRepositoryIntegrationTest {
         LocalDateTime start = at("2026-08-01T00:00");
         LocalDateTime end = at("2026-08-04T00:00");
 
-        assertEquals(new SystemUsageMetricsResponse.Summary(2, 1, 2, 2, 2, 5, 1, 1, 3_600_000L, 1, 1, 1, 0, 100, 100, 15), systemRepository.getSummary(start, end));
+        assertEquals(new SystemUsageMetricsResponse.Summary(2, 1, 2, 2, 2, 5, 1, 1, 50.0, 50.0, 3_600_000L, 1, 1, 1, 0, 100.0, 0.0, 100, 100, 15), systemRepository.getSummary(start, end));
         assertEquals(List.of(
                 new DailyUsageMetric(LocalDate.of(2026, 8, 1), 1, 1, 0, 0, 0, 0),
                 new DailyUsageMetric(LocalDate.of(2026, 8, 2), 1, 0, 1, 1, 100, 15),
@@ -109,6 +109,19 @@ class JdbcSystemUsageMetricsQueryRepositoryIntegrationTest {
                 1L, "grading", at("2026-08-02T13:00"), 100L, 15L);
         assertEquals(List.of(new AgentMetrics("grading", 0, 0, null, 100, 15)),
                 agentWorkflowRepository.getAgentMetrics(at("2026-08-01T00:00"), at("2026-08-04T00:00")));
+    }
+
+    @Test
+    void keepsWorkflowOutcomesInTheReceivedCohort() {
+        UUID completedBeforePeriod = UUID.randomUUID();
+        UUID completedAfterPeriod = UUID.randomUUID();
+        insert("INSERT INTO agent_workflow_run VALUES (?, ?, ?, ?, ?, ?)", completedBeforePeriod, "old-workflow", 1L,
+                "COMPLETED", at("2026-07-31T23:00"), at("2026-08-01T01:00"));
+        insert("INSERT INTO agent_workflow_run VALUES (?, ?, ?, ?, ?, ?)", completedAfterPeriod, "late-workflow", 1L,
+                "COMPLETED", at("2026-08-01T01:00"), at("2026-08-04T01:00"));
+
+        assertEquals(new WorkflowReliabilityMetric(1, 0, 0, 1, 0.0, 0.0, null),
+                agentWorkflowRepository.getWorkflowReliability(at("2026-08-01T00:00"), at("2026-08-04T00:00")));
     }
 
     private void insert(String sql, Object... arguments) { jdbc.update(sql, arguments); }

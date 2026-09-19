@@ -31,7 +31,25 @@ class PlaceholderAgentProvider:
 
 
 def _placeholder_response(agent: AgentName) -> dict[str, Any]:
-    metadata = {"modelVersion": "placeholder-v1", "promptVersion": "placeholder-v1", "tokenUsage": 0}
+    # The placeholder makes no provider call, so its recorded usage is an explicit,
+    # auditable zero rather than an absent ledger event.
+    metadata = {
+        "modelVersion": "placeholder-v1",
+        "promptVersion": "placeholder-v1",
+        "tokenUsage": 0,
+        "usage": {
+            "provider": "placeholder",
+            "model": "placeholder-v1",
+            "promptTokens": 0,
+            "cachedInputTokens": 0,
+            "completionTokens": 0,
+            "totalTokens": 0,
+            "pricingVersion": "placeholder-v1",
+            "inputPriceMicrosPerMillion": 0,
+            "cachedInputPriceMicrosPerMillion": 0,
+            "outputPriceMicrosPerMillion": 0,
+        },
+    }
     if agent == "grading":
         return {
             "overallScore": 75,

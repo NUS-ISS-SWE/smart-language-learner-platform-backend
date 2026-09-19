@@ -423,10 +423,10 @@ class WorkflowRepository:
         event_id = uuid5(NAMESPACE_URL, identity)
         total_tokens = usage.total_tokens or usage.prompt_tokens + usage.completion_tokens
         non_cached_prompt_tokens = usage.prompt_tokens - usage.cached_input_tokens
-        estimated_cost_micros = (
-            WorkflowRepository._cost(non_cached_prompt_tokens, usage.input_price_micros_per_million)
-            + WorkflowRepository._cost(usage.cached_input_tokens, usage.cached_input_price_micros_per_million)
-            + WorkflowRepository._cost(usage.completion_tokens, usage.output_price_micros_per_million)
+        estimated_cost_micros = WorkflowRepository._round_micros(
+            non_cached_prompt_tokens * usage.input_price_micros_per_million
+            + usage.cached_input_tokens * usage.cached_input_price_micros_per_million
+            + usage.completion_tokens * usage.output_price_micros_per_million
         )
         return {
             "event_id": event_id,
@@ -453,7 +453,11 @@ class WorkflowRepository:
     @staticmethod
     def _cost(tokens: int, micros_per_million: int) -> int:
         # Half-up rounding in integer arithmetic; values are non-negative by model validation.
-        return (tokens * micros_per_million + 500_000) // 1_000_000
+        return WorkflowRepository._round_micros(tokens * micros_per_million)
+
+    @staticmethod
+    def _round_micros(numerator: int) -> int:
+        return (numerator + 500_000) // 1_000_000
 
     @staticmethod
     def _current_status(connection: Any, workflow_id: UUID) -> WorkflowStatus:

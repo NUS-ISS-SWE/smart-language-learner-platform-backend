@@ -9,7 +9,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ValidationError
 
 from app.agent_client import AgentClient
-from app.agent_types import AgentCallError, AgentInvocation
+from app.agent_types import AgentAttempt, AgentCallError, AgentInvocation
 from app.assessment_report import SAFE_FAILURE_MESSAGE, completed_assessment, failed_assessment
 from app.config import Settings
 from app.models import (
@@ -316,8 +316,15 @@ class OrchestrationWorkflow:
     ) -> tuple[dict[str, Any], AgentInvocation[Any]]:
         try:
             invocation = getattr(self.agent_client, operation)(payload, parser)
-            self._log_agent_attempts(workflow_id, agent, grading_pass, agent_attempt_entries(agent, list(invocation.attempts)))
             result = invocation.response
+            if result.usage is None and self.settings.agent_provider == "a2a":
+                # A production response without provider usage would make cost reporting silently incomplete.
+                raise AgentCallError(
+                    agent,
+                    f"{agent} omitted the required provider usage",
+                    invocation.attempts + (AgentAttempt(len(invocation.attempts) + 1, "MISSING_USAGE", 0),),
+                )
+            self._log_agent_attempts(workflow_id, agent, grading_pass, agent_attempt_entries(agent, list(invocation.attempts)))
             if result.usage is not None:
                 self.repository.record_agent_usage(
                     workflow_id=workflow_id,

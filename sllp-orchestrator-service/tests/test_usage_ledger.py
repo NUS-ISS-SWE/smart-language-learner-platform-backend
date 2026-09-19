@@ -49,6 +49,29 @@ def test_agent_usage_values_calculate_cost_from_each_provider_token_category():
     assert WorkflowRepository._cost(1, 500_000) == 1
 
 
+def test_agent_usage_rounds_the_combined_cost_once():
+    fractional_usage = AgentUsage.model_validate(
+        {
+            "provider": "provider",
+            "model": "model",
+            "promptTokens": 2,
+            "cachedInputTokens": 1,
+            "completionTokens": 1,
+            "pricingVersion": "catalog-v1",
+            "inputPriceMicrosPerMillion": 499_999,
+            "cachedInputPriceMicrosPerMillion": 499_999,
+            "outputPriceMicrosPerMillion": 499_999,
+        }
+    )
+
+    values = WorkflowRepository.agent_usage_values(
+        workflow_id=WORKFLOW_ID, request_id=REQUEST_ID, user_id=5, composition_id=3,
+        agent="grading", attempt=1, usage=fractional_usage,
+    )
+
+    assert values["estimated_cost_micros"] == 1
+
+
 class CapturingConnection:
     def __init__(self) -> None:
         self.statements = []

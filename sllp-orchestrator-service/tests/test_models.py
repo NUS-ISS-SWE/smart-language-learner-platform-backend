@@ -112,3 +112,5 @@ def test_agent_usage_rejects_an_impossible_cached_or_total_token_breakdown():
         AgentUsage.model_validate({**valid, "cachedInputTokens": 101})
     with pytest.raises(ValueError):
         AgentUsage.model_validate({**valid, "totalTokens": 129})
+    with pytest.raises(ValueError):
+        AgentUsage.model_validate({**valid, "totalTokens": 131})

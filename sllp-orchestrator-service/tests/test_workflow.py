@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID
 
 from app.config import Settings
@@ -239,6 +240,30 @@ def test_low_confidence_result_still_records_provider_usage():
     completed = OrchestrationWorkflow(settings(), repository, LowConfidenceAgents([])).run(record)
     assert completed.status is WorkflowStatus.FAILED
     assert [event["agent"] for event in repository.agent_usage_events] == ["grading"]
+
+
+def test_a2a_response_without_usage_is_recorded_as_a_contract_failure():
+    class MissingUsageAgents(FakeAgents):
+        def grade(self, payload, parser):
+            invocation = super().grade(payload, parser)
+            return AgentInvocation(
+                invocation.response.model_copy(update={"usage": None}),
+                invocation.attempts,
+                invocation.task_id,
+                invocation.context_id,
+                invocation.provider,
+            )
+
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+
+    failed = OrchestrationWorkflow(replace(settings(), agent_provider="a2a"), repository, MissingUsageAgents([])).run(record)
+
+    assert failed.status is WorkflowStatus.FAILED
+    _, agent, _, entries = repository.agent_attempt_logs[0]
+    assert agent == "grading"
+    assert [entry["status"] for entry in entries] == ["SUCCEEDED", "MISSING_USAGE"]
 
 
 def test_recovery_resumes_from_persisted_grading_without_grading_twice():

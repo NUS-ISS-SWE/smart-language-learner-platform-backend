@@ -31,7 +31,7 @@ class SystemUsageMetricsControllerTest {
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 2);
         SystemUsageMetricsResponse metrics = new SystemUsageMetricsResponse(from, to,
-                new SystemUsageMetricsResponse.Summary(1, 1, 0, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, 0, 0, 0), List.of(), List.of(), null, List.of());
+                new SystemUsageMetricsResponse.Summary(1, 1, 0, 0, 0, 0, 0, 0, null, null, null, 0, 0, 0, 0, null, null, 0, 0, 0), List.of(), List.of(), null, List.of());
         when(service.getMetrics(from, to)).thenReturn(metrics);
 
         ResponseEntity<SystemUsageMetricsResponse> response = new SystemUsageMetricsController(service)
@@ -55,7 +55,7 @@ class SystemUsageMetricsControllerTest {
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 2);
         UserUsageMetricsResponse metrics = new UserUsageMetricsResponse(42L, from, to,
-                new UserUsageMetricsResponse.Summary(1, 2, 3, 2, 1, 4, 3, 1, 5, 6, null), List.of());
+                new UserUsageMetricsResponse.Summary(1, 2, 3, 2, 1, null, null, 4, 4, 3, 1, null, null, 5, 6, null), List.of());
         when(service.getUserMetrics(42L, from, to)).thenReturn(metrics);
 
         ResponseEntity<UserUsageMetricsResponse> response = new SystemUsageMetricsController(service)
@@ -64,5 +64,13 @@ class SystemUsageMetricsControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertSame(metrics, response.getBody());
         verify(service).getUserMetrics(42L, from, to);
+    }
+
+    @Test
+    void rejectsFutureDates() {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> new SystemUsageMetricsController(service).getMetrics("ADMIN", LocalDate.now().plusDays(1), null));
+
+        assertEquals(400, exception.getStatusCode().value());
     }
 }

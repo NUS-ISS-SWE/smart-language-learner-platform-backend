@@ -114,6 +114,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       - API_BASE_URL=${API_BASE_URL:-http://localhost:8080}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
+      - SLLP_AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - SLLP_AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
 
   composition-service:
     build:
@@ -180,6 +182,8 @@ services:
       - WORKER_LEASE_SECONDS=${WORKER_LEASE_SECONDS:-60}
       - OUTBOX_LEASE_SECONDS=${OUTBOX_LEASE_SECONDS:-30}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/ready')"]
       interval: 10s
@@ -234,6 +238,8 @@ services:
         condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
+      - SLLP_AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - SLLP_AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
       - DB_PASSWORD=password
       - TZ=UTC
 
@@ -267,6 +273,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
+      - SLLP_AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
 
   minio:
     image: minio/minio:latest
@@ -309,6 +316,8 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin123}
       - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-http://minio:9000}
       - AWS_S3_PUBLIC_ENDPOINT=${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      - SLLP_AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - SLLP_AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
 
   subscription-service:
     build:
@@ -325,6 +334,8 @@ services:
         condition: service_completed_successfully
     environment:
       - SPRING_PROFILES_ACTIVE=uat
+      - SLLP_AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - SLLP_AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-local-development-audit-secret-change-me}
 
 networks:
   sllp-network:

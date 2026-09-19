@@ -1,5 +1,6 @@
 package com.nus.iss.controller;
 
+import com.nus.iss.audit.AdminAuditRecorder;
 import com.nus.iss.dto.RubricCriterionRequest;
 import com.nus.iss.dto.RubricCriterionResponse;
 import com.nus.iss.enums.DifficultyLevel;
@@ -26,67 +27,75 @@ class RubricCriterionControllerTest {
     @Mock
     private RubricCriterionService service;
 
+    @Mock
+    private AdminAuditRecorder audit;
+
     @Test
     void createReturnsCreatedResponseAndResourceLocation() {
-        RubricCriterionController controller = new RubricCriterionController(service);
+        RubricCriterionController controller = new RubricCriterionController(service, audit);
         RubricCriterionRequest request = request();
         RubricCriterionResponse created = response();
         when(service.create(request, "alextan")).thenReturn(created);
 
-        ResponseEntity<RubricCriterionResponse> response = controller.create("alextan", request);
+        ResponseEntity<RubricCriterionResponse> response = controller.create("alextan", "17", "request-id", request);
 
         assertEquals(201, response.getStatusCode().value());
         assertEquals("/api/v1/admin/rubrics/7", response.getHeaders().getLocation().toString());
         assertSame(created, response.getBody());
+        verify(audit).record("RUBRIC_CREATED", "alextan", "17", "RUBRIC_CRITERION", "7", "request-id", "POST", "/api/v1/admin/rubrics");
     }
 
     @Test
     void getAllPassesOptionalFiltersToService() {
-        RubricCriterionController controller = new RubricCriterionController(service);
+        RubricCriterionController controller = new RubricCriterionController(service, audit);
         List<RubricCriterionResponse> criteria = List.of(response());
         when(service.getAll(Language.ENGLISH, DifficultyLevel.BEGINNER)).thenReturn(criteria);
 
         ResponseEntity<List<RubricCriterionResponse>> response =
-                controller.getAll(Language.ENGLISH, DifficultyLevel.BEGINNER);
+                controller.getAll("alextan", "17", "request-id", Language.ENGLISH, DifficultyLevel.BEGINNER);
 
         assertEquals(200, response.getStatusCode().value());
         assertSame(criteria, response.getBody());
+        verify(audit).record("RUBRIC_LIST_VIEWED", "alextan", "17", "RUBRIC_CRITERION", null, "request-id", "GET", "/api/v1/admin/rubrics");
     }
 
     @Test
     void getByIdReturnsCriterion() {
-        RubricCriterionController controller = new RubricCriterionController(service);
+        RubricCriterionController controller = new RubricCriterionController(service, audit);
         RubricCriterionResponse criterion = response();
         when(service.getById(7L)).thenReturn(criterion);
 
-        ResponseEntity<RubricCriterionResponse> response = controller.getById(7L);
+        ResponseEntity<RubricCriterionResponse> response = controller.getById(7L, "alextan", "17", "request-id");
 
         assertEquals(200, response.getStatusCode().value());
         assertSame(criterion, response.getBody());
+        verify(audit).record("RUBRIC_VIEWED", "alextan", "17", "RUBRIC_CRITERION", "7", "request-id", "GET", "/api/v1/admin/rubrics/7");
     }
 
     @Test
     void updateReturnsUpdatedCriterion() {
-        RubricCriterionController controller = new RubricCriterionController(service);
+        RubricCriterionController controller = new RubricCriterionController(service, audit);
         RubricCriterionRequest request = request();
         RubricCriterionResponse updated = response();
         when(service.update(7L, request, "alextan")).thenReturn(updated);
 
-        ResponseEntity<RubricCriterionResponse> response = controller.update(7L, "alextan", request);
+        ResponseEntity<RubricCriterionResponse> response = controller.update(7L, "alextan", "17", "request-id", request);
 
         assertEquals(200, response.getStatusCode().value());
         assertSame(updated, response.getBody());
+        verify(audit).record("RUBRIC_UPDATED", "alextan", "17", "RUBRIC_CRITERION", "7", "request-id", "PUT", "/api/v1/admin/rubrics/7");
     }
 
     @Test
     void deleteReturnsNoContent() {
-        RubricCriterionController controller = new RubricCriterionController(service);
+        RubricCriterionController controller = new RubricCriterionController(service, audit);
 
-        ResponseEntity<Void> response = controller.delete(7L);
+        ResponseEntity<Void> response = controller.delete(7L, "alextan", "17", "request-id");
 
         assertEquals(204, response.getStatusCode().value());
         assertNull(response.getBody());
         verify(service).delete(7L);
+        verify(audit).record("RUBRIC_DELETED", "alextan", "17", "RUBRIC_CRITERION", "7", "request-id", "DELETE", "/api/v1/admin/rubrics/7");
     }
 
     private static RubricCriterionRequest request() {

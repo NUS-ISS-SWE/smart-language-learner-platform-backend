@@ -19,6 +19,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.nus.iss</groupId>
+            <artifactId>sllp-contracts</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <scope>compile</scope>

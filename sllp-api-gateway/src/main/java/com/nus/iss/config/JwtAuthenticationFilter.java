@@ -17,16 +17,19 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JwtAuthenticationFilter {
     private final JwtConfig jwtConfig;
+    private final GatewayAuditPublisher auditPublisher;
 
     @Autowired
-    public JwtAuthenticationFilter(JwtConfig jwtConfig) {
+    public JwtAuthenticationFilter(JwtConfig jwtConfig, GatewayAuditPublisher auditPublisher) {
         this.jwtConfig = jwtConfig;
+        this.auditPublisher = auditPublisher;
     }
 
     public GatewayFilter jwtRoleFilter(List<String> allowedRoles) {
         return (exchange, chain) -> {
             String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                auditDenied(exchange, "AUTHENTICATION_REQUIRED", null, null, null, HttpStatus.UNAUTHORIZED);
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }
@@ -37,6 +40,7 @@ public class JwtAuthenticationFilter {
                 claims = jwtConfig.getClaims(token);
             } catch (Exception e) {
                 log.warn("JWT validation failed: {}", e.getMessage());
+                auditDenied(exchange, "AUTHENTICATION_INVALID", null, null, null, HttpStatus.UNAUTHORIZED);
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }
@@ -46,6 +50,7 @@ public class JwtAuthenticationFilter {
             String userId = claims.get("userId", String.class);
 
             if (role == null || !allowedRoles.contains(role)) {
+                auditDenied(exchange, "AUTHORIZATION_DENIED", userId, username, role, HttpStatus.FORBIDDEN);
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
                 return exchange.getResponse().setComplete();
             }
@@ -61,6 +66,10 @@ public class JwtAuthenticationFilter {
             ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
             return chain.filter(mutatedExchange);
         };
+    }
+
+    private void auditDenied(ServerWebExchange exchange, String action, String userId, String username, String role, HttpStatus status) {
+        if (auditPublisher != null) auditPublisher.denied(exchange, action, userId, username, role, status.value());
     }
 
 }

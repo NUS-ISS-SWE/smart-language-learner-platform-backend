@@ -22,3 +22,7 @@ spring:
   jackson:
     default-property-inclusion: non_null
     time-zone: UTC
+
+sllp:
+  audit:
+    ingest-secret: ${AUDIT_INGEST_SECRET:local-development-audit-secret-change-me}

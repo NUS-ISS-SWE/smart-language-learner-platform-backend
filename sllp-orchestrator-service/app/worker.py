@@ -12,6 +12,7 @@ from aiokafka.structs import ConsumerRecord
 from pydantic import ValidationError
 
 from app.config import Settings
+from app.audit import publish as publish_audit
 from app.models import OutboxClaim, WorkflowClaim, WorkflowRecord, WorkflowSubmission
 from app.observability import record_outbox_publication, record_workflow_execution, workflow_execution_span
 from app.repository import LeaseLostError, WorkflowRepository
@@ -85,6 +86,7 @@ class KafkaWorkflowWorker:
                 source_event_id,
                 created,
             )
+            await asyncio.to_thread(publish_audit, self.settings, "WORKFLOW_INTAKE_PERSISTED", "SUCCESS", "WORKFLOW", str(record.workflow_id), record.correlation_id)
             await self.consumer.commit()
         except Exception as error:
             LOGGER.error(
@@ -143,6 +145,7 @@ class DatabaseWorkflowRunner:
                 completed = await asyncio.to_thread(self.workflow.run, record, None, claim)
             record_workflow_execution(completed.status.value.lower())
             LOGGER.info("workflow_execution_finished workflow_id=%s", record.workflow_id)
+            await asyncio.to_thread(publish_audit, self.settings, "WORKFLOW_EXECUTED", "SUCCESS", "WORKFLOW", str(record.workflow_id), record.correlation_id)
         except LeaseLostError:
             record_workflow_execution("lease_lost")
             LOGGER.warning("workflow_lease_lost workflow_id=%s", record.workflow_id)
@@ -155,6 +158,7 @@ class DatabaseWorkflowRunner:
                 record.workflow_id,
                 type(error).__name__,
             )
+            await asyncio.to_thread(publish_audit, self.settings, "WORKFLOW_EXECUTION_FAILED", "FAILURE", "WORKFLOW", str(record.workflow_id), record.correlation_id)
             with suppress(LeaseLostError):
                 await asyncio.to_thread(
                     self.repository.reschedule_workflow,
@@ -218,6 +222,7 @@ class OutboxPublisher:
             await asyncio.to_thread(self.repository.mark_outbox_published, claim)
             record_outbox_publication(event.event_type, True)
             LOGGER.info("outbox_event_published event_id=%s type=%s workflow_id=%s", event.event_id, event.event_type, event.workflow_id)
+            await asyncio.to_thread(publish_audit, self.settings, "WORKFLOW_OUTBOX_PUBLISHED", "SUCCESS", "WORKFLOW", str(event.workflow_id))
         except LeaseLostError:
             LOGGER.warning("outbox_lease_lost event_id=%s", event.event_id)
         except Exception as error:

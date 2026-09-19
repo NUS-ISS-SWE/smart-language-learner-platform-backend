@@ -31,7 +31,7 @@ services:
       POSTGRES_DB: sllp_main_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:-password}
       SPRING_PROFILES_ACTIVE: uat
     depends_on:
       postgres-db:
@@ -116,9 +116,9 @@ services:
       - API_BASE_URL=${API_BASE_URL:-http://localhost:8080}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
       - DB_USERNAME=sllp_runtime
-      - DB_PASSWORD=${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
   composition-service:
     build:
@@ -194,7 +194,7 @@ services:
       composition-service:
         condition: service_started
     environment:
-      - ORCHESTRATOR_DATABASE_URL=postgresql+psycopg://sllp_runtime:${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}@postgres-db:5432/sllp_main_db
+      - ORCHESTRATOR_DATABASE_URL=postgresql+psycopg://sllp_runtime:${AUDIT_DB_PASSWORD:-password}@postgres-db:5432/sllp_main_db
       - KAFKA_BOOTSTRAP_SERVERS=kafka-service:9092
       - KAFKA_GROUP_ID=sllp-orchestrator-group
       - KAFKA_GRADING_REQUESTED_TOPIC=SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC
@@ -206,7 +206,7 @@ services:
       - OUTBOX_LEASE_SECONDS=${OUTBOX_LEASE_SECONDS:-30}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/ready')"]
       interval: 10s
@@ -263,9 +263,9 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_USERNAME=sllp_runtime
-      - DB_PASSWORD=${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
       - TZ=UTC
 
   api-gateway:
@@ -300,7 +300,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
   minio:
     image: minio/minio:latest
@@ -345,7 +345,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - DB_USERNAME=sllp_runtime
-      - DB_PASSWORD=${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/sllp_main_db
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-sllp-uploads-dev}
@@ -357,7 +357,7 @@ services:
       - CLAMAV_PORT=${CLAMAV_PORT:-3310}
       - AWS_S3_PUBLIC_ENDPOINT=${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
   subscription-service:
     build:
@@ -378,9 +378,9 @@ services:
       - STRIPE_PAYMENT_LINK_BASIC=${STRIPE_PAYMENT_LINK_BASIC:-}
       - STRIPE_PAYMENT_LINK_PREMIUM=${STRIPE_PAYMENT_LINK_PREMIUM:-}
       - DB_USERNAME=sllp_runtime
-      - DB_PASSWORD=${AUDIT_DB_PASSWORD:?AUDIT_DB_PASSWORD must be set}
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
-      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:?AUDIT_INGEST_SECRET must be set}
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
 networks:
   sllp-network:

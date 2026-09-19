@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 public class GatewayAuditPublisher {
     private final AuditEventPublisher publisher;
     public GatewayAuditPublisher(SllpProperties properties, ObjectMapper mapper,
-            @org.springframework.beans.factory.annotation.Value("${sllp.audit.ingest-secret}") String secret) {
+            @org.springframework.beans.factory.annotation.Value("${sllp.audit.ingest-secret:}") String secret) {
         publisher = new AuditEventPublisher("api-gateway", properties.getAdminService() + "/internal/audit-events", secret, mapper);
     }
     public void denied(ServerWebExchange exchange, String action, String actorId, String actorName, String actorRole, int status) {

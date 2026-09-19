@@ -17,6 +17,7 @@ class AuditSignatureVerifier {
 
     void verify(String timestamp, String signature, String body) {
         try {
+            if (properties.ingestSecret() == null || properties.ingestSecret().isBlank()) throw new SecurityException("audit ingestion is disabled");
             long epoch = Long.parseLong(timestamp);
             if (Math.abs(Instant.now().getEpochSecond() - epoch) > 300) throw new SecurityException("expired audit signature");
             Mac mac = Mac.getInstance("HmacSHA256");

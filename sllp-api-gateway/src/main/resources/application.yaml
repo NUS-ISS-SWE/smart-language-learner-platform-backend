@@ -34,7 +34,7 @@ sllp:
   subscription-service: http://localhost:8084
   admin-service: http://localhost:8086
   audit:
-    ingest-secret: ${AUDIT_INGEST_SECRET}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
   security:
     jwt:
       issuer: nus-iss-smart-language-learner-platform

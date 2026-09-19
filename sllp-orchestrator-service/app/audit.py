@@ -16,6 +16,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def publish(settings: Settings, action: str, outcome: str, target_type: str, target_id: str, correlation_id: str | None = None) -> None:
+    if not settings.audit_ingest_secret:
+        return
     event = {"id": str(uuid4()), "occurredAt": datetime.now(timezone.utc).isoformat(), "service": "orchestrator-service", "category": "SYSTEM_WORKFLOW", "action": action, "outcome": outcome, "actorType": "SYSTEM", "targetType": target_type, "targetId": target_id, "correlationId": correlation_id, "metadata": {}}
     body = json.dumps(event, separators=(",", ":")).encode()
     timestamp = str(int(time.time()))

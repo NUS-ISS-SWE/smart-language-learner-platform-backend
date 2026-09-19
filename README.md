@@ -20,12 +20,14 @@ through the API gateway when the main Docker Compose stack is running.
 
 ## Quick start
 
-The Product Guide Service requires `OPENAI_API_KEY`. Export it in your shell or keep it in
-the ignored `.env.local` file and add `--env-file .env.local` to the Compose commands below.
+The Product Guide Service requires `OPENAI_API_KEY`. Keep it in the ignored `.env` file
+or export it in your shell before running Docker Compose.
 
 ### Local audit configuration
 
-Copy `.env.example` to `.env` and set the two required values before running Docker Compose:
+Audit ingestion is optional for local development. Leave these values blank to start the
+platform without cross-service audit ingestion. Set both to strong, distinct secrets when
+you want to enable it (and always in non-local environments):
 
 ```bash
 AUDIT_INGEST_SECRET=<high-entropy HMAC secret>

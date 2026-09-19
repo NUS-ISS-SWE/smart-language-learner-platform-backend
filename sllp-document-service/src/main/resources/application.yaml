@@ -42,7 +42,7 @@ aws:
 sllp:
   audit:
     ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
-    ingest-secret: ${AUDIT_INGEST_SECRET}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
 
 management:
   endpoints:

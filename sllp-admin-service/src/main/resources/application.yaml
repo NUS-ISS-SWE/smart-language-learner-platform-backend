@@ -25,7 +25,7 @@ spring:
 
 sllp:
   audit:
-    ingest-secret: ${AUDIT_INGEST_SECRET}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
 
 management:
   endpoints:

@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AuditHttpFilter extends OncePerRequestFilter {
     private final AuditEventPublisher publisher;
     public AuditHttpFilter(ObjectMapper mapper, @Value("${sllp.audit.ingest-url:http://localhost:8086/internal/audit-events}") String url,
-            @Value("${sllp.audit.ingest-secret}") String secret) { publisher = new AuditEventPublisher("user-service", url, secret, mapper); }
+            @Value("${sllp.audit.ingest-secret:}") String secret) { publisher = new AuditEventPublisher("user-service", url, secret, mapper); }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         chain.doFilter(request, response);
         int status = response.getStatus(); String path = request.getRequestURI(); boolean mutation = !"GET".equals(request.getMethod()) && !"HEAD".equals(request.getMethod());

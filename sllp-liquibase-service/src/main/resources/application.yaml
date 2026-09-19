@@ -8,7 +8,7 @@ spring:
     enabled: true
     change-log: classpath:changelog/db.changelog-master.yml
     parameters:
-      audit_runtime_password: ${AUDIT_DB_PASSWORD}
+      audit_runtime_password: ${AUDIT_DB_PASSWORD:password}
   datasource:
     url: jdbc:postgresql://localhost:5432/sllp_main_db
     username: ${POSTGRES_USER:postgres}

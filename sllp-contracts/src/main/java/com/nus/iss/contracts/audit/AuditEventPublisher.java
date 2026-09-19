@@ -40,6 +40,7 @@ public final class AuditEventPublisher {
     public void publish(String category, String action, String outcome, String actorType, String actorId, String actorName,
             String actorRole, String targetType, String targetId, String requestId, String sourceIp, String userAgent,
             String method, String path, int status, Consumer<Throwable> failureHandler) {
+        if (secret == null || secret.isBlank()) return;
         try {
             ObjectNode event = objectMapper.createObjectNode();
             event.put("id", UUID.randomUUID().toString());

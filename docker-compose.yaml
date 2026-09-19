@@ -135,6 +135,12 @@ services:
       - kafka-service
     environment:
       - SPRING_PROFILES_ACTIVE=uat
+      # Keep the composition service's database credentials in sync with the
+      # runtime role provisioned by the Liquibase service.
+      - DB_USERNAME=sllp_runtime
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
+      - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
   product-guide-service:
     build:

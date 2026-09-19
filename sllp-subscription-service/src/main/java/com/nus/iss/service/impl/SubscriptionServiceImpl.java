@@ -1,7 +1,5 @@
 package com.nus.iss.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nus.iss.dto.SelectPlanRequestDTO;
 import com.nus.iss.dto.SubscriptionPlanInfoDTO;
 import com.nus.iss.dto.SubscriptionPlanSnapshotDTO;
@@ -24,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service

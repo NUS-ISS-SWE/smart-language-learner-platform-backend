@@ -32,8 +32,16 @@ sllp:
   document-service: http://localhost:8089
   subscription-service: http://localhost:8084
   admin-service: http://localhost:8086
+  audit:
+    ingest-secret: ${AUDIT_INGEST_SECRET}
   security:
     jwt:
       issuer: nus-iss-smart-language-learner-platform
       secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       expirationTimeMillis: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

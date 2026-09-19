@@ -40,6 +40,9 @@ application:
     refresh-token-expiry: 604800000
 
 sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
   security:
     jwt:
       issuer: ${JWT_ISSUER:sllp-app}
@@ -49,3 +52,9 @@ sllp:
 app:
   api-base-url: ${API_BASE_URL:http://localhost:8080}
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

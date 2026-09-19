@@ -15,6 +15,17 @@ Spring Boot 4 microservices backend for the SLLP application.
 
 ## Quick start
 
+### Local audit configuration
+
+Copy `.env.example` to `.env` and set the two required values before running Docker Compose:
+
+```bash
+AUDIT_INGEST_SECRET=<high-entropy HMAC secret>
+AUDIT_DB_PASSWORD=<strong database password>
+```
+
+`AUDIT_INGEST_SECRET` is for backend services only. Do not expose either value through a `NEXT_PUBLIC_*` frontend variable.
+
 ### First run (build images from source)
 
 ```bash

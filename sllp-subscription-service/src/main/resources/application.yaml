@@ -21,3 +21,14 @@ spring:
     show-sql: false
   jackson:
     default-property-inclusion: non_null
+
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

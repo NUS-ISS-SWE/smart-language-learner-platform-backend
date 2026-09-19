@@ -39,6 +39,17 @@ aws:
     endpoint: ${AWS_S3_ENDPOINT:}
     public-endpoint: ${AWS_S3_PUBLIC_ENDPOINT:}
 
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
 application:
   jwt:
     secret: ${JWT_SECRET:sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}

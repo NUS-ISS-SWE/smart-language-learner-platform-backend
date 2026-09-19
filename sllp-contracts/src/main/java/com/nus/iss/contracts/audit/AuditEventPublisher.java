@@ -14,6 +14,9 @@ import java.util.function.Consumer;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
+
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -24,12 +27,14 @@ public final class AuditEventPublisher {
     private final String secret;
     private final ObjectMapper objectMapper;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build();
+    private final Counter writeFailures;
 
     public AuditEventPublisher(String service, String ingestUrl, String secret, ObjectMapper objectMapper) {
         this.service = service;
         this.ingestUri = URI.create(ingestUrl);
         this.secret = secret;
         this.objectMapper = objectMapper;
+        this.writeFailures = Counter.builder("audit_write_failures").tag("service", service).register(Metrics.globalRegistry);
     }
 
     public void publish(String category, String action, String outcome, String actorType, String actorId, String actorName,
@@ -70,10 +75,10 @@ public final class AuditEventPublisher {
                     .header("X-Sllp-Audit-Signature", sign(timestamp + "." + body))
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             client.sendAsync(request, HttpResponse.BodyHandlers.discarding()).whenComplete((response, error) -> {
-                if (error != null) failureHandler.accept(error);
-                else if (response.statusCode() >= 300) failureHandler.accept(new IllegalStateException("audit ingestion returned " + response.statusCode()));
+                if (error != null) fail(error, failureHandler);
+                else if (response.statusCode() >= 300) fail(new IllegalStateException("audit ingestion returned " + response.statusCode()), failureHandler);
             });
-        } catch (Exception error) { failureHandler.accept(error); }
+        } catch (Exception error) { fail(error, failureHandler); }
     }
 
     private String sign(String value) throws Exception {
@@ -81,6 +86,8 @@ public final class AuditEventPublisher {
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
     }
+
+    private void fail(Throwable error, Consumer<Throwable> failureHandler) { writeFailures.increment(); failureHandler.accept(error); }
 
     private static void put(ObjectNode target, String name, String value, int maxLength) {
         if (value != null && !value.isBlank()) {

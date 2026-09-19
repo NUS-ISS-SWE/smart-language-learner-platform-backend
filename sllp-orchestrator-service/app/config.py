@@ -36,7 +36,7 @@ class Settings:
     worker_heartbeat_seconds: int = 15
     otel_exporter_otlp_endpoint: str | None = None
     audit_ingest_url: str = "http://localhost:8086/internal/audit-events"
-    audit_ingest_secret: str = "local-development-audit-secret-change-me"
+    audit_ingest_secret: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -76,5 +76,5 @@ class Settings:
             worker_heartbeat_seconds=int(os.getenv("WORKER_HEARTBEAT_SECONDS", "15")),
             otel_exporter_otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
             audit_ingest_url=os.getenv("AUDIT_INGEST_URL", "http://localhost:8086/internal/audit-events"),
-            audit_ingest_secret=os.getenv("AUDIT_INGEST_SECRET", "local-development-audit-secret-change-me"),
+            audit_ingest_secret=os.environ["AUDIT_INGEST_SECRET"],
         )

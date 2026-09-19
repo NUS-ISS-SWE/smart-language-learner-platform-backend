@@ -6,8 +6,8 @@ spring:
     name: sllp-admin-service
   datasource:
     url: jdbc:postgresql://localhost:5432/sllp_main_db
-    username: postgres
-    password: ${DB_PASSWORD:postgres}
+    username: ${DB_USERNAME:sllp_runtime}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -25,4 +25,10 @@ spring:
 
 sllp:
   audit:
-    ingest-secret: ${AUDIT_INGEST_SECRET:local-development-audit-secret-change-me}
+    ingest-secret: ${AUDIT_INGEST_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

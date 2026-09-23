@@ -274,6 +274,29 @@ services:
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
       - TZ=UTC
 
+  evidence-service:
+    build:
+      context: .
+      dockerfile: sllp-evidence-service/Dockerfile
+    image: sllp-evidence-service:latest
+    container_name: evidence-service
+    ports:
+      - "8092:8091"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+      user-service:
+        condition: service_started
+      composition-service:
+        condition: service_started
+      admin-service:
+        condition: service_started
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+
   api-gateway:
     build:
       context: .

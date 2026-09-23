@@ -1,0 +1,252 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk   'jdk-25'
+        maven 'maven-3.9'
+    }
+
+    environment {
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
+        GIT_CREDENTIALS_ID    = 'github-pat'
+        DOCKER_HUB_USER       = 'maxin0525'
+        // Java services live in the Maven reactor and share the sllp-contracts module.
+        ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service product-guide-service evidence-service subscription-service admin-service'
+        // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
+        ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'all',
+            'user-service',
+            'liquibase-service',
+            'document-service',
+            'api-gateway',
+            'composition-service',
+            'evaluation-service',
+            'product-guide-service',
+            'evidence-service',
+            'subscription-service',
+            'admin-service',
+            'orchestrator-service',
+            'suggestions-agent'
+        ], description: 'Select microservice to build (all = build & push every service)')
+        booleanParam(name: 'RUN_TESTS',         defaultValue: true, description: 'Run unit tests')
+        booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: true, description: 'Push image to Docker Hub')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Prepare') {
+            steps {
+                script {
+                    def pySet = ALL_PYTHON_SERVICES.split(' ') as List
+                    def selected = params.MICROSERVICE_NAME == 'all'
+                        ? ((ALL_JAVA_SERVICES.split(' ') as List) + pySet)
+                        : [params.MICROSERVICE_NAME]
+
+                    env.JAVA_TARGETS   = selected.findAll { !pySet.contains(it) }.join(',')
+                    env.PYTHON_TARGETS = selected.findAll {  pySet.contains(it) }.join(',')
+                    env.ALL_TARGETS    = selected.join(',')
+
+                    echo "Java targets:   ${env.JAVA_TARGETS ?: '(none)'}"
+                    echo "Python targets: ${env.PYTHON_TARGETS ?: '(none)'}"
+                }
+            }
+        }
+
+        // stage('SAST - Semgrep') {
+        //     steps {
+        //         sh '''
+        //             mkdir -p semgrep-reports
+        //             # Installed directly on the agent (pip), not via docker run --
+        //             # this host's docker bridge network can't reach the internet yet,
+        //             # but the host itself can. Revisit once that's fixed.
+        //             # Ubuntu's system Python is externally-managed (PEP 668), so a
+        //             # dedicated venv is used instead of `pip install --user`.
+        //             SEMGREP_VENV="$HOME/.semgrep-venv"
+        //             if [ ! -x "$SEMGREP_VENV/bin/semgrep" ]; then
+        //                 python3 -m venv "$SEMGREP_VENV"
+        //                 "$SEMGREP_VENV/bin/pip" install --quiet --upgrade pip semgrep
+        //             fi
+        //             # p/ci is Semgrep's free default ruleset (covers Java and Python).
+        //             "$SEMGREP_VENV/bin/semgrep" scan --config p/ci \
+        //                 --json-output=semgrep-reports/semgrep-report.json \
+        //                 source
+        //         '''
+        //     }
+        //     post {
+        //         always {
+        //             archiveArtifacts artifacts: 'semgrep-reports/semgrep-report.json', allowEmptyArchive: true
+        //         }
+        //     }
+        // }
+
+        stage('Build & Test - Java') {
+            when { expression { return env.JAVA_TARGETS } }
+            steps {
+                dir('source') {
+                    script {
+                        def modules = env.JAVA_TARGETS.split(',').collect { "sllp-${it}" }.join(',')
+                        if (params.RUN_TESTS) {
+                            sh "mvn -pl ${modules} -am clean verify --no-transfer-progress"
+                        } else {
+                            sh "mvn -pl ${modules} -am clean package -DskipTests --no-transfer-progress"
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: 'source/sllp-*/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Build & Test - Python') {
+            when { expression { return env.PYTHON_TARGETS } }
+            steps {
+                dir('source') {
+                    script {
+                        env.PYTHON_TARGETS.split(',').each { svc ->
+                            dir("sllp-${svc}") {
+                                // Runs directly on the agent, not via docker run --
+                                // same reason as the Semgrep stage (broken container networking).
+                                sh '''
+                                    python3 -m venv .venv
+                                    .venv/bin/pip install --quiet --upgrade pip
+                                    .venv/bin/pip install --quiet -r requirements.txt pytest
+                                    .venv/bin/pytest --junitxml=pytest-report.xml
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: 'source/sllp-*/pytest-report.xml'
+                }
+            }
+        }
+
+        // stage('OWASP Dependency-Check') {
+        //     when { expression { return env.JAVA_TARGETS } }
+        //     steps {
+        //         dir('source') {
+        //             script {
+        //                 def modules = env.JAVA_TARGETS.split(',').collect { "sllp-${it}" }.join(',')
+        //                 // First run downloads/updates the NVD vulnerability DB and is slow;
+        //                 // set an NVD_API_KEY credential on the Jenkins node to speed it up.
+        //                 sh """
+        //                     mvn -pl ${modules} -am org.owasp:dependency-check-maven:check \
+        //                         -DfailBuildOnCVSS=11 \
+        //                         -Dformats=HTML,XML \
+        //                         --no-transfer-progress
+        //                 """
+        //             }
+        //         }
+        //     }
+        //     post {
+        //         always {
+        //             archiveArtifacts artifacts: 'source/sllp-*/target/dependency-check-report.html',
+        //                               allowEmptyArchive: true
+        //         }
+        //     }
+        // }
+
+        stage('Docker Build & Push') {
+            when { expression { return params.UPLOAD_DOCKER_HUB } }
+            environment {
+                DOCKER_BUILDKIT = '1'
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+
+                    script {
+                        env.ALL_TARGETS.split(',').each { svc ->
+                            def img = "${DOCKER_HUB_USER}/sllp-${svc}"
+                            // Build context must be the repo root: these Dockerfiles COPY
+                            // pom.xml / sllp-contracts from the root for the reactor build.
+                            sh """
+                                docker build -f source/sllp-${svc}/Dockerfile -t ${img}:latest -t ${img}:v1 source
+                                docker push ${img}:latest
+                                docker push ${img}:v1
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        // stage('Trivy Image Scan') {
+        //     when { expression { return params.UPLOAD_DOCKER_HUB } }
+        //     steps {
+        //         script {
+        //             sh '''
+        //                 mkdir -p trivy-reports
+        //                 # 现场下载 junit 模板，不用在EC2上手动装任何东西
+        //                 curl -fsSL -o trivy-junit.tpl \
+        //                     https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/junit.tpl
+        //                 # 漏洞库缓存放在固定目录（不在workspace里），这样每次build不用重新下载整个DB
+        //                 mkdir -p /tmp/trivy-cache
+        //             '''
+
+        //             env.ALL_TARGETS.split(',').each { svc ->
+        //                 def img = "${DOCKER_HUB_USER}/sllp-${svc}:latest"
+        //                 sh """
+        //                     # trivy 本身跑成容器，靠 docker run 自动拉镜像，不用在host上装trivy二进制
+        //                     docker run --rm \
+        //                         -v /var/run/docker.sock:/var/run/docker.sock \
+        //                         -v \$(pwd):/workspace \
+        //                         -v /tmp/trivy-cache:/root/.cache/ \
+        //                         -w /workspace \
+        //                         aquasec/trivy image \
+        //                         --exit-code 0 --severity HIGH,CRITICAL \
+        //                         --format template --template '@/workspace/trivy-junit.tpl' \
+        //                         -o trivy-reports/${svc}-junit.xml ${img}
+
+        //                     docker run --rm \
+        //                         -v /var/run/docker.sock:/var/run/docker.sock \
+        //                         -v \$(pwd):/workspace \
+        //                         -v /tmp/trivy-cache:/root/.cache/ \
+        //                         -w /workspace \
+        //                         aquasec/trivy image \
+        //                         --exit-code 0 --severity HIGH,CRITICAL \
+        //                         --format json -o trivy-reports/${svc}-report.json ${img}
+        //                 """
+        //             }
+        //         }
+        //     }
+        //     post {
+        //         always {
+        //             junit allowEmptyResults: true, testResults: 'trivy-reports/*-junit.xml'
+        //             archiveArtifacts artifacts: 'trivy-reports/*-report.json', allowEmptyArchive: true
+        //         }
+        //     }
+        // }
+    }
+
+    post {
+        success { echo "CI complete — ${params.MICROSERVICE_NAME} built & pushed to Docker Hub" }
+        failure { echo "CI failed for ${params.MICROSERVICE_NAME}" }
+    }
+}

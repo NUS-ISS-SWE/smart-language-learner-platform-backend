@@ -124,8 +124,11 @@ pipeline {
                             dir("sllp-${svc}") {
                                 // Runs directly on the agent, not via docker run --
                                 // same reason as the Semgrep stage (broken container networking).
+                                // Must be python3.12 specifically: the agent's system
+                                // python3 is 3.9, and this code uses StrEnum (3.11+)
+                                // and PEP 604 `X | None` unions (3.10+ to evaluate).
                                 sh '''
-                                    python3 -m venv .venv
+                                    python3.12 -m venv .venv
                                     .venv/bin/pip install --quiet --upgrade pip
                                     .venv/bin/pip install --quiet -r requirements.txt pytest
                                     .venv/bin/pytest --junitxml=pytest-report.xml

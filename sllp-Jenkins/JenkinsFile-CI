@@ -66,32 +66,26 @@ pipeline {
             }
         }
 
-        // stage('SAST - Semgrep') {
-        //     steps {
-        //         sh '''
-        //             mkdir -p semgrep-reports
-        //             # Installed directly on the agent (pip), not via docker run --
-        //             # this host's docker bridge network can't reach the internet yet,
-        //             # but the host itself can. Revisit once that's fixed.
-        //             # Ubuntu's system Python is externally-managed (PEP 668), so a
-        //             # dedicated venv is used instead of `pip install --user`.
-        //             SEMGREP_VENV="$HOME/.semgrep-venv"
-        //             if [ ! -x "$SEMGREP_VENV/bin/semgrep" ]; then
-        //                 python3 -m venv "$SEMGREP_VENV"
-        //                 "$SEMGREP_VENV/bin/pip" install --quiet --upgrade pip semgrep
-        //             fi
-        //             # p/ci is Semgrep's free default ruleset (covers Java and Python).
-        //             "$SEMGREP_VENV/bin/semgrep" scan --config p/ci \
-        //                 --json-output=semgrep-reports/semgrep-report.json \
-        //                 source
-        //         '''
-        //     }
-        //     post {
-        //         always {
-        //             archiveArtifacts artifacts: 'semgrep-reports/semgrep-report.json', allowEmptyArchive: true
-        //         }
-        //     }
-        // }
+        stage('SAST - Semgrep') {
+            steps {
+                sh '''
+                    mkdir -p semgrep-reports
+                    # p/ci is Semgrep's free default ruleset (covers Java and Python).
+                    docker run --rm \
+                        -v "$(pwd):/workspace" \
+                        -w /workspace \
+                        semgrep/semgrep \
+                        semgrep scan --config p/ci \
+                            --json-output=semgrep-reports/semgrep-report.json \
+                            source
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'semgrep-reports/semgrep-report.json', allowEmptyArchive: true
+                }
+            }
+        }
 
         stage('Build & Test - Java') {
             when { expression { return env.JAVA_TARGETS } }
@@ -201,52 +195,49 @@ pipeline {
             }
         }
 
-        // stage('Trivy Image Scan') {
-        //     when { expression { return params.UPLOAD_DOCKER_HUB } }
-        //     steps {
-        //         script {
-        //             sh '''
-        //                 mkdir -p trivy-reports
-        //                 # 现场下载 junit 模板，不用在EC2上手动装任何东西
-        //                 curl -fsSL -o trivy-junit.tpl \
-        //                     https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/junit.tpl
-        //                 # 漏洞库缓存放在固定目录（不在workspace里），这样每次build不用重新下载整个DB
-        //                 mkdir -p /tmp/trivy-cache
-        //             '''
+        stage('Trivy Image Scan') {
+            when { expression { return params.UPLOAD_DOCKER_HUB } }
+            steps {
+                script {
+                    sh '''
+                        mkdir -p trivy-reports
+                        curl -fsSL -o trivy-junit.tpl \
+                            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/junit.tpl
+                        mkdir -p /tmp/trivy-cache
+                    '''
 
-        //             env.ALL_TARGETS.split(',').each { svc ->
-        //                 def img = "${DOCKER_HUB_USER}/sllp-${svc}:latest"
-        //                 sh """
-        //                     # trivy 本身跑成容器，靠 docker run 自动拉镜像，不用在host上装trivy二进制
-        //                     docker run --rm \
-        //                         -v /var/run/docker.sock:/var/run/docker.sock \
-        //                         -v \$(pwd):/workspace \
-        //                         -v /tmp/trivy-cache:/root/.cache/ \
-        //                         -w /workspace \
-        //                         aquasec/trivy image \
-        //                         --exit-code 0 --severity HIGH,CRITICAL \
-        //                         --format template --template '@/workspace/trivy-junit.tpl' \
-        //                         -o trivy-reports/${svc}-junit.xml ${img}
+                    env.ALL_TARGETS.split(',').each { svc ->
+                        def img = "${DOCKER_HUB_USER}/sllp-${svc}:latest"
+                        sh """
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v \$(pwd):/workspace \
+                                -v /tmp/trivy-cache:/root/.cache/ \
+                                -w /workspace \
+                                aquasec/trivy image \
+                                --exit-code 0 --severity HIGH,CRITICAL \
+                                --format template --template '@/workspace/trivy-junit.tpl' \
+                                -o trivy-reports/${svc}-junit.xml ${img}
 
-        //                     docker run --rm \
-        //                         -v /var/run/docker.sock:/var/run/docker.sock \
-        //                         -v \$(pwd):/workspace \
-        //                         -v /tmp/trivy-cache:/root/.cache/ \
-        //                         -w /workspace \
-        //                         aquasec/trivy image \
-        //                         --exit-code 0 --severity HIGH,CRITICAL \
-        //                         --format json -o trivy-reports/${svc}-report.json ${img}
-        //                 """
-        //             }
-        //         }
-        //     }
-        //     post {
-        //         always {
-        //             junit allowEmptyResults: true, testResults: 'trivy-reports/*-junit.xml'
-        //             archiveArtifacts artifacts: 'trivy-reports/*-report.json', allowEmptyArchive: true
-        //         }
-        //     }
-        // }
+                            docker run --rm \
+                                -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v \$(pwd):/workspace \
+                                -v /tmp/trivy-cache:/root/.cache/ \
+                                -w /workspace \
+                                aquasec/trivy image \
+                                --exit-code 0 --severity HIGH,CRITICAL \
+                                --format json -o trivy-reports/${svc}-report.json ${img}
+                        """
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'trivy-reports/*-junit.xml'
+                    archiveArtifacts artifacts: 'trivy-reports/*-report.json', allowEmptyArchive: true
+                }
+            }
+        }
     }
 
     post {

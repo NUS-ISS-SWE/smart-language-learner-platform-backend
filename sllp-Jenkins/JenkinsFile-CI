@@ -128,6 +128,7 @@ pipeline {
                                 // python3 is 3.9, and this code uses StrEnum (3.11+)
                                 // and PEP 604 `X | None` unions (3.10+ to evaluate).
                                 sh '''
+                                    rm -rf .venv
                                     python3.12 -m venv .venv
                                     .venv/bin/pip install --quiet --upgrade pip
                                     .venv/bin/pip install --quiet -r requirements.txt pytest

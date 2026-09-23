@@ -24,6 +24,7 @@ public record CompositionResponse(
         String gradingProgressMessage,
         String gradingProgressStage,
         String storagePath,
+        String sourceDocumentId,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 }

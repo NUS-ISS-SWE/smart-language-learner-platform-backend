@@ -9,5 +9,7 @@ public record CreateCompositionRequest(
         @Size(max = 255, message = "Composition title must not exceed 255 characters")
         String title,
         @NotBlank(message = "Composition content is required")
-        String content) {
+        String content,
+        @Size(max = 36, message = "Source document ID must not exceed 36 characters")
+        String sourceDocumentId) {
 }

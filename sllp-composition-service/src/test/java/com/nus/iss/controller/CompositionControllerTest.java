@@ -33,7 +33,7 @@ class CompositionControllerTest {
     @Test
     void createDelegatesTypedRequestToCommandService() {
         CompositionController controller = controller();
-        CreateCompositionRequest request = new CreateCompositionRequest("My title", "My composition");
+        CreateCompositionRequest request = new CreateCompositionRequest("My title", "My composition", null);
         CompositionResponse created = response();
         when(commandService.create(1L, request)).thenReturn(created);
 
@@ -87,6 +87,6 @@ class CompositionControllerTest {
 
     private static CompositionResponse response() {
         return new CompositionResponse(10L, 1L, "My title", "My composition", null, null,
-                CompositionStatus.DRAFT, null, null, null, null, null, null, null, null);
+                CompositionStatus.DRAFT, null, null, null, null, null, null, null, null, null);
     }
 }

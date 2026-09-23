@@ -46,6 +46,11 @@
     <properties>
         <java.version>25</java.version>
         <jjwt.version>0.13.0</jjwt.version>
+        <!-- spring-boot-starter-parent 4.0.6 manages lombok 1.18.46, which doesn't
+             support JDK 25's changed javac internals (fails with
+             ExceptionInInitializerError: com.sun.tools.javac.tree.EndPosTable).
+             1.18.48 is the first release with JDK 25 support. -->
+        <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <dependencyManagement>

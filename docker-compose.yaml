@@ -158,6 +158,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
       - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       - DB_PASSWORD=${DB_PASSWORD:-password}

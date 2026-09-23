@@ -14,6 +14,9 @@ spring:
         temperature: 0.3
 
 sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
   ai-usage:
     provider: OPENAI
     default-model: gpt-4o-mini

@@ -31,3 +31,8 @@ spring:
         distance-type: cosine-distance
         index-type: hnsw
         table-name: product_guide_vector_store
+
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}

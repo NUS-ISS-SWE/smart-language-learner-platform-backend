@@ -19,3 +19,9 @@ module "eks" {
   node_role_arn      = module.iam.eks_node_role_arn
   private_subnet_ids = module.network.private_subnet_ids
 }
+
+module "secrets" {
+  source = "./modules/secrets"
+
+  project_name = var.project_name
+}

@@ -66,36 +66,36 @@ services:
     networks:
       - sllp-network
 
-  ollama-service:
-    image: ollama/ollama:latest
-    container_name: ollama-service
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    networks:
-      - sllp-network
-
-  ollama-model-pull:
-    image: ollama/ollama:latest
-    container_name: ollama-model-pull
-    restart: "no"
-    environment:
-      OLLAMA_HOST: http://ollama-service:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:0.6b}
-    command: ["pull", "${OLLAMA_MODEL:-qwen3:0.6b}"]
-    depends_on:
-      ollama-service:
-        condition: service_healthy
-    networks:
-      - sllp-network
+#  ollama-service:
+#    image: ollama/ollama:latest
+#    container_name: ollama-service
+#    restart: unless-stopped
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ollama-data:/root/.ollama
+#    healthcheck:
+#      test: ["CMD", "ollama", "list"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 30
+#      start_period: 10s
+#    networks:
+#      - sllp-network
+#
+#  ollama-model-pull:
+#    image: ollama/ollama:latest
+#    container_name: ollama-model-pull
+#    restart: "no"
+#    environment:
+#      OLLAMA_HOST: http://ollama-service:11434
+#      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:0.6b}
+#    command: ["pull", "${OLLAMA_MODEL:-qwen3:0.6b}"]
+#    depends_on:
+#      ollama-service:
+#        condition: service_healthy
+#    networks:
+#      - sllp-network
 
   user-service:
     build:
@@ -142,25 +142,25 @@ services:
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
-  product-guide-service:
-    build:
-      context: .
-      dockerfile: sllp-product-guide-service/Dockerfile
-    image: sllp-product-guide-service:latest
-    container_name: product-guide-service
-    expose:
-      - "8087"
-    networks:
-      - sllp-network
-    depends_on:
-      liquibase-service:
-        condition: service_completed_successfully
-    environment:
-      - SPRING_PROFILES_ACTIVE=uat
-      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
-      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
-      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+#  product-guide-service:
+#    build:
+#      context: .
+#      dockerfile: sllp-product-guide-service/Dockerfile
+#    image: sllp-product-guide-service:latest
+#    container_name: product-guide-service
+#    expose:
+#      - "8087"
+#    networks:
+#      - sllp-network
+#    depends_on:
+#      liquibase-service:
+#        condition: service_completed_successfully
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=uat
+#      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+#      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+#      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+#      - DB_PASSWORD=${DB_PASSWORD:-password}
 
 #  evaluation-service:
 #    build:
@@ -314,8 +314,8 @@ services:
         condition: service_started
       composition-service:
         condition: service_started
-      product-guide-service:
-        condition: service_started
+#      product-guide-service:
+#        condition: service_started
 #      evaluation-service:
 #        condition: service_started
       orchestrator-service:
@@ -418,4 +418,4 @@ networks:
 volumes:
   sllp-data:
   minio-data:
-  ollama-data:
+#  ollama-data:

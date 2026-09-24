@@ -48,3 +48,10 @@ __pycache__/
 .venv/
 .test-deps/
 .codex-test-deps/
+
+# Playwright integration tests (sllp-integration-tests)
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

@@ -9,3 +9,8 @@ variable "project_name" {
   type        = string
   default     = "sllp"
 }
+
+variable "domain_name" {
+  description = "Root domain name"
+  type        = string
+}

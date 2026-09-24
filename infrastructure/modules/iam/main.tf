@@ -7,7 +7,10 @@ data "aws_iam_policy_document" "eks_cluster_assume_role" {
       identifiers = ["eks.amazonaws.com"]
     }
 
-    actions = ["sts:AssumeRole"]
+    actions = [
+      "sts:AssumeRole",
+      "sts:TagSession"
+    ]
   }
 }
 

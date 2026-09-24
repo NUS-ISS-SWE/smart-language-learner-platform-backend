@@ -36,7 +36,7 @@ def settings() -> Settings:
 
 VALID_GRADING = {
     "overallScore": 70,
-    "deepScores": {"Description": 70},
+    "rubricScores": {"Description": 70},
     "criteria": [{"criterion": "Description", "score": 70, "rationale": "Clear setting", "evidence": [{"excerpt": "at the beach"}]}],
     "confidence": 0.8,
 }

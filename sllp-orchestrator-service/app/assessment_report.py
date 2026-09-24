@@ -68,8 +68,8 @@ def render_feedback(grading: GradingResponse, suggestions: SuggestionResponse) -
     heading = "Writing assessment"
     if grading.model_version == "placeholder-v1":
         heading = "Development placeholder assessment — not an AI-generated result"
-    lines = [heading, f"Overall score: {grading.overall_score:.0f}/100", "", "DEEP score breakdown:"]
-    lines.extend(f"- {name}: {score:.0f}/100" for name, score in grading.deep_scores.items())
+    lines = [heading, f"Overall score: {grading.overall_score:.0f}/100", "", "Rubric score breakdown:"]
+    lines.extend(f"- {name}: {score:.0f}/100" for name, score in grading.rubric_scores.items())
     lines.extend(["", "Evidence-based assessment:"])
     for criterion in grading.criteria:
         excerpts = "; ".join(evidence.excerpt for evidence in criterion.evidence)

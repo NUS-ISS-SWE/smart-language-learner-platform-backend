@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from re import Pattern
 
-from app.framework import DeepFrameworkProvider, FrameworkUnavailable
+from app.framework import RubricFrameworkProvider, FrameworkUnavailable
 from app.generator import PROMPT_VERSION, GenerationError, SuggestionGenerator
-from app.models import DeepCriterion, Evidence, GeneratedSuggestions, Grading, Suggestion, SuggestionRequest, SuggestionResponse
+from app.models import RubricCriterion, Evidence, GeneratedSuggestions, Grading, Suggestion, SuggestionRequest, SuggestionResponse
 from app.tools import LearnerProfileTool, ToolUnavailable
 
 
@@ -31,10 +32,12 @@ _WHOLE_COMPOSITION_PATTERNS: tuple[Pattern[str], ...] = (
 _MAX_EXAMPLE_REVISION_CHARACTERS = 400
 _MAX_EXAMPLE_REVISION_SENTENCES = 2
 
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class Candidate:
-    criterion: DeepCriterion
+    criterion: RubricCriterion
     score: float
     evidence: Evidence
     rationale: str
@@ -42,15 +45,15 @@ class Candidate:
 
 
 class SuggestionService:
-    def __init__(self, profile_tool: LearnerProfileTool, framework_provider: DeepFrameworkProvider, generator: SuggestionGenerator):
+    def __init__(self, profile_tool: LearnerProfileTool, framework_provider: RubricFrameworkProvider, generator: SuggestionGenerator):
         self.profile_tool = profile_tool
         self.framework_provider = framework_provider
         self.generator = generator
 
     def ready(self) -> None:
-        # The production default is intentionally not ready until the DEEP owner
-        # connects the canonical provider. This prevents invented rubric guidance.
-        self.framework_provider.get("BEGINNER")
+        # The production default is intentionally not ready until Admin's
+        # canonical rubric endpoint is reachable. This prevents invented guidance.
+        self.framework_provider.get("ENGLISH", "BEGINNER")
 
     def generate(self, request: SuggestionRequest) -> SuggestionResponse:
         if request.composition.language != "ENGLISH":
@@ -59,9 +62,11 @@ class SuggestionService:
             raise SuggestionServiceError("suggestions require an approved review")
         try:
             learner = self.profile_tool.get(request.composition.user_id)
-            framework = self.framework_provider.get(learner.difficulty_level)
         except (ToolUnavailable, FrameworkUnavailable) as error:
             raise SuggestionServiceError(str(error)) from error
+        # Evidence fetched and versioned this framework at the beginning of the workflow.
+        # Reusing it makes ranking reproducible when an Admin edits a rubric while a workflow runs.
+        framework = request.rubric_snapshot
 
         candidates = self._rank(request.grading, framework.criteria)
         try:
@@ -74,15 +79,16 @@ class SuggestionService:
             modelVersion=generated.model_version,
             promptVersion=PROMPT_VERSION,
             tokenUsage=generated.token_usage,
+            usage=generated.usage,
         )
 
     @staticmethod
-    def _rank(grading: Grading, criteria: list[DeepCriterion]) -> list[Candidate]:
+    def _rank(grading: Grading, criteria: list[RubricCriterion]) -> list[Candidate]:
         assessments = {item.criterion.casefold(): item for item in grading.criteria}
         candidates: list[Candidate] = []
         for criterion in criteria:
             assessment = assessments.get(criterion.name.casefold())
-            score = assessment.score if assessment else grading.deep_scores.get(criterion.name)
+            score = assessment.score if assessment else grading.rubric_scores.get(criterion.name)
             if score is None or assessment is None or not assessment.evidence:
                 continue
             candidates.append(Candidate(
@@ -93,7 +99,7 @@ class SuggestionService:
                 weighted_gap=(100 - score) * criterion.weight / 100,
             ))
         if not candidates:
-            raise SuggestionServiceError("approved grading has no DEEP evidence that can ground a suggestion")
+            raise SuggestionServiceError("approved grading has no rubric evidence that can ground a suggestion")
         return sorted(candidates, key=lambda item: (-item.weighted_gap, item.criterion.name))[:3]
 
     @staticmethod
@@ -133,7 +139,7 @@ class SuggestionService:
             key = output.criterion.casefold()
             candidate = by_name.get(key)
             if candidate is None or key in seen:
-                raise SuggestionServiceError("model returned a suggestion outside the selected DEEP criteria")
+                raise SuggestionServiceError("model returned a suggestion outside the selected rubric criteria")
             seen.add(key)
             recommendation = output.recommendation.strip()
             example_revision = output.example_revision.strip() if output.example_revision else None
@@ -142,7 +148,14 @@ class SuggestionService:
             if learning_tip:
                 _validate_coaching_text(learning_tip, "learning tip")
             if example_revision:
-                _validate_example_revision(example_revision)
+                try:
+                    _validate_example_revision(example_revision)
+                except SuggestionServiceError as error:
+                    # An example is optional. Keep the grounded recommendation when
+                    # the model makes its illustrative rewrite too broad or unsafe,
+                    # rather than failing the whole learner assessment.
+                    LOGGER.warning("Discarding invalid example revision for criterion %s: %s", candidate.criterion.name, error)
+                    example_revision = None
             suggestions.append(Suggestion(
                 criterion=candidate.criterion.name,
                 priority=priorities[candidates.index(candidate)],

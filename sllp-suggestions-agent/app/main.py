@@ -6,10 +6,11 @@ from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from prometheus_client import make_asgi_app
 from starlette.concurrency import run_in_threadpool
 
 from app.config import Settings
-from app.framework import UnavailableDeepFrameworkProvider
+from app.framework import AdminRubricFrameworkProvider
 from app.generator import OpenAIChatGenerator
 from app.models import SuggestionRequest
 from app.service import SuggestionService, SuggestionServiceError
@@ -58,8 +59,12 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
         app.state.client = client
         app.state.service = service or SuggestionService(
             LearnerProfileTool(settings.user_service_url, client),
-            UnavailableDeepFrameworkProvider(),
-            OpenAIChatGenerator(settings.openai_api_key, settings.openai_base_url, settings.openai_model, settings.openai_temperature, client),
+            AdminRubricFrameworkProvider(settings.admin_service_url, client),
+            OpenAIChatGenerator(settings.openai_api_key, settings.openai_base_url, settings.openai_model, settings.openai_temperature, client,
+                provider=settings.usage_provider, pricing_version=settings.pricing_version,
+                input_price_micros_per_million=settings.input_price_micros_per_million,
+                cached_input_price_micros_per_million=settings.cached_input_price_micros_per_million,
+                output_price_micros_per_million=settings.output_price_micros_per_million),
         )
         try:
             yield
@@ -67,6 +72,7 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
             client.close()
 
     app = FastAPI(title="SLLP Suggestions Agent", version="1.0", lifespan=lifespan)
+    app.mount("/metrics", make_asgi_app())
 
     @app.get("/.well-known/agent-card.json")
     def agent_card() -> dict[str, Any]:
@@ -75,7 +81,7 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
             "url": f"{settings.public_base_url}/a2a",
             "protocolVersion": "1.0",
             "skills": [{"id": "writing-suggestions", "name": "Writing suggestions"}],
-            "sllp": {"contractVersion": "1.0"},
+            "sllp": {"contractVersion": "2.0"},
         }
 
     @app.get("/health")
@@ -87,11 +93,14 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
         try:
             app.state.service.ready()
         except Exception as error:
-            raise HTTPException(status_code=503, detail="DEEP framework is unavailable") from error
+            raise HTTPException(status_code=503, detail="Admin rubric is unavailable") from error
         return {"status": "ready"}
 
     @app.post("/a2a")
     async def a2a(request: Request) -> dict[str, Any]:
+        authorization = request.headers.get("Authorization", "")
+        if not settings.a2a_token or authorization != f"Bearer {settings.a2a_token}":
+            raise HTTPException(status_code=401, detail="unauthorized")
         request_id = None
         try:
             body = await request.json()

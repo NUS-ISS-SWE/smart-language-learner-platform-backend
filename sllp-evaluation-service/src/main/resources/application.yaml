@@ -1,5 +1,5 @@
 server:
-  port: 8085
+  port: 8093
 
 spring:
   application:
@@ -17,6 +17,8 @@ spring:
         model: text-embedding-3-small
 
 sllp:
+  public-base-url: ${GRADING_PUBLIC_BASE_URL:http://localhost:8093}
+  a2a-token: ${GRADING_AGENT_TOKEN:}
   ai-usage:
     provider: OPENAI
     default-model: gpt-4o-mini

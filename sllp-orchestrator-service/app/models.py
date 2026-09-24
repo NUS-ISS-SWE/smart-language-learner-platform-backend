@@ -17,6 +17,7 @@ def _camel_case(value: str) -> str:
 
 class WorkflowStatus(StrEnum):
     RECEIVED = "RECEIVED"
+    EVIDENCING = "EVIDENCING"
     GRADING = "GRADING"
     REVIEWING = "REVIEWING"
     REGRADING = "REGRADING"
@@ -76,7 +77,7 @@ class WorkflowSubmission(BaseModel):
 
     def request_payload(self, workflow_id: UUID, attempt: int, prior_grading: dict[str, Any] | None = None) -> dict[str, Any]:
         return {
-            "schemaVersion": self.schema_version,
+            "schemaVersion": "2.0",
             "workflowId": str(workflow_id),
             "correlationId": self.correlation_id or str(workflow_id),
             "attempt": attempt,
@@ -157,6 +158,43 @@ class Evidence(BaseModel):
     location: str | None = None
 
 
+class EvidenceFinding(Evidence):
+    polarity: Literal["STRENGTH", "WEAKNESS"]
+    note: str = Field(min_length=1)
+    verified_on_first_pass: bool = Field(
+        validation_alias=AliasChoices("verifiedOnFirstPass", "verified_on_first_pass")
+    )
+
+
+class EvidenceCriterion(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
+    criterion: str = Field(min_length=1)
+    evidence: list[EvidenceFinding] = Field(min_length=1)
+
+
+class RubricSnapshotCriterion(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
+    name: str = Field(min_length=1)
+    weight: float = Field(gt=0, le=100)
+    guidance: str = Field(min_length=1)
+
+
+class RubricSnapshot(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
+    version: str = Field(min_length=1)
+    criteria: list[RubricSnapshotCriterion] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> "RubricSnapshot":
+        names = [criterion.name for criterion in self.criteria]
+        if len(set(names)) != len(names) or round(sum(criterion.weight for criterion in self.criteria), 6) != 100:
+            raise ValueError("rubric snapshot must have unique criteria with weights totaling 100")
+        return self
+
+
 class AgentUsage(BaseModel):
     """Provider-reported token usage plus the immutable price snapshot for one call."""
 
@@ -183,6 +221,18 @@ class AgentUsage(BaseModel):
         return self
 
 
+class EvidenceResponse(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True, alias_generator=_camel_case)
+
+    criteria: list[EvidenceCriterion] = Field(min_length=1)
+    plan: list[str] = Field(default_factory=list)
+    rubric_version: str = Field(min_length=1, validation_alias=AliasChoices("rubricVersion", "rubric_version"))
+    rubric_snapshot: RubricSnapshot = Field(validation_alias=AliasChoices("rubricSnapshot", "rubric_snapshot"))
+    model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
+    prompt_version: str | None = Field(default=None, validation_alias=AliasChoices("promptVersion", "prompt_version"))
+    usage: AgentUsage | None = None
+
+
 class CriterionAssessment(BaseModel):
     criterion: str = Field(min_length=1)
     score: float = Field(ge=0, le=100)
@@ -196,8 +246,8 @@ class GradingResponse(BaseModel):
     overall_score: float = Field(
         ge=0, le=100, validation_alias=AliasChoices("overallScore", "overall_score", "score")
     )
-    deep_scores: dict[str, float] = Field(
-        default_factory=dict, validation_alias=AliasChoices("deepScores", "deep_scores")
+    rubric_scores: dict[str, float] = Field(
+        default_factory=dict, validation_alias=AliasChoices("rubricScores", "rubric_scores")
     )
     criteria: list[CriterionAssessment] = Field(min_length=1)
     confidence: float = Field(ge=0, le=1)
@@ -263,6 +313,7 @@ class WorkflowRecord(BaseModel):
     correlation_id: str | None = None
     status: WorkflowStatus = WorkflowStatus.RECEIVED
     input_payload: dict[str, Any]
+    evidence_output: dict[str, Any] | None = None
     grading_output: dict[str, Any] | None = None
     review_output: dict[str, Any] | None = None
     suggestion_output: dict[str, Any] | None = None

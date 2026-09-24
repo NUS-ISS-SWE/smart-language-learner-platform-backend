@@ -59,6 +59,16 @@ public class EvidenceCollectionServiceImpl implements EvidenceCollectionService 
         return result;
     }
 
+    /** Used by the A2A adapter, which already carries the immutable composition payload. */
+    public EvidenceCollectionResult collect(EvidenceAgentRequest request, String requestId) {
+        if (request.content() == null || request.content().isBlank()) {
+            throw new EvidenceGenerationException("Composition has no content to search for evidence");
+        }
+        EvidenceCollectionResult result = evidenceAgentService.collect(request, requestId);
+        memoryStore.put(request.compositionId(), result);
+        return result;
+    }
+
     @Override
     public Optional<EvidenceCollectionResult> getLast(Long compositionId) {
         return memoryStore.get(compositionId);

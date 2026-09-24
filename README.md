@@ -102,7 +102,7 @@ whenever the service starts. Existing entries are updated using their stable ide
 
 > **Disabled service:** The previous single-call `evaluation-service` remains commented out in `docker-compose.yaml`. The LangGraph orchestrator is the only grading-topic consumer. By default it uses a clearly labelled, contract-valid development placeholder while the team-owned agents are being built.
 
-When `AGENT_PROVIDER=a2a` is enabled later, the orchestrator verifies each peer's Agent Card before delegation and uses its advertised A2A endpoint for `SendMessage`. Agent owners should follow [the SLLP A2A agent contract](sllp-orchestrator-service/AGENT_CONTRACT.md), including `/.well-known/agent-card.json` discovery.
+Run the production-shaped assessment peers with `docker compose --profile agents up --build` and `AGENT_PROVIDER=a2a`. The orchestrator verifies each peer's Agent Card before delegation and uses its advertised A2A endpoint for `SendMessage`; configure distinct peer bearer secrets in `.env`.
 
 The default `AGENT_PROVIDER=placeholder` exercises Kafka, workflow persistence, completion publication, and the existing frontend flow without an LLM. Its score and suggestions are explicitly labelled as development placeholders and must not be used as a real assessment.
 

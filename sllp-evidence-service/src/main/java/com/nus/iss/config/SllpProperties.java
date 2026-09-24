@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Configuration;
 public class SllpProperties {
 
     private Services services = new Services();
+    private String a2aToken;
+    private String publicBaseUrl = "http://localhost:8092";
 
     @Data
     @NoArgsConstructor

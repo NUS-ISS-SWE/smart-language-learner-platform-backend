@@ -28,7 +28,12 @@ class Settings:
     grading_agent_card_url: str | None
     review_agent_card_url: str | None
     suggestion_agent_card_url: str | None
+    evidence_agent_card_url: str | None = None
     agent_provider: str = "placeholder"
+    evidence_agent_token: str = ""
+    grading_agent_token: str = ""
+    review_agent_token: str = ""
+    suggestion_agent_token: str = ""
     workflow_poll_interval_seconds: float = 0.5
     outbox_poll_interval_seconds: float = 0.25
     worker_lease_seconds: int = 60
@@ -56,7 +61,7 @@ class Settings:
             grading_progress_topic=os.getenv(
                 "KAFKA_GRADING_PROGRESS_TOPIC", "SLLP_COMPOSITION_GRADING_PROGRESS_TOPIC"
             ),
-            http_timeout_seconds=float(os.getenv("AGENT_HTTP_TIMEOUT_SECONDS", "20")),
+            http_timeout_seconds=float(os.getenv("AGENT_HTTP_TIMEOUT_SECONDS", "60")),
             max_agent_retries=int(os.getenv("MAX_AGENT_RETRIES", "2")),
             max_regrades=int(os.getenv("MAX_REGRADES", "1")),
             minimum_confidence=float(os.getenv("MINIMUM_CONFIDENCE", "0.60")),
@@ -68,7 +73,12 @@ class Settings:
             grading_agent_card_url=os.getenv("GRADING_AGENT_CARD_URL") or None,
             review_agent_card_url=os.getenv("REVIEW_AGENT_CARD_URL") or None,
             suggestion_agent_card_url=os.getenv("SUGGESTION_AGENT_CARD_URL") or None,
+            evidence_agent_card_url=os.getenv("EVIDENCE_AGENT_CARD_URL") or None,
             agent_provider=os.getenv("AGENT_PROVIDER", "placeholder").strip().lower(),
+            evidence_agent_token=os.getenv("EVIDENCE_AGENT_TOKEN", ""),
+            grading_agent_token=os.getenv("GRADING_AGENT_TOKEN", ""),
+            review_agent_token=os.getenv("REVIEW_AGENT_TOKEN", ""),
+            suggestion_agent_token=os.getenv("SUGGESTION_AGENT_TOKEN", ""),
             workflow_poll_interval_seconds=float(os.getenv("WORKFLOW_POLL_INTERVAL_SECONDS", "0.5")),
             outbox_poll_interval_seconds=float(os.getenv("OUTBOX_POLL_INTERVAL_SECONDS", "0.25")),
             worker_lease_seconds=int(os.getenv("WORKER_LEASE_SECONDS", "60")),

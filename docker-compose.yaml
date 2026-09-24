@@ -209,7 +209,15 @@ services:
       - KAFKA_GRADING_COMPLETED_TOPIC=SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
       - KAFKA_GRADING_PROGRESS_TOPIC=SLLP_COMPOSITION_GRADING_PROGRESS_TOPIC
       - AGENT_PROVIDER=${AGENT_PROVIDER:-placeholder}
+      - EVIDENCE_AGENT_CARD_URL=${EVIDENCE_AGENT_CARD_URL:-http://evidence-agent:8092/.well-known/agent-card.json}
+      - GRADING_AGENT_CARD_URL=${GRADING_AGENT_CARD_URL:-http://grading-agent:8093/.well-known/agent-card.json}
+      - REVIEW_AGENT_CARD_URL=${REVIEW_AGENT_CARD_URL:-http://review-agent:8094/.well-known/agent-card.json}
       - SUGGESTION_AGENT_CARD_URL=${SUGGESTION_AGENT_CARD_URL:-http://suggestions-agent:8091/.well-known/agent-card.json}
+      - EVIDENCE_AGENT_TOKEN=${EVIDENCE_AGENT_TOKEN:-}
+      - GRADING_AGENT_TOKEN=${GRADING_AGENT_TOKEN:-}
+      - REVIEW_AGENT_TOKEN=${REVIEW_AGENT_TOKEN:-}
+      - SUGGESTION_AGENT_TOKEN=${SUGGESTION_AGENT_TOKEN:-}
+      - AGENT_HTTP_TIMEOUT_SECONDS=${AGENT_HTTP_TIMEOUT_SECONDS:-60}
       - WORKER_LEASE_SECONDS=${WORKER_LEASE_SECONDS:-60}
       - OUTBOX_LEASE_SECONDS=${OUTBOX_LEASE_SECONDS:-30}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -221,6 +229,74 @@ services:
       timeout: 5s
       retries: 5
 
+  evidence-agent:
+    profiles: ["agents"]
+    build:
+      context: .
+      dockerfile: sllp-evidence-service/Dockerfile
+    image: sllp-evidence-agent:latest
+    networks: [sllp-network]
+    expose: ["8092"]
+    depends_on:
+      user-service: {condition: service_started}
+      admin-service: {condition: service_started}
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
+      - EVIDENCE_PUBLIC_BASE_URL=http://evidence-agent:8092
+      - EVIDENCE_AGENT_TOKEN=${EVIDENCE_AGENT_TOKEN:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8092/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grading-agent:
+    profiles: ["agents"]
+    build:
+      context: .
+      dockerfile: sllp-evaluation-service/Dockerfile
+    image: sllp-grading-agent:latest
+    networks: [sllp-network]
+    expose: ["8093"]
+    depends_on:
+      user-service: {condition: service_started}
+      admin-service: {condition: service_started}
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
+      - GRADING_PUBLIC_BASE_URL=http://grading-agent:8093
+      - GRADING_AGENT_TOKEN=${GRADING_AGENT_TOKEN:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8093/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  review-agent:
+    profiles: ["agents"]
+    build:
+      context: .
+      dockerfile: sllp-review-service/Dockerfile
+    image: sllp-review-agent:latest
+    networks: [sllp-network]
+    expose: ["8094"]
+    depends_on:
+      user-service: {condition: service_started}
+      admin-service: {condition: service_started}
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
+      - REVIEW_PUBLIC_BASE_URL=http://review-agent:8094
+      - REVIEW_AGENT_TOKEN=${REVIEW_AGENT_TOKEN:-}
+      - REVIEW_AUTO_APPROVE=${REVIEW_AUTO_APPROVE:-false}
+      - REVIEW_USER_SERVICE_URL=http://user-service:8082
+      - REVIEW_ADMIN_SERVICE_URL=http://admin-service:8086
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8094/ready >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   suggestions-agent:
     profiles: ["agents"]
     build:
@@ -228,20 +304,27 @@ services:
       dockerfile: sllp-suggestions-agent/Dockerfile
     image: sllp-suggestions-agent:latest
     container_name: suggestions-agent
-    ports:
-      - "8091:8091"
+    expose:
+      - "8091"
     networks:
       - sllp-network
     environment:
       - SUGGESTIONS_PUBLIC_BASE_URL=http://suggestions-agent:8091
       - SUGGESTIONS_USER_SERVICE_URL=http://user-service:8082
+      - SUGGESTIONS_ADMIN_SERVICE_URL=http://admin-service:8086
       - SUGGESTIONS_OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - SUGGESTIONS_OPENAI_MODEL=${SUGGESTIONS_OPENAI_MODEL:-gpt-4o-mini}
-      # TODO(DEEP owner): replace unavailable with the canonical DEEP/MOE provider.
-      - DEEP_FRAMEWORK_PROVIDER=${DEEP_FRAMEWORK_PROVIDER:-unavailable}
+      - SUGGESTION_AGENT_TOKEN=${SUGGESTION_AGENT_TOKEN:-}
     depends_on:
       user-service:
         condition: service_started
+      admin-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8091/ready')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:v3.5.0

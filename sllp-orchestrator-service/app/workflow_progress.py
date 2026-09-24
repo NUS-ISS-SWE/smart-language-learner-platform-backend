@@ -19,6 +19,7 @@ class ProgressEvent(TypedDict):
 
 
 PROGRESS_MESSAGES = {
+    WorkflowStatus.EVIDENCING: "Gathering supporting passages from your composition…",
     WorkflowStatus.GRADING: "Assessing your composition…",
     WorkflowStatus.REGRADING: "Refining your assessment…",
     WorkflowStatus.REVIEWING: "Checking the assessment for accuracy…",

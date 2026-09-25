@@ -10,7 +10,7 @@ class ToolUnavailable(RuntimeError):
 
 
 class LearnerProfileTool:
-    """Read-only, allowlisted lookup of the learner level used by DEEP."""
+    """Read-only, allowlisted lookup of the learner level used by the rubric."""
 
     def __init__(self, base_url: str, client: httpx.Client):
         self.base_url = base_url.rstrip("/")

@@ -1,4 +1,6 @@
 sllp:
+  public-base-url: ${GRADING_PUBLIC_BASE_URL:http://grading-agent:8093}
+  a2a-token: ${GRADING_AGENT_TOKEN:}
   services:
     user-service-url: http://user-service:8082
     admin-service-url: http://admin-service:8086

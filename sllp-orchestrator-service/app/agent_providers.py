@@ -122,11 +122,14 @@ class A2AAgentProvider(RetryingAgentProvider):
         response = self.client.post(
             self.registry.get(agent).service_url,
             json=request.model_dump(by_alias=True, mode="json"),
-            headers={"A2A-Version": "1.0"},
+            headers={"A2A-Version": "1.0", "Authorization": f"Bearer {self._token_for(agent)}"},
         )
         _raise_on_server_error(response, "agent returned a server error")
         task, artifact = extract_completed_artifact(response.json(), agent)
         return ProviderResponse(artifact, response.status_code, task["id"], task.get("contextId", workflow_id))
+
+    def _token_for(self, agent: AgentName) -> str:
+        return getattr(self.settings, f"{agent}_agent_token", "")
 
 
 def _raise_on_server_error(response: httpx.Response, message: str) -> None:

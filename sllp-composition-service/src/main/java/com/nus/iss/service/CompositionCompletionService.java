@@ -25,6 +25,7 @@ import com.nus.iss.repository.AiUsageEventRepository;
 public class CompositionCompletionService {
     private static final ImprovementSuggestionListConverter SUGGESTION_CONVERTER = new ImprovementSuggestionListConverter();
     private static final Map<String, String> STUDENT_SAFE_PROGRESS_MESSAGES = Map.of(
+            "EVIDENCING", "Gathering supporting passages from your composition…",
             "GRADING", "Assessing your composition…",
             "REGRADING", "Refining your assessment…",
             "REVIEWING", "Checking the assessment for accuracy…",

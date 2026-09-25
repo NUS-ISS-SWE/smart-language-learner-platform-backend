@@ -13,6 +13,7 @@ from app.agent_types import AgentAttempt, AgentCallError, AgentInvocation
 from app.assessment_report import SAFE_FAILURE_MESSAGE, completed_assessment, failed_assessment
 from app.config import Settings
 from app.models import (
+    EvidenceResponse,
     GradingResponse,
     OutboxEvent,
     ReviewDecision,
@@ -39,6 +40,7 @@ ProgressReporter = Callable[[ProgressEvent], None]
 class GraphState(TypedDict, total=False):
     workflow_id: UUID
     submission: WorkflowSubmission
+    evidence: dict[str, Any]
     grading: dict[str, Any]
     review: dict[str, Any]
     suggestions: dict[str, Any]
@@ -77,6 +79,7 @@ class OrchestrationWorkflow:
         state: GraphState = {
             "workflow_id": record.workflow_id,
             "submission": WorkflowSubmission.model_validate(record.input_payload),
+            "evidence": record.evidence_output or {},
             "grading": record.grading_output or {},
             "review": record.review_output or {},
             "suggestions": record.suggestion_output or {},
@@ -97,6 +100,7 @@ class OrchestrationWorkflow:
         graph = StateGraph(GraphState)
         for name, handler in {
             "validate": self._validate,
+            "evidence": self._evidence,
             "grade": self._grade,
             "review": self._review,
             "suggest": self._suggest,
@@ -107,21 +111,24 @@ class OrchestrationWorkflow:
         graph.add_conditional_edges(
             START,
             self._resume_from_status,
-            {"validate": "validate", "grade": "grade", "review": "review", "suggest": "suggest", "assemble": "assemble", "fail": "fail"},
+            {"validate": "validate", "evidence": "evidence", "grade": "grade", "review": "review", "suggest": "suggest", "assemble": "assemble", "fail": "fail"},
         )
-        graph.add_conditional_edges("validate", self._after_validate, {"grade": "grade", "fail": "fail"})
+        graph.add_conditional_edges("validate", self._after_validate, {"evidence": "evidence", "fail": "fail"})
+        graph.add_conditional_edges("evidence", self._after_evidence, {"grade": "grade", "fail": "fail"})
         graph.add_conditional_edges("grade", self._after_grade, {"review": "review", "fail": "fail"})
-        graph.add_conditional_edges("review", self._after_review, {"grade": "grade", "suggest": "suggest", "fail": "fail"})
+        graph.add_conditional_edges("review", self._after_review, {"evidence": "evidence", "suggest": "suggest", "fail": "fail"})
         graph.add_conditional_edges("suggest", self._after_suggest, {"assemble": "assemble", "fail": "fail"})
         graph.add_edge("assemble", END)
         graph.add_edge("fail", END)
         return graph.compile()
 
     @staticmethod
-    def _resume_from_status(state: GraphState) -> Literal["validate", "grade", "review", "suggest", "assemble", "fail"]:
+    def _resume_from_status(state: GraphState) -> Literal["validate", "evidence", "grade", "review", "suggest", "assemble", "fail"]:
         status = state["resume_status"]
         if status is WorkflowStatus.RECEIVED:
             return "validate"
+        if status is WorkflowStatus.EVIDENCING:
+            return "evidence"
         if status in {WorkflowStatus.GRADING, WorkflowStatus.REGRADING}:
             return "grade"
         if status is WorkflowStatus.REVIEWING:
@@ -148,7 +155,45 @@ class OrchestrationWorkflow:
         return {}
 
     @staticmethod
-    def _after_validate(state: GraphState) -> Literal["grade", "fail"]:
+    def _after_validate(state: GraphState) -> Literal["evidence", "fail"]:
+        return "fail" if state.get("error") else "evidence"
+
+    def _evidence(self, state: GraphState) -> GraphState:
+        workflow_id = state["workflow_id"]
+        attempt = state["grading_passes"] + 1
+        self._update(
+            workflow_id,
+            status=WorkflowStatus.EVIDENCING,
+            log_step="EVIDENCE_STARTED",
+            attempt=attempt,
+            outbox=self._progress_outbox(state, WorkflowStatus.EVIDENCING, attempt),
+        )
+        self._report_progress(state, WorkflowStatus.EVIDENCING)
+        try:
+            evidence, invocation = self._invoke_agent(
+                "evidence",
+                "evidence",
+                state["submission"].request_payload(workflow_id, attempt),
+                EvidenceResponse,
+                workflow_id,
+                attempt,
+                state["submission"],
+            )
+        except AgentCallError as error:
+            return {"error": f"evidence collection failed: {redact_for_trace(error)}"}
+        next_status = WorkflowStatus.REGRADING if attempt > 1 else WorkflowStatus.GRADING
+        self._update(
+            workflow_id,
+            status=next_status,
+            log_step="EVIDENCE_COMPLETED",
+            attempt=attempt,
+            evidence_output=evidence,
+            log_details=response_metadata(evidence, invocation),
+        )
+        return {"evidence": evidence}
+
+    @staticmethod
+    def _after_evidence(state: GraphState) -> Literal["grade", "fail"]:
         return "fail" if state.get("error") else "grade"
 
     def _grade(self, state: GraphState) -> GraphState:
@@ -165,10 +210,12 @@ class OrchestrationWorkflow:
         )
         self._report_progress(state, status)
         try:
+            payload = state["submission"].request_payload(workflow_id, attempt)
+            payload["evidence"] = state["evidence"]
             grading, invocation = self._invoke_agent(
                 "grade",
                 "grading",
-                state["submission"].request_payload(workflow_id, attempt),
+                payload,
                 GradingResponse,
                 workflow_id,
                 attempt,
@@ -199,7 +246,7 @@ class OrchestrationWorkflow:
         if state.get("review"):
             return {"review": state["review"]}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
-        payload["grading"] = state["grading"]
+        payload.update({"evidence": state["evidence"], "grading": state["grading"]})
         try:
             review, invocation = self._invoke_agent(
                 "review", "review", payload, ReviewResponse, workflow_id, state["grading_passes"], state["submission"], requires_confidence=True
@@ -216,7 +263,7 @@ class OrchestrationWorkflow:
         )
         return {"review": review}
 
-    def _after_review(self, state: GraphState) -> Literal["grade", "suggest", "fail"]:
+    def _after_review(self, state: GraphState) -> Literal["evidence", "suggest", "fail"]:
         if state.get("error"):
             return "fail"
         decision = ReviewDecision(state["review"]["decision"])
@@ -231,7 +278,7 @@ class OrchestrationWorkflow:
             self._report_progress(state, WorkflowStatus.SUGGESTING)
             return "suggest"
         if decision is ReviewDecision.REGRADE and state["grading_passes"] <= self.settings.max_regrades:
-            return "grade"
+            return "evidence"
         return "fail"
 
     def _suggest(self, state: GraphState) -> GraphState:
@@ -254,7 +301,13 @@ class OrchestrationWorkflow:
             )
             return {"suggestions": suggestions}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
-        payload.update({"grading": state["grading"], "review": state["review"]})
+        payload.update({
+            "grading": state["grading"],
+            "review": state["review"],
+            # Suggestions must rank against the same framework Evidence captured for this
+            # workflow; it must never refetch a potentially edited Admin rubric.
+            "rubricSnapshot": state["evidence"]["rubricSnapshot"],
+        })
         try:
             suggestions, invocation = self._invoke_agent(
                 "suggest", "suggestion", payload, SuggestionResponse, workflow_id, state["grading_passes"], state["submission"]
@@ -304,7 +357,7 @@ class OrchestrationWorkflow:
 
     def _invoke_agent(
         self,
-        operation: Literal["grade", "review", "suggest"],
+        operation: Literal["evidence", "grade", "review", "suggest"],
         agent: str,
         payload: dict[str, Any],
         parser: type[BaseModel],

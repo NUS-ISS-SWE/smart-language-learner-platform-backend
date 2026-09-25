@@ -35,7 +35,7 @@ class CriterionAssessment(ApiModel):
 
 
 class Grading(ApiModel):
-    deep_scores: dict[str, float] = Field(default_factory=dict, validation_alias=AliasChoices("deepScores", "deep_scores"))
+    rubric_scores: dict[str, float] = Field(default_factory=dict, validation_alias=AliasChoices("rubricScores", "rubric_scores", "deepScores", "deep_scores"))
     criteria: list[CriterionAssessment] = Field(min_length=1)
 
 
@@ -51,6 +51,7 @@ class SuggestionRequest(ApiModel):
     composition: Composition
     grading: Grading
     review: Review
+    rubric_snapshot: "RubricFramework" = Field(validation_alias=AliasChoices("rubricSnapshot", "rubric_snapshot"))
 
 
 class SupportingEvidence(Evidence):
@@ -74,6 +75,7 @@ class SuggestionResponse(ApiModel):
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
     prompt_version: str | None = Field(default=None, validation_alias=AliasChoices("promptVersion", "prompt_version"))
     token_usage: int | None = Field(default=None, ge=0, validation_alias=AliasChoices("tokenUsage", "token_usage"))
+    usage: "AgentUsage | None" = None
 
     @model_validator(mode="after")
     def validate_status(self) -> "SuggestionResponse":
@@ -95,23 +97,47 @@ class GeneratedSuggestions(ApiModel):
     suggestions: list[GeneratedSuggestion] = Field(min_length=1, max_length=3)
 
 
-class DeepCriterion(ApiModel):
+class RubricCriterion(ApiModel):
     name: str = Field(min_length=1, max_length=200)
     weight: float = Field(gt=0, le=100)
     guidance: str = Field(min_length=1, max_length=4_000)
 
 
-class DeepFramework(ApiModel):
+class RubricFramework(ApiModel):
     version: str = Field(min_length=1, max_length=100)
-    criteria: list[DeepCriterion] = Field(min_length=1, max_length=4)
+    criteria: list[RubricCriterion] = Field(min_length=1, max_length=10)
 
     @model_validator(mode="after")
-    def require_valid_weights(self) -> "DeepFramework":
+    def require_valid_weights(self) -> "RubricFramework":
         if round(sum(item.weight for item in self.criteria), 6) != 100:
-            raise ValueError("DEEP criterion weights must total 100")
+            raise ValueError("rubric criterion weights must total 100")
+        return self
+
+
+class AgentUsage(ApiModel):
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    prompt_tokens: int = Field(ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    pricing_version: str = Field(min_length=1)
+    input_price_micros_per_million: int = Field(ge=0)
+    cached_input_price_micros_per_million: int = Field(ge=0)
+    output_price_micros_per_million: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def valid_usage(self) -> "AgentUsage":
+        if self.cached_input_tokens > self.prompt_tokens or self.total_tokens != self.prompt_tokens + self.completion_tokens:
+            raise ValueError("invalid provider token usage")
         return self
 
 
 class LearnerProfile(ApiModel):
     id: int
     difficulty_level: str = Field(validation_alias=AliasChoices("difficultyLevel", "difficulty_level"))
+
+
+# Compatibility aliases for existing fixture-only tests; production uses rubric terminology.
+DeepCriterion = RubricCriterion
+DeepFramework = RubricFramework

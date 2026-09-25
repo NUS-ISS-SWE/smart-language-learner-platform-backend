@@ -6,7 +6,7 @@ This document guides you through end-to-end testing and verification of the User
 ## Prerequisites
 - PostgreSQL running locally (port 5432)
 - Both services can reach the database
-- AWS S3 access or LocalStack for local S3 emulation (optional for testing)
+- Docker Desktop (LocalStack supplies local S3 emulation)
 - Postman or curl for API testing
 
 ## Setup Steps
@@ -25,14 +25,12 @@ CREATE DATABASE sllp_document_db;
 
 ### 2. Environment Configuration
 
-**Create `.env.local` with:**
+**Create `.env` with:**
 ```env
 DB_PASSWORD=postgres
 JWT_SECRET=your-secret-key-change-in-production-min-64-chars-for-HS512
-AWS_S3_BUCKET=sllp-uploads-dev
-AWS_REGION=ap-southeast-1
-AWS_ACCESS_KEY_ID=test-key
-AWS_SECRET_ACCESS_KEY=test-secret
+# LocalStack credentials and endpoints are supplied automatically by
+# docker-compose.override.yaml. Do not add real AWS credentials for local testing.
 ```
 
 ### 3. Build Backend
@@ -40,13 +38,19 @@ AWS_SECRET_ACCESS_KEY=test-secret
 mvn clean install
 ```
 
-### 4. Run Services
-```bash
-# Terminal 1: User Service
-java -jar sllp-user-service/target/sllp-user-service-0.0.1-SNAPSHOT.jar
+### 4. Start local S3 and run the storage integration test
+```powershell
+docker compose up -d localstack
+$env:RUN_S3_INTEGRATION_TESTS='true'
+mvn -pl sllp-document-service -am test
+```
 
-# Terminal 2: Document Service
-java -jar sllp-document-service/target/sllp-document-service-0.0.1-SNAPSHOT.jar
+The test verifies upload, presigned download, and deletion against LocalStack with
+signature validation enabled.
+
+### 5. Run Services
+```bash
+docker compose up --build
 ```
 
 ## Test Scenarios

@@ -1,35 +1,50 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Protocol
 
-from app.models import DeepFramework
+import httpx
+
+from app.models import RubricCriterion, RubricFramework
 
 
 class FrameworkUnavailable(RuntimeError):
     pass
 
 
-class DeepFrameworkProvider(Protocol):
-    """Port for the team-owned canonical DEEP/MOE framework source."""
+class RubricFrameworkProvider(Protocol):
+    """Read-only source for the canonical Admin assessment rubric."""
 
-    def get(self, difficulty_level: str) -> DeepFramework:
-        """Return the active DEEP profile for one learner level."""
-
-
-class UnavailableDeepFrameworkProvider:
-    """Safe default until the DEEP owner exposes the canonical source."""
-
-    def get(self, difficulty_level: str) -> DeepFramework:
-        raise FrameworkUnavailable(
-            "the canonical DEEP framework is not configured; suggestions are not ready for production"
-        )
+    def get(self, language: str, difficulty_level: str) -> RubricFramework:
+        """Return the active rubric profile for one language and learner level."""
 
 
-class FixtureDeepFrameworkProvider:
+class AdminRubricFrameworkProvider:
+    def __init__(self, base_url: str, client: httpx.Client):
+        self.base_url = base_url.rstrip("/")
+        self.client = client
+
+    def get(self, language: str, difficulty_level: str) -> RubricFramework:
+        try:
+            response = self.client.get(f"{self.base_url}/api/v1/admin/rubrics", params={"language": language, "difficultyLevel": difficulty_level})
+            response.raise_for_status()
+            rows = response.json()
+            criteria = [RubricCriterion(name=row["criterionName"], weight=float(row["weightPercentage"]), guidance=row["criterionDescription"]) for row in rows]
+            raw = json.dumps([item.model_dump(by_alias=True) for item in criteria], sort_keys=True, ensure_ascii=False)
+            return RubricFramework(version=f"admin-rubric-{hashlib.sha256(raw.encode()).hexdigest()[:12]}", criteria=criteria)
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
+            raise FrameworkUnavailable("the canonical Admin rubric is unavailable") from error
+
+
+class FixtureRubricFrameworkProvider:
     """Test-only provider. Do not select it from production environment settings."""
 
-    def __init__(self, framework: DeepFramework):
+    def __init__(self, framework: RubricFramework):
         self.framework = framework
 
-    def get(self, difficulty_level: str) -> DeepFramework:
+    def get(self, language: str, difficulty_level: str) -> RubricFramework:
         return self.framework
+
+
+FixtureDeepFrameworkProvider = FixtureRubricFrameworkProvider

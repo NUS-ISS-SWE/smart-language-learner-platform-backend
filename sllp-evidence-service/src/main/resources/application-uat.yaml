@@ -1,4 +1,6 @@
 sllp:
+  public-base-url: ${EVIDENCE_PUBLIC_BASE_URL:http://evidence-agent:8092}
+  a2a-token: ${EVIDENCE_AGENT_TOKEN:}
   services:
     composition-service-url: http://composition-service:8083
     admin-service-url: http://admin-service:8086

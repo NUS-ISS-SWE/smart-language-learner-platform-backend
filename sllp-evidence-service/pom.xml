@@ -29,12 +29,12 @@
         </dependencies>
     </dependencyManagement>
 
-    <!--
-        Deliberately standalone: no sllp-contracts, no Kafka starter. This service is triggered
-        over its own REST endpoint and talks to composition/admin/user-service directly. See the
-        Evidence Agent Dossier for why (orchestrator integration is a later, separate adapter).
-    -->
     <dependencies>
+        <dependency>
+            <groupId>com.nus.iss</groupId>
+            <artifactId>sllp-contracts</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>

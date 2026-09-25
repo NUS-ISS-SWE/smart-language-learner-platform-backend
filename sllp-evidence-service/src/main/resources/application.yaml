@@ -1,5 +1,5 @@
 server:
-  port: 8091
+  port: 8092
 
 spring:
   application:
@@ -14,6 +14,11 @@ spring:
         temperature: 0.3
 
 sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
+  public-base-url: ${EVIDENCE_PUBLIC_BASE_URL:http://localhost:8092}
+  a2a-token: ${EVIDENCE_AGENT_TOKEN:}
   ai-usage:
     provider: OPENAI
     default-model: gpt-4o-mini

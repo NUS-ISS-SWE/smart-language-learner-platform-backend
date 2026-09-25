@@ -55,13 +55,14 @@ class CompositionCommandServiceTest {
             return composition;
         });
 
-        CompositionResponse response = commandService.create(1L, new CreateCompositionRequest("Title", "English text"));
+        CompositionResponse response = commandService.create(1L, new CreateCompositionRequest("Title", "English text", "document-7"));
 
         assertEquals(10L, response.id());
         assertEquals(1L, response.userId());
         assertEquals(CompositionSource.RAW_TEXT, response.compositionSource());
         assertEquals(CompositionStatus.DRAFT, response.compositionStatus());
         assertEquals(Language.ENGLISH, response.language());
+        assertEquals("document-7", response.sourceDocumentId());
         assertNotNull(response.createdAt());
         verifyNoInteractions(kafkaProducerService);
     }
@@ -70,8 +71,8 @@ class CompositionCommandServiceTest {
     void createRejectsInvalidUserRequestAndUnsupportedLanguage() {
         assertThrows(IllegalArgumentException.class, () -> commandService.create(0L, createRequest()));
         assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, null));
-        assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, new CreateCompositionRequest(" ", "Text")));
-        assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, new CreateCompositionRequest("Title", " ")));
+        assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, new CreateCompositionRequest(" ", "Text", null)));
+        assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, new CreateCompositionRequest("Title", " ", null)));
 
         when(languageDetectorService.detectLanguage("English text")).thenReturn(Optional.empty());
         assertThrows(IllegalArgumentException.class, () -> commandService.create(1L, createRequest()));
@@ -190,7 +191,7 @@ class CompositionCommandServiceTest {
     }
 
     private static CreateCompositionRequest createRequest() {
-        return new CreateCompositionRequest("My title", "English text");
+        return new CreateCompositionRequest("My title", "English text", null);
     }
 
     private static UpdateCompositionRequest updateRequest() {

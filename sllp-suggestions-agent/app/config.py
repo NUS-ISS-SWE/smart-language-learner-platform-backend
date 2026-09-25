@@ -8,24 +8,34 @@ from dataclasses import dataclass
 class Settings:
     public_base_url: str
     user_service_url: str
+    admin_service_url: str
+    a2a_token: str
     openai_api_key: str | None
     openai_base_url: str
     openai_model: str
     openai_temperature: float
     http_timeout_seconds: float
-    deep_framework_provider: str
+    usage_provider: str
+    pricing_version: str
+    input_price_micros_per_million: int
+    cached_input_price_micros_per_million: int
+    output_price_micros_per_million: int
 
     @classmethod
     def from_environment(cls) -> "Settings":
         return cls(
             public_base_url=os.getenv("SUGGESTIONS_PUBLIC_BASE_URL", "http://localhost:8091").rstrip("/"),
             user_service_url=os.getenv("SUGGESTIONS_USER_SERVICE_URL", "http://localhost:8082").rstrip("/"),
+            admin_service_url=os.getenv("SUGGESTIONS_ADMIN_SERVICE_URL", "http://localhost:8086").rstrip("/"),
+            a2a_token=os.getenv("SUGGESTION_AGENT_TOKEN", ""),
             openai_api_key=os.getenv("SUGGESTIONS_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
             openai_base_url=os.getenv("SUGGESTIONS_OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             openai_model=os.getenv("SUGGESTIONS_OPENAI_MODEL", "gpt-4o-mini"),
             openai_temperature=float(os.getenv("SUGGESTIONS_OPENAI_TEMPERATURE", "0.2")),
             http_timeout_seconds=float(os.getenv("SUGGESTIONS_HTTP_TIMEOUT_SECONDS", "20")),
-            # No production DEEP source exists yet. This default deliberately prevents
-            # a deployment from serving invented framework guidance.
-            deep_framework_provider=os.getenv("DEEP_FRAMEWORK_PROVIDER", "unavailable").strip().lower(),
+            usage_provider=os.getenv("SUGGESTIONS_USAGE_PROVIDER", "OPENAI"),
+            pricing_version=os.getenv("SUGGESTIONS_PRICING_VERSION", "openai-gpt-4o-mini-2026-08"),
+            input_price_micros_per_million=int(os.getenv("SUGGESTIONS_INPUT_PRICE_MICROS_PER_MILLION", "150000")),
+            cached_input_price_micros_per_million=int(os.getenv("SUGGESTIONS_CACHED_INPUT_PRICE_MICROS_PER_MILLION", "75000")),
+            output_price_micros_per_million=int(os.getenv("SUGGESTIONS_OUTPUT_PRICE_MICROS_PER_MILLION", "600000")),
         )

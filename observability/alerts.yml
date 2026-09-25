@@ -1,4 +1,14 @@
 groups:
+  - name: assessment-agents
+    rules:
+      - alert: AssessmentAgentUnavailable
+        expr: up{job=~"sllp-assessment-agents|sllp-suggestions-agent"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: An assessment agent is unavailable
+          description: "{{ $labels.instance }} is not reachable by Prometheus."
   - name: audit-logging
     rules:
       - alert: AuditWriteFailures

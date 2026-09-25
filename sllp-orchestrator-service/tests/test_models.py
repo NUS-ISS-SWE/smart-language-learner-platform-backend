@@ -6,7 +6,7 @@ from app.models import AgentUsage, WorkflowSubmission
 from app.worker import KafkaWorkflowWorker
 
 
-def test_legacy_grading_event_is_normalized_to_v1_contract():
+def test_legacy_grading_event_is_normalized_to_v2_peer_contract():
     submission = WorkflowSubmission.from_kafka_payload(
         {
             "compositionId": 12,
@@ -21,7 +21,7 @@ def test_legacy_grading_event_is_normalized_to_v1_contract():
     request = submission.request_payload(uuid4(), 1)
     assert submission.composition.composition_id == 12
     assert request["composition"]["compositionId"] == 12
-    assert request["schemaVersion"] == "1.0"
+    assert request["schemaVersion"] == "2.0"
 
 
 def test_current_grading_event_retains_request_identity_for_the_completion_contract():

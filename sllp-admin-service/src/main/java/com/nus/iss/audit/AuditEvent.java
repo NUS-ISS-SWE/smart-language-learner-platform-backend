@@ -3,10 +3,7 @@ package com.nus.iss.audit;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-import tools.jackson.databind.JsonNode;
+import org.hibernate.annotations.ColumnTransformer;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,8 +40,11 @@ public class AuditEvent {
     @Column(name = "http_method") private String httpMethod;
     @Column(name = "http_path") private String httpPath;
     @Column(name = "http_status") private Integer httpStatus;
-    @JdbcTypeCode(SqlTypes.JSON) @Column(name = "before_data", columnDefinition = "jsonb") private JsonNode beforeData;
-    @JdbcTypeCode(SqlTypes.JSON) @Column(name = "after_data", columnDefinition = "jsonb") private JsonNode afterData;
-    @JdbcTypeCode(SqlTypes.JSON) @Column(nullable = false, columnDefinition = "jsonb") private JsonNode metadata;
+    // Hibernate 7 does not yet auto-detect Jackson 3's tools.jackson mapper.
+    // Bind validated JSON as text and cast at the PostgreSQL boundary, while
+    // the API boundary continues to expose structured JsonNode values.
+    @Column(name = "before_data", columnDefinition = "jsonb") @ColumnTransformer(write = "?::jsonb") private String beforeData;
+    @Column(name = "after_data", columnDefinition = "jsonb") @ColumnTransformer(write = "?::jsonb") private String afterData;
+    @Column(nullable = false, columnDefinition = "jsonb") @ColumnTransformer(write = "?::jsonb") private String metadata;
     @Column(name = "error_code") private String errorCode;
 }

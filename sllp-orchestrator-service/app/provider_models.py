@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-AgentName = Literal["grading", "review", "suggestion"]
+AgentName = Literal["evidence", "grading", "review", "suggestion"]
 
 
 class _WireModel(BaseModel):
@@ -48,4 +48,3 @@ class A2ASendMessageRequest(_WireModel):
                 configuration=A2AConfiguration(accepted_output_modes=["application/json"]),
             ),
         )
-

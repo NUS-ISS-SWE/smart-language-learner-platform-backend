@@ -53,7 +53,7 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
     if agent == "grading":
         return {
             "overallScore": 75,
-            "deepScores": {"Description": 75, "Elaboration": 75, "Emotion": 75, "PersonalExperience": 75},
+            "rubricScores": {"Development placeholder": 75},
             "criteria": [
                 {
                     "criterion": "Development placeholder",
@@ -63,6 +63,14 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
                 }
             ],
             "confidence": 0.99,
+            **metadata,
+        }
+    if agent == "evidence":
+        return {
+            "plan": ["Development-only evidence placeholder."],
+            "rubricVersion": "placeholder-v1",
+            "rubricSnapshot": {"version": "placeholder-v1", "criteria": [{"name": "Development placeholder", "weight": 100, "guidance": "Development-only rubric."}]},
+            "criteria": [{"criterion": "Development placeholder", "evidence": [{"excerpt": "Submitted composition", "polarity": "STRENGTH", "note": "Development-only evidence.", "verifiedOnFirstPass": True}]}],
             **metadata,
         }
     if agent == "review":

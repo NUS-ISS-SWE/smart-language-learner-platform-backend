@@ -40,6 +40,13 @@ public class Composition {
     private String gradingProgressMessage;
     private String gradingProgressStage;
     private String storagePath;
+    /**
+     * Optional opaque ID of the document from which this composition was created.
+     * Documents are owned by another service, so this is deliberately not a local
+     * foreign key. The document service still enforces access when it is read.
+     */
+    @Column(name = "source_document_id")
+    private String sourceDocumentId;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -1,0 +1,25 @@
+server:
+  port: 8094
+spring:
+  application:
+    name: sllp-review-service
+  ai:
+    model:
+      chat: openai
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: ${REVIEW_OPENAI_MODEL:gpt-4o-mini}
+        temperature: 0.1
+sllp:
+  public-base-url: ${REVIEW_PUBLIC_BASE_URL:http://localhost:8094}
+  a2a-token: ${REVIEW_AGENT_TOKEN:}
+  review-auto-approve: ${REVIEW_AUTO_APPROVE:false}
+  user-service-url: ${REVIEW_USER_SERVICE_URL:http://localhost:8082}
+  admin-service-url: ${REVIEW_ADMIN_SERVICE_URL:http://localhost:8086}
+  ai-usage:
+    provider: OPENAI
+    pricing-version: openai-gpt-4o-mini-2026-08
+    input-price-micros-per-million: 150000
+    cached-input-price-micros-per-million: 75000
+    output-price-micros-per-million: 600000

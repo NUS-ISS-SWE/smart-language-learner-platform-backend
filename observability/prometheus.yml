@@ -14,3 +14,13 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: [orchestrator-service:8090]
+
+  - job_name: sllp-assessment-agents
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [evidence-agent:8092, grading-agent:8093, review-agent:8094]
+
+  - job_name: sllp-suggestions-agent
+    metrics_path: /metrics
+    static_configs:
+      - targets: [suggestions-agent:8091]

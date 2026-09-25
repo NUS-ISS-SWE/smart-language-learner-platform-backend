@@ -37,10 +37,10 @@ public class AuditEventService {
                 .actorName(request.actorName()).actorRole(request.actorRole()).targetType(request.targetType())
                 .targetId(request.targetId()).requestId(request.requestId()).correlationId(request.correlationId())
                 .sourceIp(request.sourceIp()).userAgent(request.userAgent()).httpMethod(request.httpMethod())
-                .httpPath(request.httpPath()).httpStatus(request.httpStatus()).beforeData(request.beforeData())
-                .afterData(request.afterData()).metadata(request.metadata() == null ? objectMapper.createObjectNode() : request.metadata())
+                .httpPath(request.httpPath()).httpStatus(request.httpStatus()).beforeData(json(request.beforeData()))
+                .afterData(json(request.afterData())).metadata(json(request.metadata() == null ? objectMapper.createObjectNode() : request.metadata()))
                 .errorCode(request.errorCode()).build();
-        return AuditEventResponse.from(repository.save(event));
+        return AuditEventResponse.from(repository.save(event), objectMapper);
     }
 
     @Transactional(readOnly = true)
@@ -58,7 +58,7 @@ public class AuditEventService {
             equal(predicates, builder, root, "correlationId", correlationId);
             return builder.and(predicates.toArray(Predicate[]::new));
         };
-        return repository.findAll(specification, pageable).map(AuditEventResponse::from);
+        return repository.findAll(specification, pageable).map(event -> AuditEventResponse.from(event, objectMapper));
     }
 
     private static void equal(java.util.List<Predicate> predicates, jakarta.persistence.criteria.CriteriaBuilder builder,
@@ -69,6 +69,15 @@ public class AuditEventService {
     private static void validate(AuditEventIngestRequest request) {
         if (!SetValues.OUTCOMES.contains(request.outcome())) throw new IllegalArgumentException("invalid audit outcome");
         AuditRedaction.assertSafe(request.beforeData()); AuditRedaction.assertSafe(request.afterData()); AuditRedaction.assertSafe(request.metadata());
+    }
+
+    private String json(JsonNode value) {
+        if (value == null) return null;
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception error) {
+            throw new IllegalArgumentException("audit JSON could not be serialized", error);
+        }
     }
 
     private static final class SetValues { private static final java.util.Set<String> OUTCOMES = java.util.Set.of("SUCCESS", "FAILURE", "DENIED"); }

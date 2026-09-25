@@ -53,6 +53,9 @@ class AgentClient:
     def grade(self, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
         return self.provider.invoke("grading", payload, parser)
 
+    def evidence(self, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
+        return self.provider.invoke("evidence", payload, parser)
+
     def review(self, payload: dict[str, Any], parser: type[T]) -> AgentInvocation[T]:
         return self.provider.invoke("review", payload, parser)
 

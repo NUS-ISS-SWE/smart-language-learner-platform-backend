@@ -7,7 +7,6 @@ import com.nus.iss.service.CompositionEvaluationService;
 import com.nus.iss.service.KafkaConsumerService;
 import com.nus.iss.service.KafkaProducerService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -33,10 +32,7 @@ public class KafkaConsumerServiceImpl implements KafkaConsumerService {
     }
 
     @Override
-    @KafkaListener(
-            topics = "${sllp.kafka.topics.composition-grading-requested}",
-            groupId = "${sllp.kafka.group-id}"
-    )
+    /** Legacy direct adapter retained for tests; orchestration no longer registers a Kafka consumer. */
     public void consumeCompositionGradingRequestedEvent(String payload) {
         log.info("CompositionGradingRequest: {}", payload);
         CompositionGradingRequestedEvent request = deserializeRequest(payload);

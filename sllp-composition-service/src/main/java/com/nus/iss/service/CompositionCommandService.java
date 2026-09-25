@@ -53,7 +53,8 @@ public class CompositionCommandService {
         Composition composition = Composition.builder()
                 .userId(userId).title(request.title()).content(request.content())
                 .compositionSource(CompositionSource.RAW_TEXT).language(language)
-                .compositionStatus(CompositionStatus.DRAFT).createdAt(now).updatedAt(now).build();
+                .compositionStatus(CompositionStatus.DRAFT).sourceDocumentId(request.sourceDocumentId())
+                .createdAt(now).updatedAt(now).build();
         return compositionMapper.toResponse(compositionRepository.save(composition));
     }
 

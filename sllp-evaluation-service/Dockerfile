@@ -32,8 +32,6 @@ WORKDIR /app
 
 COPY --from=builder /build/sllp-evaluation-service/target/sllp-evaluation-service-*.jar app.jar
 
-EXPOSE 8085
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+EXPOSE 8093
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

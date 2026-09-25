@@ -182,10 +182,11 @@ public class EvidenceAgentService {
             }
         }
 
-        return buildResult(request.compositionId(), response, usage, verifiedOnFirstPass);
+        return buildResult(request.compositionId(), response, toolContext.requireRubric(), usage, verifiedOnFirstPass);
     }
 
     private static EvidenceCollectionResult buildResult(Long compositionId, EvidenceAgentResponse response,
+                                                          List<RubricCriterionDTO> rubric,
                                                           AiUsage usage, boolean verifiedOnFirstPass) {
         List<CriterionEvidence> criteria = response.criteria().stream()
                 .map(finding -> new CriterionEvidence(
@@ -194,7 +195,7 @@ public class EvidenceAgentService {
                                 .map(item -> new EvidenceItem(item.excerpt(), item.polarity(), item.note(), verifiedOnFirstPass))
                                 .toList()))
                 .toList();
-        return new EvidenceCollectionResult(compositionId, PlanningStep.normalize(response.plan()), criteria, usage);
+        return new EvidenceCollectionResult(compositionId, PlanningStep.normalize(response.plan()), criteria, rubric, usage);
     }
 
     private static String formatRubric(List<RubricCriterionDTO> rubric) {

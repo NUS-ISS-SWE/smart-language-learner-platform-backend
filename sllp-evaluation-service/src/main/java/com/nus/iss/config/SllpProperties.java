@@ -15,6 +15,8 @@ public class SllpProperties {
 
     private Kafka kafka = new Kafka();
     private Services services = new Services();
+    private String a2aToken;
+    private String publicBaseUrl = "http://localhost:8093";
 
     @Data
     @NoArgsConstructor

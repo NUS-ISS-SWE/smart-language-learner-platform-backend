@@ -1,6 +1,6 @@
-# SLLP A2A Agent Contract v1
+# SLLP A2A Agent Contract v2
 
-The orchestrator is a deterministic LangGraph supervisor. It supports the A2A v1 provider described below for team-owned peer services. During local development it defaults to a clearly labelled, contract-valid placeholder provider. This development mode does not use Agent Cards.
+The orchestrator is a deterministic LangGraph supervisor. It coordinates Evidence, Grading, Review, and Suggestions peers through the SLLP A2A contract v2. A2A is the default topology in Compose and deployed environments. A clearly labelled placeholder provider is available only through the explicit `docker-compose.placeholder.yaml` local-development overlay.
 
 Transient network failures and HTTP 5xx responses are retried twice with exponential backoff. Invalid A2A messages, non-terminal tasks, invalid output artifacts, and HTTP 4xx responses fail safely without exposing partial assessment content to the student.
 
@@ -14,15 +14,15 @@ Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. T
   "url": "https://grading-agent.example/a2a",
   "protocolVersion": "1.0",
   "skills": [{"id": "composition-grading", "name": "Composition grading"}],
-  "sllp": {"contractVersion": "1.0"}
+  "sllp": {"contractVersion": "2.0"}
 }
 ```
 
-The required skill IDs are `composition-grading`, `assessment-review`, and `writing-suggestions`. `protocolVersion` must be A2A v1 and the `sllp.contractVersion` extension must be `1.0`, so the supervisor does not delegate to an incompatible peer. Card discovery is required for a deployed orchestrator; isolated unit tests can inject a test registry instead.
+The required skill IDs are `evidence-collection`, `composition-grading`, `assessment-review`, and `writing-suggestions`. `protocolVersion` must be A2A v1 and `sllp.contractVersion` must be `2.0`. Every `POST /a2a` call requires that peer's configured `Authorization: Bearer` secret.
 
 ## A2A task request and response
 
-For every Grade, Review, and Suggest operation, the orchestrator sends `SendMessage` to the verified Agent Card `url`. The workflow UUID is the A2A `contextId`; each call creates one task.
+For every Evidence, Grade, Review, and Suggest operation, the orchestrator sends `SendMessage` to the verified Agent Card `url`. The workflow UUID is the A2A `contextId`; each call creates one task.
 
 ```json
 {
@@ -41,7 +41,7 @@ For every Grade, Review, and Suggest operation, the orchestrator sends `SendMess
 }
 ```
 
-The peer must synchronously return a completed A2A task containing one JSON artifact. A task that is still working, failed, input-required, or has no JSON artifact is not accepted in v1.
+The peer must synchronously return a completed A2A task containing one JSON artifact. A task that is still working, failed, input-required, or has no JSON artifact is not accepted by this contract.
 
 ```json
 {
@@ -80,7 +80,7 @@ The following is a complete, representative `SendMessage` response from a gradin
         "artifactId": "result UUID",
         "parts": [{"mediaType": "application/json", "data": {
           "overallScore": 78,
-          "deepScores": {"Description": 78, "Elaboration": 76},
+          "rubricScores": {"TASK_IDEAS": 78, "EXPRESSION_DESCRIPTION_VOICE": 76},
           "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific details support the central idea.", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
           "confidence": 0.87,
           "modelVersion": "grading-model",
@@ -130,12 +130,28 @@ The following is a complete, representative `SendMessage` response from a gradin
 
 The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. A re-grade uses `attempt: 2`.
 
+The Evidence request uses the shared request artifact only. It returns this artifact, which the orchestrator persists verbatim and supplies to Grading and Review:
+
+```json
+{
+  "plan": ["Check each rubric criterion against the composition."],
+  "rubricVersion": "admin-rubric-<content-hash>",
+  "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
+  "criteria": [{"criterion": "TASK_IDEAS", "evidence": [{"excerpt": "The waves sparkled", "polarity": "STRENGTH", "note": "Specific detail", "verifiedOnFirstPass": true}]}],
+  "modelVersion": "model-name",
+  "promptVersion": "evidence-v2",
+  "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 240, "cachedInputTokens": 0, "completionTokens": 81, "totalTokens": 321, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
+}
+```
+
 ## Grading response artifact
 
 ```json
 {
   "overallScore": 75,
-  "deepScores": {"Description": 78, "Elaboration": 72, "Emotion": 74, "PersonalExperience": 76},
+  "rubricScores": {"TASK_IDEAS": 78, "ORGANISATION_COHESION": 72, "GRAMMAR_SENTENCE_CONTROL": 74},
+  "rubricVersion": "admin-rubric-<content-hash>",
+  "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
   "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific explanation", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
   "confidence": 0.87,
   "modelVersion": "model-name",
@@ -144,7 +160,7 @@ The Review request additionally includes `grading`; the Suggestion request inclu
 }
 ```
 
-`overallScore`, each criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Scores are 0-100; confidence is 0-1.
+`overallScore`, `rubricScores`, each criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Scores are 0-100; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Grading and Suggestions must use it rather than refetching Admin. Grading must cover every criterion exactly once and its overall score must equal the snapshot-weighted criterion scores. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
 
 ### Provider usage and cost snapshot
 

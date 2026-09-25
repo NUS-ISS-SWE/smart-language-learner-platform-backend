@@ -55,7 +55,7 @@ public class JdbcAgentWorkflowMetricsQueryRepository implements AgentWorkflowMet
                 WITH attempts AS (
                     SELECT details->>'agent' AS agent, details->>'status' AS attempt_status
                     FROM agent_workflow_step_log
-                    WHERE step IN ('GRADING_ATTEMPT', 'REVIEW_ATTEMPT', 'SUGGESTION_ATTEMPT')
+                    WHERE step IN ('EVIDENCE_ATTEMPT', 'GRADING_ATTEMPT', 'REVIEW_ATTEMPT', 'SUGGESTION_ATTEMPT')
                       AND created_at >= (:start AT TIME ZONE 'UTC') AND created_at < (:endExclusive AT TIME ZONE 'UTC')
                 ), usage AS (
                     SELECT agent, COALESCE(SUM(total_tokens), 0) AS tokens, COALESCE(SUM(estimated_cost_micros), 0) AS cost

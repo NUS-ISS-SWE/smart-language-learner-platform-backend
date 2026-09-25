@@ -79,6 +79,7 @@ class AgentRegistry:
         self.settings = settings
         self.client = client or httpx.Client(timeout=settings.http_timeout_seconds)
         self.peers = (
+            PeerAgent("evidence", "evidence-collection", settings.evidence_agent_card_url),
             PeerAgent("grading", "composition-grading", settings.grading_agent_card_url),
             PeerAgent("review", "assessment-review", settings.review_agent_card_url),
             PeerAgent("suggestion", "writing-suggestions", settings.suggestion_agent_card_url),
@@ -134,8 +135,8 @@ class AgentRegistry:
         if not card.protocol_version or not card.protocol_version.startswith("1."):
             raise AgentDiscoveryError(f"{peer.key} agent card does not support A2A v1")
         extension = card.sllp or {}
-        if extension.get("contractVersion") != "1.0":
-            raise AgentDiscoveryError(f"{peer.key} agent card does not support SLLP contract v1.0")
+        if extension.get("contractVersion") != "2.0":
+            raise AgentDiscoveryError(f"{peer.key} agent card does not support SLLP contract v2.0")
         if self._origin(card.url) != self._origin(peer.card_url):
             raise AgentDiscoveryError(f"{peer.key} agent card endpoint differs from the allowlisted card origin")
         return VerifiedAgentCard(
@@ -144,7 +145,7 @@ class AgentRegistry:
             card_url=peer.card_url,
             service_url=card.url,
             skill=peer.required_skill,
-            contract_version="1.0",
+            contract_version="2.0",
             verified_at_monotonic=verified_at,
         )
 

@@ -36,6 +36,7 @@ aws:
     region: ${AWS_REGION:ap-southeast-1}
     access-key: ${AWS_ACCESS_KEY_ID:}
     secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    session-token: ${AWS_SESSION_TOKEN:}
     endpoint: ${AWS_S3_ENDPOINT:}
     public-endpoint: ${AWS_S3_PUBLIC_ENDPOINT:}
 

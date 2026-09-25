@@ -41,7 +41,7 @@ class ReviewA2aControllerTest {
         when(properties.getPublicBaseUrl()).thenReturn("http://review.test");
         when(properties.getA2aToken()).thenReturn("test-token");
         when(service.review(anyString(), eq(7L), eq("ENGLISH"))).thenReturn(new ReviewAgentService.Reviewed(
-                new ReviewModelResponse("APPROVE", 0.9, List.of(new ReviewModelResponse.Finding("TASK_IDEAS", "Evidence supports the score."))),
+                approvedReview(),
                 Map.of("provider", "OPENAI", "model", "test-model", "promptTokens", 10L, "cachedInputTokens", 0L,
                         "completionTokens", 2L, "totalTokens", 12L, "pricingVersion", "test-v1",
                         "inputPriceMicrosPerMillion", 1L, "cachedInputPriceMicrosPerMillion", 1L, "outputPriceMicrosPerMillion", 1L)));
@@ -55,6 +55,8 @@ class ReviewA2aControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.task.status.state").value("TASK_STATE_COMPLETED"))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.decision").value("APPROVE"))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.qualityScore").value(100))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.checks.length()").value(4))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.findings[0].criterion").value("TASK_IDEAS"));
 
         verify(service).review(anyString(), eq(7L), eq("ENGLISH"));
@@ -101,5 +103,15 @@ class ReviewA2aControllerTest {
         return """
                 {"jsonrpc":"2.0","id":"request-1","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"language":"ENGLISH"},"grading":{"overallScore":72}}}]}}}
                 """;
+    }
+
+    private static ReviewModelResponse approvedReview() {
+        return new ReviewModelResponse("APPROVE", 0.9, 92,
+                List.of(
+                        new ReviewModelResponse.ReviewCheck("GROUNDING", "PASS", "Claims are supported by the composition."),
+                        new ReviewModelResponse.ReviewCheck("RUBRIC_COVERAGE", "PASS", "Every rubric criterion is assessed."),
+                        new ReviewModelResponse.ReviewCheck("EVIDENCE_TRACEABILITY", "PASS", "Cited evidence is traceable."),
+                        new ReviewModelResponse.ReviewCheck("ACTIONABILITY", "PASS", "Feedback is appropriately actionable.")),
+                List.of(new ReviewModelResponse.Finding("TASK_IDEAS", "Evidence supports the score.")));
     }
 }

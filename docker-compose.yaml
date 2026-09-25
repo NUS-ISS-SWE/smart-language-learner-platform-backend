@@ -376,8 +376,8 @@ services:
 #        condition: service_started
       orchestrator-service:
         condition: service_started
-      document-service:
-        condition: service_started
+#      document-service:
+#        condition: service_started
       subscription-service:
         condition: service_started
       admin-service:

@@ -141,6 +141,64 @@ pipeline {
             }
         }
 
+        stage('Integration Test - API') {
+            // Black-box tests hit a fully deployed docker-compose stack through the
+            // real api-gateway, so they only make sense for a full-stack build.
+            when { expression { return params.RUN_TESTS && params.MICROSERVICE_NAME == 'all' } }
+            environment {
+                // product-guide-service is disabled in docker-compose.yaml (calls OpenAI at
+                // startup to index platform features — needs a real key, and AI services are
+                // out of scope for this test suite for now). evidence-service still requires
+                // *a* value to satisfy compose's ${OPENAI_API_KEY:?...} interpolation.
+                OPENAI_API_KEY       = 'sk-test-placeholder-ai-services-out-of-scope'
+                // Isolates this build's containers/volumes/network from any other build or
+                // from a developer's own `docker compose up` on the same agent, and guarantees
+                // a brand-new Postgres volume every run (seed data's ON CONFLICT DO UPDATE only
+                // refreshes the password, not the role — a reused volume can leave the seeded
+                // admin account with a stale, non-ADMIN role).
+                COMPOSE_PROJECT_NAME = "sllp-it-${env.BUILD_NUMBER}"
+            }
+            steps {
+                dir('source') {
+                    sh '''
+                        docker compose up -d --build
+
+                        echo "Waiting for api-gateway to accept requests..."
+                        for i in $(seq 1 60); do
+                            if curl -sf http://localhost:8080/api/v1/subscription/plans > /dev/null; then
+                                echo "Gateway is ready."
+                                break
+                            fi
+                            if [ "$i" = 60 ]; then
+                                echo "Gateway did not become ready in time."
+                                docker compose logs --tail=200
+                                exit 1
+                            fi
+                            sleep 5
+                        done
+                    '''
+
+                    dir('sllp-integration-tests') {
+                        // Requires Node.js on the Jenkins agent (same constraint the Python
+                        // stage has for python3.12 — install/configure it on the node first).
+                        sh '''
+                            npm ci
+                            GATEWAY_BASE_URL=http://localhost:8080 npx playwright test
+                        '''
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: 'source/sllp-integration-tests/test-results/junit.xml'
+                    dir('source') {
+                        sh 'docker compose down -v --remove-orphans || true'
+                    }
+                }
+            }
+        }
+
         // stage('OWASP Dependency-Check') {
         //     when { expression { return env.JAVA_TARGETS } }
         //     steps {

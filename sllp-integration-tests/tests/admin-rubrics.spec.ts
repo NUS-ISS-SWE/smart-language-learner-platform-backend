@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SEEDED_USERS, login, bearer } from './support/auth';
 
-test.describe('Admin rubric criteria', () => {
+test.describe('[Integration] Admin rubric criteria', () => {
   test('create, list, get, update and delete a rubric criterion', async ({ request }) => {
     const token = await login(request, SEEDED_USERS.admin.username, SEEDED_USERS.admin.password);
     const headers = bearer(token);

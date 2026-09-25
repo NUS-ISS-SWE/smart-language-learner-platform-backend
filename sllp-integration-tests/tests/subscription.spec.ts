@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SEEDED_USERS, login, bearer } from './support/auth';
 
-test.describe('Subscription plans', () => {
+test.describe('[Integration] Subscription plans', () => {
   test('public plan list is available without authentication', async ({ request }) => {
     const response = await request.get('/api/v1/subscription/plans');
     expect(response.status()).toBe(200);

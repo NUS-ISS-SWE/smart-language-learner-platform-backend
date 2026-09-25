@@ -105,6 +105,15 @@ pipeline {
                 always {
                     junit allowEmptyResults: true,
                           testResults: 'source/sllp-*/target/surefire-reports/*.xml'
+                    // Unit-test results collected under one clearly named folder so they're
+                    // easy to tell apart from integration-test-reports/ in the build artifacts.
+                    sh '''
+                        rm -rf unit-test-reports/java && mkdir -p unit-test-reports/java
+                        for f in source/sllp-*/target/surefire-reports/TEST-*.xml; do
+                            [ -f "$f" ] && cp "$f" unit-test-reports/java/ || true
+                        done
+                    '''
+                    archiveArtifacts artifacts: 'unit-test-reports/java/*.xml', allowEmptyArchive: true
                 }
             }
         }
@@ -137,6 +146,13 @@ pipeline {
                 always {
                     junit allowEmptyResults: true,
                           testResults: 'source/sllp-*/pytest-report.xml'
+                    sh '''
+                        rm -rf unit-test-reports/python && mkdir -p unit-test-reports/python
+                        for f in source/sllp-*/pytest-report.xml; do
+                            [ -f "$f" ] && cp "$f" "unit-test-reports/python/$(basename "$(dirname "$f")").xml" || true
+                        done
+                    '''
+                    archiveArtifacts artifacts: 'unit-test-reports/python/*.xml', allowEmptyArchive: true
                 }
             }
         }
@@ -157,6 +173,8 @@ pipeline {
                 // refreshes the password, not the role — a reused volume can leave the seeded
                 // admin account with a stale, non-ADMIN role).
                 COMPOSE_PROJECT_NAME = "sllp-it-${env.BUILD_NUMBER}"
+                // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
+                GATEWAY_HOST_PORT    = '18080'
             }
             steps {
                 dir('source') {
@@ -165,7 +183,7 @@ pipeline {
 
                         echo "Waiting for api-gateway to accept requests..."
                         for i in $(seq 1 60); do
-                            if curl -sf http://localhost:8080/api/v1/subscription/plans > /dev/null; then
+                            if curl -sf http://localhost:$GATEWAY_HOST_PORT/api/v1/subscription/plans > /dev/null; then
                                 echo "Gateway is ready."
                                 break
                             fi
@@ -183,7 +201,7 @@ pipeline {
                         // stage has for python3.12 — install/configure it on the node first).
                         sh '''
                             npm ci
-                            GATEWAY_BASE_URL=http://localhost:8080 npx playwright test
+                            GATEWAY_BASE_URL=http://localhost:$GATEWAY_HOST_PORT npx playwright test
                         '''
                     }
                 }
@@ -192,6 +210,13 @@ pipeline {
                 always {
                     junit allowEmptyResults: true,
                           testResults: 'source/sllp-integration-tests/test-results/junit.xml'
+                    // Integration-test result artifacts: JUnit XML + Playwright HTML report.
+                    sh '''
+                        rm -rf integration-test-reports && mkdir -p integration-test-reports
+                        cp source/sllp-integration-tests/test-results/junit.xml integration-test-reports/ || true
+                        cp -r source/sllp-integration-tests/playwright-report integration-test-reports/html || true
+                    '''
+                    archiveArtifacts artifacts: 'integration-test-reports/**', allowEmptyArchive: true
                     dir('source') {
                         sh 'docker compose down -v --remove-orphans || true'
                     }

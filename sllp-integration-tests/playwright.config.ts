@@ -11,6 +11,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['junit', { outputFile: 'test-results/junit.xml' }],
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
   use: {
     baseURL: process.env.GATEWAY_BASE_URL ?? 'http://localhost:8080',

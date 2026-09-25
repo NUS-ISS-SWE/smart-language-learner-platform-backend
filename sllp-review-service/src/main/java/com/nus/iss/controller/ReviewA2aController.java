@@ -2,6 +2,7 @@ package com.nus.iss.controller;
 
 import com.nus.iss.agent.ReviewAgentService;
 import com.nus.iss.agent.ReviewModelResponse;
+import com.nus.iss.agent.ReviewScoringPolicy;
 import com.nus.iss.config.SllpProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,9 +44,13 @@ public class ReviewA2aController {
             ReviewAgentService.Reviewed reviewed = autoApproved
                     ? developmentAutoApproval()
                     : service.review(data.toString(), composition.path("userId").asLong(), composition.path("language").asText());
-            ReviewModelResponse result = reviewed.response();
+            // Canonicalise at the A2A boundary as well as in the model service. This keeps the
+            // published score deterministic even if a future internal caller bypasses the service.
+            ReviewModelResponse result = ReviewScoringPolicy.canonicalize(reviewed.response());
             Map<String, Object> artifact = Map.of(
                     "decision", result.decision(), "confidence", result.confidence(),
+                    "qualityScore", result.qualityScore(),
+                    "checks", result.checks(),
                     "findings", result.findings() == null ? List.of() : result.findings(),
                     "modelVersion", reviewed.usage().get("model"),
                     "promptVersion", autoApproved ? "review-auto-approve-local-v1" : "review-v2",
@@ -67,8 +72,14 @@ public class ReviewA2aController {
     }
     private static ReviewAgentService.Reviewed developmentAutoApproval() {
         return new ReviewAgentService.Reviewed(
-                new ReviewModelResponse("APPROVE", 1.0, List.of(new ReviewModelResponse.Finding(null,
-                        "Development-only auto-approval; the Review model was not invoked."))),
+                new ReviewModelResponse("APPROVE", 1.0, 100,
+                        List.of(
+                                new ReviewModelResponse.ReviewCheck("GROUNDING", "PASS", "Not evaluated in local auto-approve mode."),
+                                new ReviewModelResponse.ReviewCheck("RUBRIC_COVERAGE", "PASS", "Not evaluated in local auto-approve mode."),
+                                new ReviewModelResponse.ReviewCheck("EVIDENCE_TRACEABILITY", "PASS", "Not evaluated in local auto-approve mode."),
+                                new ReviewModelResponse.ReviewCheck("ACTIONABILITY", "PASS", "Not evaluated in local auto-approve mode.")),
+                        List.of(new ReviewModelResponse.Finding(null,
+                                "Development-only auto-approval; the Review model was not invoked."))),
                 Map.of("provider", "placeholder", "model", "review-auto-approve-local", "promptTokens", 0L,
                         "cachedInputTokens", 0L, "completionTokens", 0L, "totalTokens", 0L,
                         "pricingVersion", "development-placeholder-v1", "inputPriceMicrosPerMillion", 0L,

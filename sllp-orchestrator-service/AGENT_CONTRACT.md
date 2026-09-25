@@ -1,6 +1,6 @@
 # SLLP A2A Agent Contract v2
 
-The orchestrator is a deterministic LangGraph supervisor. It coordinates Evidence, Grading, Review, and Suggestions peers through the SLLP A2A contract v2. During local development it defaults to a clearly labelled placeholder provider.
+The orchestrator is a deterministic LangGraph supervisor. It coordinates Evidence, Grading, Review, and Suggestions peers through the SLLP A2A contract v2. A2A is the default topology in Compose and deployed environments. A clearly labelled placeholder provider is available only through the explicit `docker-compose.placeholder.yaml` local-development overlay.
 
 Transient network failures and HTTP 5xx responses are retried twice with exponential backoff. Invalid A2A messages, non-terminal tasks, invalid output artifacts, and HTTP 4xx responses fail safely without exposing partial assessment content to the student.
 

@@ -29,7 +29,7 @@ class Settings:
     review_agent_card_url: str | None
     suggestion_agent_card_url: str | None
     evidence_agent_card_url: str | None = None
-    agent_provider: str = "placeholder"
+    agent_provider: str = "a2a"
     evidence_agent_token: str = ""
     grading_agent_token: str = ""
     review_agent_token: str = ""
@@ -45,7 +45,7 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> "Settings":
-        return cls(
+        settings = cls(
             database_url=os.getenv(
                 "ORCHESTRATOR_DATABASE_URL",
                 "postgresql+psycopg://postgres:password@localhost:5432/sllp_main_db",
@@ -74,7 +74,7 @@ class Settings:
             review_agent_card_url=os.getenv("REVIEW_AGENT_CARD_URL") or None,
             suggestion_agent_card_url=os.getenv("SUGGESTION_AGENT_CARD_URL") or None,
             evidence_agent_card_url=os.getenv("EVIDENCE_AGENT_CARD_URL") or None,
-            agent_provider=os.getenv("AGENT_PROVIDER", "placeholder").strip().lower(),
+            agent_provider=os.getenv("AGENT_PROVIDER", "a2a").strip().lower(),
             evidence_agent_token=os.getenv("EVIDENCE_AGENT_TOKEN", ""),
             grading_agent_token=os.getenv("GRADING_AGENT_TOKEN", ""),
             review_agent_token=os.getenv("REVIEW_AGENT_TOKEN", ""),
@@ -88,3 +88,22 @@ class Settings:
             audit_ingest_url=os.getenv("AUDIT_INGEST_URL", "http://localhost:8086/internal/audit-events"),
             audit_ingest_secret=os.getenv("AUDIT_INGEST_SECRET", ""),
         )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if self.agent_provider not in {"a2a", "placeholder"}:
+            raise ValueError("AGENT_PROVIDER must be either 'a2a' or 'placeholder'")
+
+        if self.agent_provider == "a2a":
+            required_tokens = {
+                "EVIDENCE_AGENT_TOKEN": self.evidence_agent_token,
+                "GRADING_AGENT_TOKEN": self.grading_agent_token,
+                "REVIEW_AGENT_TOKEN": self.review_agent_token,
+                "SUGGESTION_AGENT_TOKEN": self.suggestion_agent_token,
+            }
+            missing = [name for name, value in required_tokens.items() if not value.strip()]
+            if missing:
+                raise ValueError(
+                    "AGENT_PROVIDER=a2a requires non-empty " + ", ".join(missing)
+                )

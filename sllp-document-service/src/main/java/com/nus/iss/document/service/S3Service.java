@@ -3,9 +3,9 @@ package com.nus.iss.document.service;
 import java.io.InputStream;
 import java.time.Duration;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.nus.iss.document.config.S3Properties;
 import com.nus.iss.document.exception.FileUploadException;
 
 import lombok.RequiredArgsConstructor;
@@ -32,9 +32,7 @@ public class S3Service {
 
     private final S3Client s3Client;
     private final S3Presigner s3Presigner;
-
-    @Value("${aws.s3.bucket}")
-    private String bucketName;
+    private final S3Properties properties;
 
     /**
      * Upload file to S3.
@@ -51,14 +49,14 @@ public class S3Service {
 
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(properties.bucket())
                 .key(s3Key)
                 .contentType(contentType)
                 .contentLength(fileSize)
                 .build();
 
             s3Client.putObject(putObjectRequest, software.amazon.awssdk.core.sync.RequestBody.fromInputStream(inputStream, fileSize));
-            log.info("File uploaded to S3: s3://{}/{}", bucketName, s3Key);
+            log.info("File uploaded to S3: s3://{}/{}", properties.bucket(), s3Key);
             return s3Key;
         } catch (S3Exception e) {
             log.error("S3 upload failed: {}", e.awsErrorDetails().errorMessage(), e);
@@ -78,7 +76,7 @@ public class S3Service {
     public String generatePresignedUrl(String s3Key) {
         try {
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(properties.bucket())
                 .key(s3Key)
                 .build();
 
@@ -104,7 +102,7 @@ public class S3Service {
     public void deleteFile(String s3Key) {
         try {
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(properties.bucket())
                 .key(s3Key)
                 .build();
 

@@ -1,0 +1,18 @@
+# Explicit local-only overlay for workflow testing without LLM-backed A2A peers.
+# Use with both the base file and docker-compose.override.yaml; never deploy it.
+services:
+  orchestrator-service:
+    environment:
+      AGENT_PROVIDER: placeholder
+
+  evidence-agent:
+    profiles: ["a2a"]
+
+  grading-agent:
+    profiles: ["a2a"]
+
+  review-agent:
+    profiles: ["a2a"]
+
+  suggestions-agent:
+    profiles: ["a2a"]

@@ -95,18 +95,22 @@ The `-v` flag removes named volumes, wiping the PostgreSQL data directory. The n
 | API Gateway | `api-gateway` | `8080` | Single entry point |
 | Kafka | `kafka-service` | `9092` / `29092` | |
 | LangGraph Orchestrator | `orchestrator-service` | `8090` | Kafka workflow coordinator for assessment agents |
-| MinIO (S3-compatible) | `minio` | `9000` / `9001` | Console at `:9001` |
+| AWS S3 | external | â€” | Document object storage; configured through `.env` |
 
 The Product Guide Service indexes its feature catalogue with the configured OpenAI embedding model
 whenever the service starts. Existing entries are updated using their stable identifiers.
 
-> **Disabled service:** The previous single-call `evaluation-service` remains commented out in `docker-compose.yaml`. The LangGraph orchestrator is the only grading-topic consumer. By default it uses a clearly labelled, contract-valid development placeholder while the team-owned agents are being built.
+> **Disabled service:** The previous single-call `evaluation-service` remains commented out in `docker-compose.yaml`. The LangGraph orchestrator is the only grading-topic consumer.
 
-Run the production-shaped assessment peers with `docker compose --profile agents up --build` and `AGENT_PROVIDER=a2a`. The orchestrator verifies each peer's Agent Card before delegation and uses its advertised A2A endpoint for `SendMessage`; configure distinct peer bearer secrets in `.env`.
+The default Compose topology is A2A: `docker compose up --build` builds and starts the Evidence, Grading, Review, and Suggestions agents together with the orchestrator. `AGENT_PROVIDER` defaults to `a2a`; set distinct, non-empty peer bearer secrets in `.env`. The orchestrator refuses to start in A2A mode if any agent token is absent, and it verifies every peer's Agent Card before delegation.
 
-The default `AGENT_PROVIDER=placeholder` exercises Kafka, workflow persistence, completion publication, and the existing frontend flow without an LLM. Its score and suggestions are explicitly labelled as development placeholders and must not be used as a real assessment.
+For an intentionally lightweight workflow-only session, use the explicit placeholder overlay. It omits the four A2A services and marks every result as a development placeholder; those results must not be used as assessments:
 
-Set `AGENT_PROVIDER=a2a` when the team-owned peers are ready. The A2A provider rejects malformed, low-confidence, or unreviewed assessments.
+```powershell
+docker compose -f docker-compose.yaml -f docker-compose.override.yaml -f docker-compose.placeholder.yaml up --build
+```
+
+Do not include `docker-compose.override.yaml` or `docker-compose.placeholder.yaml` in deployed environments. The A2A provider rejects malformed, low-confidence, or unreviewed assessments.
 
 ---
 
@@ -156,17 +160,52 @@ The `001-schema-init.sql` file is also mounted into Postgres's `docker-entrypoin
 
 ---
 
-## MinIO (object storage)
+## AWS S3 document storage
 
-MinIO runs as an S3-compatible store for document uploads. Credentials:
+Document uploads use LocalStack's S3 emulator for local development and native AWS S3
+for UAT and production. LocalStack is an automatically loaded overlay on the main
+compose file, not a separate application stack:
 
-| Key | Value |
-|---|---|
-| Access key | `minioadmin` |
-| Secret key | `minioadmin123` |
-| Console | http://localhost:9001 |
+```bash
+docker compose up --build
+```
 
-Override with environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+The local overlay creates `sllp-uploads-local`, uses LocalStack's `test` credentials,
+and validates signed requests and presigned URLs. Do not put AWS credentials in `.env`
+for this local workflow.
+
+Run the storage integration test against the started LocalStack container with:
+
+```powershell
+$env:RUN_S3_INTEGRATION_TESTS='true'
+mvn -pl sllp-document-service -am test
+```
+
+For UAT or production, explicitly use only `docker-compose.yaml`, provision a
+separate bucket per environment, and set the runtime environment to:
+
+```bash
+docker compose -f docker-compose.yaml up --build
+```
+
+```env
+AWS_S3_BUCKET=sllp-uploads-dev
+AWS_REGION=ap-southeast-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_SESSION_TOKEN= # only when using temporary STS/SSO credentials
+```
+
+Leave `AWS_S3_ENDPOINT` and `AWS_S3_PUBLIC_ENDPOINT` empty for AWS S3. They exist
+only for an explicitly configured S3-compatible endpoint. The document service fails
+at startup if the bucket or region is missing, preventing an accidental fallback to
+local object storage.
+
+The IAM principal used by the deployed workload must be limited to `s3:GetObject`,
+`s3:PutObject`, and `s3:DeleteObject` on the relevant bucket/prefix.
+For production, prefer a workload IAM role over long-lived access keys. Configure
+bucket-default encryption, lifecycle rules, and CORS if the frontend fetches
+presigned URLs with JavaScript.
 
 ---
 

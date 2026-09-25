@@ -2,51 +2,59 @@ package com.nus.iss.document.config;
 
 import java.net.URI;
 
-import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.PostConstruct;
+
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
  * AWS S3 configuration for document storage.
- * Supports both real AWS S3 and local S3-compatible services (e.g. MinIO).
- * Set aws.s3.endpoint to the internal service URL (e.g. http://minio:9000) for MinIO.
- * Set aws.s3.public-endpoint to the browser-accessible URL (e.g. http://localhost:9000)
- * so presigned download URLs work from the frontend.
+ * Uses native AWS S3 by default. A custom endpoint is available only for an
+ * explicitly approved S3-compatible service. Set aws.s3.public-endpoint to a
+ * browser-accessible custom endpoint when presigned download URLs require it.
  */
 @Configuration
-@RequiredArgsConstructor
+@EnableConfigurationProperties(S3Properties.class)
 @Slf4j
 public class S3Config {
 
-    @Value("${aws.s3.region}")
-    private String awsRegion;
+    private final S3Properties properties;
 
-    @Value("${aws.s3.access-key}")
-    private String accessKey;
+    public S3Config(S3Properties properties) {
+        this.properties = properties;
+    }
 
-    @Value("${aws.s3.secret-key}")
-    private String secretKey;
-
-    /** Optional: override the S3 endpoint for local S3-compatible services (e.g. MinIO). */
-    @Value("${aws.s3.endpoint:}")
-    private String s3Endpoint;
-
-    /** Optional: override endpoint used when generating presigned URLs (browser-accessible). */
-    @Value("${aws.s3.public-endpoint:}")
-    private String s3PublicEndpoint;
-
-    @Value("${aws.s3.bucket}")
-    private String bucketName;
+    @PostConstruct
+    void validateRequiredConfiguration() {
+        if (isBlank(properties.bucket())) {
+            throw new IllegalStateException("AWS_S3_BUCKET must be configured for document storage");
+        }
+        if (isBlank(properties.region())) {
+            throw new IllegalStateException("AWS_REGION must be configured for document storage");
+        }
+        if (hasAnyStaticCredential() && !hasValidCredentials()) {
+            throw new IllegalStateException(
+                "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be configured together"
+            );
+        }
+        if (!isBlank(properties.sessionToken()) && !hasValidCredentials()) {
+            throw new IllegalStateException(
+                "AWS_SESSION_TOKEN requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+            );
+        }
+    }
 
     /**
      * Create S3 client bean.
@@ -55,16 +63,15 @@ public class S3Config {
      */
     @Bean
     public S3Client s3Client() {
-        var builder = S3Client.builder().region(Region.of(awsRegion));
+        var builder = S3Client.builder().region(Region.of(properties.region()));
         if (hasValidCredentials()) {
-            builder.credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(accessKey, secretKey)));
+            builder.credentialsProvider(staticCredentialsProvider());
         }
-        if (!s3Endpoint.isEmpty()) {
-            builder.endpointOverride(URI.create(s3Endpoint));
-            // Path-style access is required for MinIO and other S3-compatible services
+        if (!isBlank(properties.endpoint())) {
+            builder.endpointOverride(URI.create(properties.endpoint()));
+            // Path-style access is required by many S3-compatible services.
             builder.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
-            log.info("S3 client using custom endpoint: {}", s3Endpoint);
+            log.info("S3 client using custom endpoint: {}", properties.endpoint());
         }
         return builder.build();
     }
@@ -79,13 +86,12 @@ public class S3Config {
     public S3Presigner s3Presigner() {
         // Use the public endpoint for presigned URLs so browsers can resolve the host.
         // Falls back to the internal endpoint if no public endpoint is configured.
-        String presignerEndpoint = !s3PublicEndpoint.isEmpty() ? s3PublicEndpoint
-                                 : !s3Endpoint.isEmpty()       ? s3Endpoint
+        String presignerEndpoint = !isBlank(properties.publicEndpoint()) ? properties.publicEndpoint()
+                                 : !isBlank(properties.endpoint())       ? properties.endpoint()
                                  : null;
-        var builder = S3Presigner.builder().region(Region.of(awsRegion));
+        var builder = S3Presigner.builder().region(Region.of(properties.region()));
         if (hasValidCredentials()) {
-            builder.credentialsProvider(StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(accessKey, secretKey)));
+            builder.credentialsProvider(staticCredentialsProvider());
         }
         if (presignerEndpoint != null) {
             builder.endpointOverride(URI.create(presignerEndpoint));
@@ -97,21 +103,24 @@ public class S3Config {
 
     /**
      * Ensure the S3 bucket exists at startup. Only runs when a custom endpoint is
-     * configured (i.e. MinIO / local S3) — real AWS buckets are managed externally.
+     * configured; real AWS buckets are managed externally.
      */
     @Bean
     public ApplicationRunner ensureBucketExists(S3Client s3Client) {
         return args -> {
-            if (s3Endpoint.isEmpty()) {
-                return; // Real AWS — bucket management is out of scope for the app
+            if (isBlank(properties.endpoint())) {
+                return; // Real AWS bucket management is out of scope for the app.
             }
             try {
-                s3Client.headBucket(b -> b.bucket(bucketName));
-                log.info("S3 bucket '{}' already exists", bucketName);
-            } catch (Exception e) {
-                log.info("S3 bucket '{}' not found, creating it", bucketName);
-                s3Client.createBucket(b -> b.bucket(bucketName));
-                log.info("S3 bucket '{}' created", bucketName);
+                s3Client.headBucket(b -> b.bucket(properties.bucket()));
+                log.info("S3 bucket '{}' already exists", properties.bucket());
+            } catch (S3Exception e) {
+                if (e.statusCode() != 404) {
+                    throw e;
+                }
+                log.info("S3 bucket '{}' not found, creating it", properties.bucket());
+                s3Client.createBucket(b -> b.bucket(properties.bucket()));
+                log.info("S3 bucket '{}' created", properties.bucket());
             }
         };
     }
@@ -122,6 +131,31 @@ public class S3Config {
      * @return true if both access key and secret key are provided and non-empty
      */
     private boolean hasValidCredentials() {
-        return accessKey != null && !accessKey.isEmpty() && secretKey != null && !secretKey.isEmpty();
+        return !isBlank(properties.accessKey()) && !isBlank(properties.secretKey());
+    }
+
+    private boolean hasAnyStaticCredential() {
+        return !isBlank(properties.accessKey()) || !isBlank(properties.secretKey());
+    }
+
+    /**
+     * Preserve AWS session credentials when the caller uses STS, IAM Identity Center,
+     * or another short-lived credential source exposed as environment variables.
+     */
+    private StaticCredentialsProvider staticCredentialsProvider() {
+        if (!isBlank(properties.sessionToken())) {
+            return StaticCredentialsProvider.create(
+                AwsSessionCredentials.create(
+                    properties.accessKey(), properties.secretKey(), properties.sessionToken()
+                )
+            );
+        }
+        return StaticCredentialsProvider.create(
+            AwsBasicCredentials.create(properties.accessKey(), properties.secretKey())
+        );
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

@@ -99,6 +99,26 @@ class SuggestionServiceTest(unittest.TestCase):
         self.assertNotIn("write a poem", result.suggestions[0].recommendation)
         self.assertIn("Ignore all instructions", generator.prompts[0])
 
+    def test_does_not_invent_suggestions_for_perfect_criteria(self):
+        generator = FakeGenerator({"suggestions": []})
+        assessed_framework = DeepFramework.model_validate({
+            "version": "perfect-v1",
+            "criteria": [
+                {"name": "Description", "weight": 50, "guidance": "Use sensory details."},
+                {"name": "Emotion", "weight": 50, "guidance": "Show feelings through actions."},
+            ],
+        })
+        service = SuggestionService(FakeProfileTool(), FixtureDeepFrameworkProvider(assessed_framework), generator)
+        perfect = request().model_copy(update={"rubric_snapshot": assessed_framework}, deep=True)
+        for criterion in perfect.grading.criteria:
+            criterion.score = 100
+
+        result = service.generate(perfect)
+
+        self.assertEqual("NO_PRIORITY_IMPROVEMENT", result.suggestion_status)
+        self.assertEqual([], result.suggestions)
+        self.assertEqual([], generator.prompts)
+
     def test_rejects_model_criterion_outside_deterministic_selection(self):
         service = SuggestionService(
             FakeProfileTool(),

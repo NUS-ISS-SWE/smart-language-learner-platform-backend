@@ -138,6 +138,12 @@ class FailingGradeAgents:
         }), (AgentAttempt(1, "SUCCEEDED", 0),), "fake-evidence", payload["workflowId"], "fake")
 
 
+class FailingSuggestionAgents(FakeAgents):
+    def suggest(self, payload, parser):
+        self.suggest_calls += 1
+        raise AgentCallError("suggestion", "provider timeout", (AgentAttempt(1, "FAILED", 42, 504, "timeout"),))
+
+
 def workflow_record(language: str = "ENGLISH") -> WorkflowRecord:
     submission = WorkflowSubmission.from_kafka_payload(
         {
@@ -175,6 +181,21 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     assert {event["request_id"] for event in repository.agent_usage_events} == {
         UUID("9b6efdf7-9ed7-4dcc-b1e5-d617b9c644a0")
     }
+
+
+def test_suggestion_failure_preserves_the_approved_assessment():
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+
+    completed = OrchestrationWorkflow(settings(), repository, FailingSuggestionAgents(["APPROVE"])).run(record)
+
+    assert completed.status is WorkflowStatus.COMPLETED
+    assert completed.completion_event["success"] is True
+    assert completed.completion_event["score"] == 72
+    assert completed.completion_event["suggestionStatus"] == "TEMPORARILY_UNAVAILABLE"
+    assert completed.completion_event["suggestions"] == []
+    assert "Overall score: 72/100" in completed.completion_event["feedback"]
 
 
 def test_placeholder_assessment_is_visibly_labelled_in_feedback():

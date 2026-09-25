@@ -67,8 +67,16 @@ class Suggestion(ApiModel):
     supporting_evidence: SupportingEvidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 
 
+SuggestionStatus = Literal[
+    "AVAILABLE",
+    "NOT_AVAILABLE_FOR_LANGUAGE",
+    "TEMPORARILY_UNAVAILABLE",
+    "NO_PRIORITY_IMPROVEMENT",
+]
+
+
 class SuggestionResponse(ApiModel):
-    suggestion_status: Literal["AVAILABLE", "NOT_AVAILABLE_FOR_LANGUAGE"] = Field(
+    suggestion_status: SuggestionStatus = Field(
         default="AVAILABLE", validation_alias=AliasChoices("suggestionStatus", "suggestion_status")
     )
     suggestions: list[Suggestion] = Field(default_factory=list, max_length=3)

@@ -69,6 +69,8 @@ class SuggestionService:
         framework = request.rubric_snapshot
 
         candidates = self._rank(request.grading, framework.criteria)
+        if not candidates:
+            return SuggestionResponse(suggestionStatus="NO_PRIORITY_IMPROVEMENT", suggestions=[])
         try:
             generated = self.generator.generate(self._prompt(request, learner.difficulty_level, framework.version, candidates))
         except GenerationError as error:
@@ -86,19 +88,26 @@ class SuggestionService:
     def _rank(grading: Grading, criteria: list[RubricCriterion]) -> list[Candidate]:
         assessments = {item.criterion.casefold(): item for item in grading.criteria}
         candidates: list[Candidate] = []
+        has_nonperfect_assessment = False
+        has_incomplete_assessment = False
         for criterion in criteria:
             assessment = assessments.get(criterion.name.casefold())
-            score = assessment.score if assessment else grading.rubric_scores.get(criterion.name)
-            if score is None or assessment is None or not assessment.evidence:
+            if assessment is None:
+                has_incomplete_assessment = True
+                continue
+            if assessment.score >= 100:
+                continue
+            has_nonperfect_assessment = True
+            if not assessment.evidence:
                 continue
             candidates.append(Candidate(
                 criterion=criterion,
-                score=score,
+                score=assessment.score,
                 evidence=assessment.evidence[0],
                 rationale=assessment.rationale,
-                weighted_gap=(100 - score) * criterion.weight / 100,
+                weighted_gap=(100 - assessment.score) * criterion.weight / 100,
             ))
-        if not candidates:
+        if not candidates and (has_nonperfect_assessment or has_incomplete_assessment):
             raise SuggestionServiceError("approved grading has no rubric evidence that can ground a suggestion")
         return sorted(candidates, key=lambda item: (-item.weighted_gap, item.criterion.name))[:3]
 

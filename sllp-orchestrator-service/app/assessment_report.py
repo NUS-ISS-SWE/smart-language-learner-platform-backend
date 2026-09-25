@@ -75,7 +75,7 @@ def render_feedback(grading: GradingResponse, suggestions: SuggestionResponse) -
         excerpts = "; ".join(evidence.excerpt for evidence in criterion.evidence)
         lines.append(f"- {criterion.criterion} ({criterion.score:.0f}/100): {criterion.rationale} Evidence: {excerpts}")
     lines.extend(["", "Review outcome: Approved", "", "Improvement suggestions:"])
-    if suggestions.suggestion_status is SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE:
+    if suggestions.suggestion_status is not SuggestionStatus.AVAILABLE:
         return "\n".join(lines)
     for suggestion in suggestions.suggestions:
         lines.append(f"- [{suggestion.priority}] {suggestion.criterion}: {suggestion.recommendation}")

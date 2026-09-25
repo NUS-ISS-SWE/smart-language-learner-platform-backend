@@ -288,18 +288,11 @@ class OrchestrationWorkflow:
         if state["submission"].composition.language == "CHINESE":
             # Chinese grading/review remains available, but this English-only agent
             # must not turn a completed assessment into a workflow failure.
-            suggestions = SuggestionResponse(
-                suggestionStatus=SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE,
-                suggestions=[],
-            ).model_dump(by_alias=True, mode="json")
-            self._update(
-                workflow_id,
-                status=WorkflowStatus.SUGGESTING,
-                log_step="SUGGESTION_SKIPPED_LANGUAGE",
-                attempt=state["grading_passes"],
-                suggestion_output=suggestions,
+            return self._persist_empty_suggestions(
+                state,
+                SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE,
+                "SUGGESTION_SKIPPED_LANGUAGE",
             )
-            return {"suggestions": suggestions}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
         payload.update({
             "grading": state["grading"],
@@ -313,7 +306,14 @@ class OrchestrationWorkflow:
                 "suggest", "suggestion", payload, SuggestionResponse, workflow_id, state["grading_passes"], state["submission"]
             )
         except AgentCallError as error:
-            return {"error": f"suggestion generation failed: {redact_for_trace(error)}"}
+            # Suggestions enhance an approved assessment; an unavailable peer must not
+            # discard the approved score, evidence, and feedback the learner can use.
+            LOGGER.warning("suggestion_generation_unavailable workflow_id=%s reason=%s", workflow_id, redact_for_trace(error))
+            return self._persist_empty_suggestions(
+                state,
+                SuggestionStatus.TEMPORARILY_UNAVAILABLE,
+                "SUGGESTION_UNAVAILABLE",
+            )
         self._update(
             workflow_id,
             status=WorkflowStatus.SUGGESTING,
@@ -321,6 +321,25 @@ class OrchestrationWorkflow:
             attempt=state["grading_passes"],
             suggestion_output=suggestions,
             log_details=response_metadata(suggestions, invocation),
+        )
+        return {"suggestions": suggestions}
+
+    def _persist_empty_suggestions(
+        self,
+        state: GraphState,
+        suggestion_status: SuggestionStatus,
+        log_step: str,
+    ) -> GraphState:
+        suggestions = SuggestionResponse(
+            suggestionStatus=suggestion_status,
+            suggestions=[],
+        ).model_dump(by_alias=True, mode="json")
+        self._update(
+            state["workflow_id"],
+            status=WorkflowStatus.SUGGESTING,
+            log_step=log_step,
+            attempt=state["grading_passes"],
+            suggestion_output=suggestions,
         )
         return {"suggestions": suggestions}
 

@@ -14,6 +14,22 @@ pipeline {
         ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service product-guide-service evidence-service subscription-service admin-service'
         // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
         ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
+        // Secret-text credential holding a real OpenAI key; only read when RUN_LOAD_TEST is on.
+        OPENAI_CREDENTIALS_ID = 'openai-api-key'
+
+        // --- Test stack (integration + load tests) ---
+        // Isolates this build's containers/volumes/network from any other build or
+        // from a developer's own `docker compose up` on the same agent, and guarantees
+        // a brand-new Postgres volume every run (seed data's ON CONFLICT DO UPDATE only
+        // refreshes the password, not the role — a reused volume can leave the seeded
+        // admin account with a stale, non-ADMIN role).
+        COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
+        // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
+        GATEWAY_HOST_PORT     = '18080'
+        // Placeholder so compose's ${OPENAI_API_KEY:?...} interpolation succeeds for the
+        // integration tests (which never call OpenAI) and for `docker compose down`.
+        // The load test overrides it with the real key from OPENAI_CREDENTIALS_ID.
+        OPENAI_API_KEY        = 'sk-test-placeholder-ai-services-out-of-scope'
     }
 
     parameters {
@@ -34,6 +50,10 @@ pipeline {
             'suggestions-agent'
         ], description: 'Select microservice to build (all = build & push every service)')
         booleanParam(name: 'RUN_TESTS',         defaultValue: true, description: 'Run unit tests')
+        booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false,
+                     description: 'Start the full docker-compose stack and run the API integration tests')
+        booleanParam(name: 'RUN_LOAD_TEST',     defaultValue: false,
+                     description: 'Grading load test: 3 essays graded at once (uses the real OpenAI key — costs money)')
         booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: true, description: 'Push image to Docker Hub')
     }
 
@@ -157,53 +177,86 @@ pipeline {
             }
         }
 
-        stage('Integration Test - API') {
-            // Black-box tests hit a fully deployed docker-compose stack through the
-            // real api-gateway, so they only make sense for a full-stack build.
-            when { expression { return params.RUN_TESTS && params.MICROSERVICE_NAME == 'all' } }
+        // The integration and load tests share one docker-compose stack: it is started once
+        // here, used by whichever of the two stages is enabled, and torn down afterwards.
+        stage('Start Test Stack') {
+            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
             environment {
-                // product-guide-service is disabled in docker-compose.yaml (calls OpenAI at
-                // startup to index platform features — needs a real key, and AI services are
-                // out of scope for this test suite for now). evidence-service still requires
-                // *a* value to satisfy compose's ${OPENAI_API_KEY:?...} interpolation.
-                OPENAI_API_KEY       = 'sk-test-placeholder-ai-services-out-of-scope'
-                // Isolates this build's containers/volumes/network from any other build or
-                // from a developer's own `docker compose up` on the same agent, and guarantees
-                // a brand-new Postgres volume every run (seed data's ON CONFLICT DO UPDATE only
-                // refreshes the password, not the role — a reused volume can leave the seeded
-                // admin account with a stale, non-ADMIN role).
-                COMPOSE_PROJECT_NAME = "sllp-it-${env.BUILD_NUMBER}"
-                // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
-                GATEWAY_HOST_PORT    = '18080'
+                // The load test runs the real assessment agents; the review step is
+                // auto-approved (the review agent is out of scope for the load test for now).
+                AGENT_PROVIDER      = 'a2a'
+                REVIEW_AUTO_APPROVE = 'true'
             }
             steps {
                 dir('source') {
-                    sh '''
-                        docker compose up -d --build
+                    script {
+                        // Shared secrets between the orchestrator and the four A2A agents
+                        // (orchestrator refuses to start in a2a mode without them). Both sides
+                        // read the same compose variable, so a fresh random value per build is
+                        // enough — nothing has to be stored in Jenkins.
+                        def startStack = '''
+                            for v in EVIDENCE_AGENT_TOKEN GRADING_AGENT_TOKEN REVIEW_AGENT_TOKEN SUGGESTION_AGENT_TOKEN; do
+                                export "$v=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n')"
+                            done
 
-                        echo "Waiting for api-gateway to accept requests..."
-                        for i in $(seq 1 60); do
-                            if curl -sf http://localhost:$GATEWAY_HOST_PORT/api/v1/subscription/plans > /dev/null; then
-                                echo "Gateway is ready."
-                                break
-                            fi
-                            if [ "$i" = 60 ]; then
-                                echo "Gateway did not become ready in time."
-                                docker compose logs --tail=200
-                                exit 1
-                            fi
-                            sleep 5
-                        done
-                    '''
+                            docker compose up -d --build
 
-                    dir('sllp-integration-tests') {
-                        // Requires Node.js on the Jenkins agent (same constraint the Python
-                        // stage has for python3.12 — install/configure it on the node first).
-                        sh '''
-                            npm ci
-                            GATEWAY_BASE_URL=http://localhost:$GATEWAY_HOST_PORT npx playwright test
+                            echo "Waiting for api-gateway to accept requests..."
+                            for i in $(seq 1 60); do
+                                if curl -sf http://localhost:$GATEWAY_HOST_PORT/api/v1/subscription/plans > /dev/null; then
+                                    echo "Gateway is ready."
+                                    break
+                                fi
+                                if [ "$i" = 60 ]; then
+                                    echo "Gateway did not become ready in time."
+                                    docker compose logs --tail=200
+                                    exit 1
+                                fi
+                                sleep 5
+                            done
                         '''
+                        if (params.RUN_LOAD_TEST) {
+                            // Grading calls OpenAI for real, so the load test needs the real key.
+                            withCredentials([string(credentialsId: "${OPENAI_CREDENTIALS_ID}", variable: 'OPENAI_API_KEY')]) {
+                                sh startStack
+                            }
+                            // Grading requests sent before the orchestrator's workers and agents are
+                            // up would sit in the queue and inflate the measured time.
+                            sh '''
+                                echo "Waiting for orchestrator and assessment agents..."
+                                for i in $(seq 1 60); do
+                                    if docker compose exec -T orchestrator-service python -c \
+                                        "import urllib.request; urllib.request.urlopen('http://localhost:8090/ready')" 2>/dev/null; then
+                                        echo "Orchestrator is ready."
+                                        break
+                                    fi
+                                    if [ "$i" = 60 ]; then
+                                        echo "Orchestrator did not become ready in time."
+                                        docker compose logs --tail=200 orchestrator-service evidence-agent grading-agent review-agent suggestions-agent
+                                        exit 1
+                                    fi
+                                    sleep 5
+                                done
+                            '''
+                        } else {
+                            sh startStack
+                        }
                     }
+                }
+            }
+        }
+
+        stage('Integration Test - API') {
+            // Black-box tests hit the docker-compose stack through the real api-gateway.
+            when { expression { return params.RUN_INTEGRATION_TESTS } }
+            steps {
+                dir('source/sllp-integration-tests') {
+                    // Requires Node.js on the Jenkins agent (same constraint the Python
+                    // stage has for python3.12 — install/configure it on the node first).
+                    sh '''
+                        npm ci
+                        GATEWAY_BASE_URL=http://localhost:$GATEWAY_HOST_PORT npx playwright test
+                    '''
                 }
             }
             post {
@@ -217,9 +270,54 @@ pipeline {
                         cp -r source/sllp-integration-tests/playwright-report integration-test-reports/html || true
                     '''
                     archiveArtifacts artifacts: 'integration-test-reports/**', allowEmptyArchive: true
-                    dir('source') {
-                        sh 'docker compose down -v --remove-orphans || true'
+                }
+            }
+        }
+
+        stage('Load Test - Grading') {
+            // Submits three compositions for AI grading at the same moment and
+            // measures how long each takes to come back REVIEWED. Costs real OpenAI calls.
+            when { expression { return params.RUN_LOAD_TEST } }
+            steps {
+                // Missed targets (k6 thresholds) mark the build UNSTABLE rather than failing it:
+                // the report is what matters here, not a pass/fail gate.
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    // k6 joins the stack's own network and talks to api-gateway directly.
+                    sh '''
+                        rm -rf load-test-reports && mkdir -p load-test-reports
+                        docker run --rm \
+                            --user "$(id -u):$(id -g)" \
+                            --network "${COMPOSE_PROJECT_NAME}_sllp-network" \
+                            -v "$WORKSPACE/source/sllp-load-tests:/scripts:ro" \
+                            -v "$WORKSPACE/load-test-reports:/reports" \
+                            -e GATEWAY_BASE_URL=http://api-gateway:8080 \
+                            -e REPORT_DIR=/reports \
+                            -e ESSAY_COUNT=3 \
+                            grafana/k6 run /scripts/grading-load.js
+                    '''
+                }
+            }
+            post {
+                always {
+                    script {
+                        // Surface the one-line result on the build page itself.
+                        if (fileExists('load-test-reports/summary.txt')) {
+                            def summary = readFile('load-test-reports/summary.txt').trim()
+                            currentBuild.description = currentBuild.description
+                                ? "${currentBuild.description}<br>${summary}"
+                                : summary
+                        }
                     }
+                    archiveArtifacts artifacts: 'load-test-reports/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Stop Test Stack') {
+            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
+            steps {
+                dir('source') {
+                    sh 'docker compose down -v --remove-orphans || true'
                 }
             }
         }
@@ -324,6 +422,13 @@ pipeline {
     }
 
     post {
+        always {
+            // Safety net: 'Stop Test Stack' is skipped when an earlier stage fails, so make
+            // sure this build's compose stack never outlives the build. No-op if none exists.
+            dir('source') {
+                sh 'docker compose down -v --remove-orphans || true'
+            }
+        }
         success { echo "CI complete — ${params.MICROSERVICE_NAME} built & pushed to Docker Hub" }
         failure { echo "CI failed for ${params.MICROSERVICE_NAME}" }
     }

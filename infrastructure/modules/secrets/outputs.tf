@@ -12,3 +12,13 @@ output "jwt_secret_arn" {
   description = "ARN of the JWT secret"
   value       = aws_secretsmanager_secret.jwt.arn
 }
+
+output "audit_ingest_secret_arn" {
+  description = "ARN of the audit ingestion secret"
+  value       = aws_secretsmanager_secret.audit_ingest.arn
+}
+
+output "mail_secret_arn" {
+  description = "ARN of the SMTP credentials secret"
+  value       = aws_secretsmanager_secret.mail.arn
+}

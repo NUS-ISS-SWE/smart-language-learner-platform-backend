@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-liquibase-service
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-liquibase-service-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/postgres"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "username"
+            objectAlias: "spring.datasource.username"
+          - path: "password"
+            objectAlias: "spring.datasource.password"
+          - path: "password"
+            objectAlias: "spring.liquibase.parameters.audit_runtime_password"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-liquibase-service-config
+  namespace: sllp
+data:
+  SPRING_MAIN_WEB_APPLICATION_TYPE: "none"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
+  SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
+  TZ: "UTC"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sllp-liquibase-service
+  namespace: sllp
+  labels:
+    app: sllp-liquibase-service
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: sllp-liquibase-service
+    spec:
+      serviceAccountName: sllp-liquibase-service
+      restartPolicy: Never
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18-bookworm
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready --host=postgres-db --port=5432 --username=postgres --dbname=sllp_main_db; do
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: sllp-liquibase-service
+          image: 961125mingwei/sllp-liquibase-service:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: sllp-liquibase-service-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1
+              memory: 768Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-liquibase-service-secrets

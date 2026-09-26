@@ -48,3 +48,10 @@ __pycache__/
 .venv/
 .test-deps/
 .codex-test-deps/
+
+### Terraform ###
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log

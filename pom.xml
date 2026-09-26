@@ -52,6 +52,10 @@
              ExceptionInInitializerError: com.sun.tools.javac.tree.EndPosTable).
              1.18.48 is the first release with JDK 25 support. -->
         <lombok.version>1.18.48</lombok.version>
+        <!-- Default for surefire's @{argLine}; jacoco:prepare-agent overrides it in
+             modules that use JaCoCo. Without this, modules lacking JaCoCo pass the
+             literal "@{argLine}" to java and the test fork fails to start. -->
+        <argLine></argLine>
     </properties>
 
     <dependencyManagement>

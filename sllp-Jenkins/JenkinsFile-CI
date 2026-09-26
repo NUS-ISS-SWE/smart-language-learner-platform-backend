@@ -208,18 +208,8 @@ pipeline {
             }
             post {
                 always {
-                    script {
-                        def itResult = junit allowEmptyResults: true,
-                                             testResults: 'source/sllp-integration-tests/test-results/junit.xml'
-                        // Surfaced on the build page itself so the result is visible without
-                        // opening the Test Result tab or the archived Playwright HTML report.
-                        def summary = "Integration: ${itResult.passCount}/${itResult.totalCount} passed, " +
-                                      "${itResult.failCount} failed, ${itResult.skipCount} skipped"
-                        echo summary
-                        currentBuild.description = currentBuild.description
-                            ? "${currentBuild.description}<br>${summary}"
-                            : summary
-                    }
+                    junit allowEmptyResults: true,
+                          testResults: 'source/sllp-integration-tests/test-results/junit.xml'
                     // Integration-test result artifacts: JUnit XML + Playwright HTML report.
                     sh '''
                         rm -rf integration-test-reports && mkdir -p integration-test-reports

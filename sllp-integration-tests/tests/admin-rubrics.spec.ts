@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SEEDED_USERS, login, bearer, expectStatus } from './support/auth';
+import { SEEDED_USERS, login, bearer } from './support/auth';
 
 test.describe('[Integration] Admin rubric criteria', () => {
   test('create, list, get, update and delete a rubric criterion', async ({ request }) => {
@@ -18,7 +18,7 @@ test.describe('[Integration] Admin rubric criteria', () => {
           weightPercentage: 10.5,
         },
       });
-      await expectStatus(response, 201, 'create criterion');
+      expect(response.status(), await response.text()).toBe(201);
 
       const created = await response.json();
       expect(created.id).toBeDefined();
@@ -53,7 +53,7 @@ test.describe('[Integration] Admin rubric criteria', () => {
           weightPercentage: 20,
         },
       });
-      await expectStatus(response, 200, 'update criterion');
+      expect(response.status(), await response.text()).toBe(200);
 
       const updated = await response.json();
       expect(Number(updated.weightPercentage)).toBe(20);

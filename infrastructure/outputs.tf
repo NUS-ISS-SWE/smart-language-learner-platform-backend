@@ -1,0 +1,54 @@
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_name
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN"
+  value       = module.acm.certificate_arn
+}
+
+output "route53_hosted_zone_id" {
+  description = "Route53 hosted zone ID"
+  value       = module.acm.hosted_zone_id
+}
+
+output "admin_service_role_arn" {
+  description = "IAM role used by the admin service through EKS Pod Identity"
+  value       = module.service_identity["admin_service"].role_arn
+}
+
+output "api_gateway_role_arn" {
+  description = "IAM role used by the API gateway through EKS Pod Identity"
+  value       = module.service_identity["api_gateway"].role_arn
+}
+
+output "postgres_secret_arn" {
+  description = "ARN of the PostgreSQL credentials secret"
+  value       = module.secrets.postgres_secret_arn
+}
+
+output "audit_ingest_secret_arn" {
+  description = "ARN of the audit ingestion secret"
+  value       = module.secrets.audit_ingest_secret_arn
+}
+
+output "user_service_role_arn" {
+  description = "IAM role used by the user service through EKS Pod Identity"
+  value       = module.service_identity["user_service"].role_arn
+}
+
+output "mail_secret_arn" {
+  description = "ARN of the SMTP credentials secret"
+  value       = module.secrets.mail_secret_arn
+}
+
+output "liquibase_service_role_arn" {
+  description = "IAM role used by Liquibase through EKS Pod Identity"
+  value       = module.service_identity["liquibase_service"].role_arn
+}
+
+output "postgres_role_arn" {
+  description = "IAM role used by PostgreSQL through EKS Pod Identity"
+  value       = module.service_identity["postgres"].role_arn
+}

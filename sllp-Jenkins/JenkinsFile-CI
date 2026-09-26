@@ -293,6 +293,7 @@ pipeline {
                             -e GATEWAY_BASE_URL=http://api-gateway:8080 \
                             -e REPORT_DIR=/reports \
                             -e ESSAY_COUNT=3 \
+                            -e REVIEW_AUTO_APPROVE=true \
                             grafana/k6 run /scripts/grading-load.js
                     '''
                 }

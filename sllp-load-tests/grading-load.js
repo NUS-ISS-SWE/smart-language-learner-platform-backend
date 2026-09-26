@@ -10,12 +10,12 @@ import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import exec from 'k6/execution';
 import { Trend, Rate, Counter } from 'k6/metrics';
-import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/2.4.0/dist/bundle.js';
-import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+import { ESSAYS, TIMELINE_EVENTS, ENDPOINTS, essayEventKey, buildReport } from './report.js';
 
 const BASE_URL = __ENV.GATEWAY_BASE_URL || 'http://localhost:8080';
 const ESSAY_COUNT = parseInt(__ENV.ESSAY_COUNT || '3', 10);
-const POLL_INTERVAL_SECONDS = 3;
+// Short interval so the per-essay timeline in the report is accurate to about a second.
+const POLL_INTERVAL_SECONDS = 1;
 const GRADING_TIMEOUT_SECONDS = parseInt(__ENV.GRADING_TIMEOUT_SECONDS || '480', 10);
 const REPORT_DIR = __ENV.REPORT_DIR || 'load-test-reports';
 
@@ -23,6 +23,23 @@ const gradingDuration = new Trend('grading_e2e_duration', true);
 const submitDuration = new Trend('grading_submit_duration', true);
 const gradingSuccess = new Rate('grading_success');
 const gradingTimeouts = new Counter('grading_timeouts');
+// Wall-clock time (epoch ms) at which each essay first reached each stage, tagged
+// {essay, event}. This is what the report's timeline is drawn from.
+const essayEvent = new Trend('essay_event');
+
+// k6 only keeps per-tag values (submetrics) in the end-of-test summary when a threshold
+// names them, so every essay × event pair gets an always-true threshold.
+const summaryThresholds = {};
+for (let n = 1; n <= ESSAY_COUNT; n++) {
+  for (const event of TIMELINE_EVENTS) {
+    summaryThresholds[essayEventKey(n, event)] = ['max>=0'];
+  }
+}
+// Same trick for per-endpoint response times in the report's API table.
+for (const name of ENDPOINTS) {
+  summaryThresholds[`http_req_duration{name:${name}}`] = ['max>=0'];
+  summaryThresholds[`http_reqs{name:${name}}`] = ['count>=0'];
+}
 
 export const options = {
   scenarios: {
@@ -35,36 +52,16 @@ export const options = {
       maxDuration: `${GRADING_TIMEOUT_SECONDS + 120}s`,
     },
   },
-  thresholds: {
+  thresholds: Object.assign({
     // Report-only targets: breaching them marks the Jenkins stage UNSTABLE, not FAILED.
     grading_success: ['rate==1'],
     grading_e2e_duration: ['max<300000'],
-  },
+  }, summaryThresholds),
 };
 
-const ESSAYS = [
-  {
-    title: 'My Weekend',
-    content: 'Last weekend I went to the park with my family. We had a picnic under a big tree and played '
-      + 'football on the grass. It was a sunny day and everyone was very happy. In the evening we went home '
-      + 'tired but satisfied, and I hope we can do it again soon.',
-  },
-  {
-    title: 'The Importance of Reading',
-    content: 'Reading is one of the most useful habits a student can have. Books help us learn new words and '
-      + 'understand different cultures. When I read every night before bed, I feel calmer and I sleep better. '
-      + 'I think schools should give students more time to read books they choose themselves.',
-  },
-  {
-    title: 'A Memorable Trip',
-    content: 'Two years ago I travelled to Japan with my friends. We visited Tokyo and Kyoto and tried many kinds '
-      + 'of food. The temples in Kyoto were beautiful, especially in autumn. The trip taught me that travelling '
-      + 'is a great way to learn about the world and about yourself.',
-  },
-];
-
-function authHeaders(token) {
-  return { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+// `name` groups requests per endpoint in the report (composition ids differ per URL).
+function authHeaders(token, name) {
+  return { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, tags: { name } };
 }
 
 // Runs once before any VU starts: log in and create one draft per VU, so that the
@@ -72,7 +69,7 @@ function authHeaders(token) {
 export function setup() {
   const login = http.post(`${BASE_URL}/api/v1/auth/login`,
     JSON.stringify({ username: __ENV.LOAD_TEST_USERNAME || 'testuser', password: __ENV.LOAD_TEST_PASSWORD || 'password123' }),
-    { headers: { 'Content-Type': 'application/json' } });
+    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'login' } });
   if (login.status !== 200) {
     fail(`login failed: ${login.status} ${login.body}`);
   }
@@ -82,7 +79,7 @@ export function setup() {
   for (let i = 0; i < ESSAY_COUNT; i++) {
     const essay = ESSAYS[i % ESSAYS.length];
     const res = http.post(`${BASE_URL}/api/v1/composition`,
-      JSON.stringify({ title: `[load-test] ${essay.title}`, content: essay.content }), authHeaders(token));
+      JSON.stringify({ title: `[load-test] ${essay.title}`, content: essay.content }), authHeaders(token, 'create-essay'));
     if (res.status !== 200 && res.status !== 201) {
       fail(`creating composition ${i + 1} failed: ${res.status} ${res.body}`);
     }
@@ -94,65 +91,67 @@ export function setup() {
 export default function (data) {
   const essayNo = exec.vu.idInTest;
   const id = data.compositionIds[essayNo - 1];
-  const params = authHeaders(data.token);
+  const mark = (event, at) => essayEvent.add(at, { essay: String(essayNo), event });
 
   const submitted = Date.now();
-  const submit = http.post(`${BASE_URL}/api/v1/composition/${id}/grading`, null, params);
+  mark('SUBMITTED', submitted);
+  const submit = http.post(`${BASE_URL}/api/v1/composition/${id}/grading`, null, authHeaders(data.token, 'submit-grading'));
   submitDuration.add(submit.timings.duration);
   if (!check(submit, { 'grading request accepted': (r) => r.status === 200 })) {
     gradingSuccess.add(false);
+    mark('FAILED', Date.now());
     console.error(`essay ${essayNo} (composition ${id}): submit failed ${submit.status} ${submit.body}`);
     return;
   }
 
   let status = 'REVIEWING';
-  let lastStage = null;
+  const seen = {};
   const deadline = submitted + GRADING_TIMEOUT_SECONDS * 1000;
   while (status === 'REVIEWING' && Date.now() < deadline) {
     sleep(POLL_INTERVAL_SECONDS);
-    const res = http.get(`${BASE_URL}/api/v1/composition/${id}`, params);
+    const res = http.get(`${BASE_URL}/api/v1/composition/${id}`, authHeaders(data.token, 'check-status'));
     if (res.status !== 200) continue;
     status = res.json('compositionStatus');
     const stage = res.json('gradingProgressStage');
-    if (stage && stage !== lastStage) {
-      console.log(`essay ${essayNo}: +${((Date.now() - submitted) / 1000).toFixed(1)}s  stage=${stage}`);
-      lastStage = stage;
+    // PREPARING is set by composition-service on submit, i.e. the essay is still waiting
+    // for the orchestrator; only the orchestrator's own stages are timeline events.
+    if (stage && stage !== 'PREPARING' && !seen[stage] && TIMELINE_EVENTS.indexOf(stage) >= 0) {
+      seen[stage] = true;
+      const now = Date.now();
+      mark(stage, now);
+      console.log(`essay ${essayNo}: +${((now - submitted) / 1000).toFixed(1)}s  stage=${stage}`);
     }
   }
 
-  const elapsed = Date.now() - submitted;
+  const finished = Date.now();
+  const elapsed = finished - submitted;
   if (status === 'REVIEWED') {
     gradingDuration.add(elapsed);
     gradingSuccess.add(true);
+    mark('DONE', finished);
     console.log(`essay ${essayNo} (composition ${id}): REVIEWED in ${(elapsed / 1000).toFixed(1)}s`);
   } else if (status === 'REVIEWING') {
     gradingTimeouts.add(1);
     gradingSuccess.add(false);
+    mark('TIMEOUT', finished);
     console.error(`essay ${essayNo} (composition ${id}): still REVIEWING after ${GRADING_TIMEOUT_SECONDS}s (timeout)`);
   } else {
     // Failed grading sends the composition back to DRAFT.
     gradingSuccess.add(false);
+    mark('FAILED', finished);
     console.error(`essay ${essayNo} (composition ${id}): grading failed, status=${status} after ${(elapsed / 1000).toFixed(1)}s`);
   }
 }
 
-function seconds(ms) {
-  return ms === undefined ? '-' : `${(ms / 1000).toFixed(1)}s`;
-}
-
 export function handleSummary(data) {
-  const m = data.metrics;
-  const duration = m.grading_e2e_duration ? m.grading_e2e_duration.values : {};
-  const passes = m.grading_success ? m.grading_success.values.passes : 0;
-  const total = m.grading_success ? m.grading_success.values.passes + m.grading_success.values.fails : 0;
-  // One line for the Jenkins build description.
-  const oneLine = `Load (grading x${ESSAY_COUNT}): ${passes}/${total} graded, `
-    + `fastest ${seconds(duration.min)}, avg ${seconds(duration.avg)}, slowest ${seconds(duration.max)}`;
-
+  const report = buildReport(data, {
+    essayCount: ESSAY_COUNT,
+    reviewAutoApproved: __ENV.REVIEW_AUTO_APPROVE === 'true',
+  });
   return {
-    stdout: textSummary(data, { indent: ' ', enableColors: false }),
+    stdout: report.text,
+    [`${REPORT_DIR}/report.html`]: report.html,
+    [`${REPORT_DIR}/summary.txt`]: `${report.oneLine}\n`,
     [`${REPORT_DIR}/summary.json`]: JSON.stringify(data, null, 2),
-    [`${REPORT_DIR}/summary.html`]: htmlReport(data, { title: `SLLP grading load test (${ESSAY_COUNT} essays)` }),
-    [`${REPORT_DIR}/summary.txt`]: `${oneLine}\n`,
   };
 }

@@ -14,8 +14,10 @@ pipeline {
         ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service product-guide-service evidence-service subscription-service admin-service'
         // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
         ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
-        // Secret-text credential holding a real OpenAI key; only read when RUN_LOAD_TEST is on.
-        OPENAI_CREDENTIALS_ID = 'openai-api-key'
+        // Real OpenAI key (Jenkins secret-text credential), used by every stage: unit tests
+        // (EvidenceGoldenSetTest runs only when it is set), the compose stack and the load test.
+        // credentials() masks it in the console log.
+        OPENAI_API_KEY        = credentials('openai-api-key')
 
         // --- Test stack (integration + load tests) ---
         // Isolates this build's containers/volumes/network from any other build or
@@ -26,14 +28,10 @@ pipeline {
         COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
         // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
         GATEWAY_HOST_PORT     = '18080'
-        // Placeholder so compose's ${OPENAI_API_KEY:?...} interpolation succeeds for the
-        // integration tests (which never call OpenAI) and for `docker compose down`.
-        // The load test overrides it with the real key from OPENAI_CREDENTIALS_ID.
-        OPENAI_API_KEY        = 'sk-test-placeholder-ai-services-out-of-scope'
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch to build')
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_CI_integration_test2', description: 'Git branch to build')
         choice(name: 'MICROSERVICE_NAME', choices: [
             'all',
             'user-service',
@@ -224,11 +222,8 @@ pipeline {
                                 sleep 5
                             done
                         '''
+                        sh startStack
                         if (params.RUN_LOAD_TEST) {
-                            // Grading calls OpenAI for real, so the load test needs the real key.
-                            withCredentials([string(credentialsId: "${OPENAI_CREDENTIALS_ID}", variable: 'OPENAI_API_KEY')]) {
-                                sh startStack
-                            }
                             // Grading requests sent before the orchestrator's workers and agents are
                             // up would sit in the queue and inflate the measured time.
                             sh '''
@@ -247,8 +242,6 @@ pipeline {
                                     sleep 5
                                 done
                             '''
-                        } else {
-                            sh startStack
                         }
                     }
                 }

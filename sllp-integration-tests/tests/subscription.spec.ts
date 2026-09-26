@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SEEDED_USERS, login, bearer } from './support/auth';
+import { SEEDED_USERS, login, bearer, expectStatus } from './support/auth';
 
 test.describe('[Integration] Subscription plans', () => {
   test('public plan list is available without authentication', async ({ request }) => {
@@ -20,7 +20,7 @@ test.describe('[Integration] Subscription plans', () => {
         headers,
         data: { planCode: 'FREE_TRIAL' },
       });
-      expect(response.status(), await response.text()).toBe(200);
+      await expectStatus(response, 200, 'select FREE_TRIAL');
 
       const subscription = await response.json();
       expect(subscription.status).toBe('ACTIVE');
@@ -46,7 +46,7 @@ test.describe('[Integration] Subscription plans', () => {
 
     await test.step('cancel downgrades the subscription', async () => {
       const response = await request.post('/api/v1/subscription/cancel', { headers });
-      expect(response.status(), await response.text()).toBe(200);
+      await expectStatus(response, 200, 'cancel subscription');
 
       const subscription = await response.json();
       expect(subscription.status).toBe('CANCELLED');

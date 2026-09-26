@@ -151,6 +151,7 @@ export function handleSummary(data) {
   return {
     stdout: report.text,
     [`${REPORT_DIR}/report.html`]: report.html,
+    [`${REPORT_DIR}/report.css`]: report.css,
     [`${REPORT_DIR}/summary.txt`]: `${report.oneLine}\n`,
     [`${REPORT_DIR}/summary.json`]: JSON.stringify(data, null, 2),
   };

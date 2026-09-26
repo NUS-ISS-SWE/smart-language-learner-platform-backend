@@ -310,6 +310,16 @@ pipeline {
                         }
                     }
                     archiveArtifacts artifacts: 'load-test-reports/**', allowEmptyArchive: true
+                    // Adds a "Load Test Report" link to the build page (HTML Publisher plugin),
+                    // so the report opens in the browser without downloading the artifact.
+                    publishHTML(target: [
+                        reportName           : 'Load Test Report',
+                        reportDir            : 'load-test-reports',
+                        reportFiles          : 'report.html',
+                        keepAll              : true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing         : true
+                    ])
                 }
             }
         }

@@ -22,7 +22,7 @@ docker run --rm -v "${PWD}/sllp-load-tests:/work" -w /work `
 
 Reports land in `sllp-load-tests/load-test-reports/`:
 
-- `report.html` — the readable report: per-essay timeline (queue wait vs. each agent), breakdown table and a plain-language finding
+- `report.html` — the readable report: per-essay timeline (queue wait vs. each agent), breakdown table and API response times (styles in `report.css`)
 - `summary.txt` — one-line result (shown on the Jenkins build page)
 - `summary.json` — raw k6 metrics
 
@@ -40,4 +40,5 @@ The report is built by `report.js`; the essays submitted are defined there too.
 ## In Jenkins
 
 Tick `RUN_LOAD_TEST` in `JenkinsFile-CI`. Needs a secret-text credential with id
-`openai-api-key`. Reports are archived under `load-test-reports/`.
+`openai-api-key` and the HTML Publisher plugin. The report opens from the
+**Load Test Report** link on the build page; files are also archived under `load-test-reports/`.

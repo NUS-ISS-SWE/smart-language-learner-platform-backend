@@ -224,6 +224,29 @@ function table(essays) {
   return htmlTable(head, rows);
 }
 
+// Kept in a separate file rather than an inline <style>: Jenkins serves archived / published
+// HTML with a Content-Security-Policy that blocks inline styles but allows same-origin CSS.
+const CSS = `body { margin: 0; background: #f8fafc; color: #111827; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 48px; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 32px 0 12px; }
+.sub, .muted { color: #6b7280; }
+.muted { font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 24px; }
+.tile { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
+.tile .v { font-size: 26px; font-weight: 700; }
+.tile .l { color: #6b7280; font-size: 13px; }
+.tile.ok .v, .ok { color: #047857; } .tile.bad .v, .bad { color: #dc2626; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 13px; color: #374151; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: #fff; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+th { background: #f1f5f9; font-weight: 600; font-size: 13px; }
+td .bar { display: inline-flex; align-items: center; gap: 8px; }
+`;
+
 export function buildReport(data, opts) {
   const essayCount = opts.essayCount;
   const essays = collectEssays(data, essayCount);
@@ -250,27 +273,7 @@ export function buildReport(data, opts) {
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grading Load Test</title>
-<style>
-  body { margin: 0; background: #f8fafc; color: #111827; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  h2 { font-size: 17px; margin: 32px 0 12px; }
-  .sub, .muted { color: #6b7280; }
-  .muted { font-size: 13px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 24px; }
-  .tile { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
-  .tile .v { font-size: 26px; font-weight: 700; }
-  .tile .l { color: #6b7280; font-size: 13px; }
-  .tile.ok .v, .ok { color: #047857; } .tile.bad .v, .bad { color: #dc2626; }
-  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 13px; color: #374151; }
-  .key { display: inline-flex; align-items: center; gap: 6px; }
-  .scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-  th { background: #f1f5f9; font-weight: 600; font-size: 13px; }
-  td .bar { display: inline-flex; align-items: center; gap: 8px; }
-</style></head>
+<link rel="stylesheet" href="report.css"></head>
 <body><main>
   <h1>Grading load test</h1>
   <div class="sub">${essayCount} essays submitted at once${opts.reviewAutoApproved ? ' · review auto-approved' : ''} · ${esc(new Date().toISOString().replace('T', ' ').slice(0, 19))} UTC</div>
@@ -305,5 +308,5 @@ export function buildReport(data, opts) {
   const oneLine = `Load (grading x${essayCount}): ${graded.length}/${essayCount} graded, `
     + `all done after ${secs(wallTime)}, grading ~${secs(avgProcessing)}/essay, longest queue wait ${secs(maxWait)}`;
 
-  return { html, text: lines.join('\n'), oneLine };
+  return { html, css: CSS, text: lines.join('\n'), oneLine };
 }

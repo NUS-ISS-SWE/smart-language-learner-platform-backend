@@ -6,4 +6,4 @@ spec:
   scheme: internet-facing
 
   certificateARNs:
-    - arn:aws:acm:ap-southeast-1:697982515707:certificate/da848081-7576-421a-8fa2-103f2d6f0b76
+    - arn:aws:acm:ap-southeast-1:697982515707:certificate/de0814d6-d4d1-4991-922a-39783bac4a6c

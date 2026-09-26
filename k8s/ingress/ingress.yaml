@@ -6,6 +6,23 @@ metadata:
 spec:
   ingressClassName: sllp-alb
   rules:
+    - host: nusmtechswe.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
     - host: www.nusmtechswe.com
       http:
         paths:

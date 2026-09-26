@@ -1,9 +1,0 @@
-apiVersion: eks.amazonaws.com/v1
-kind: IngressClassParams
-metadata:
-  name: sllp-alb
-spec:
-  scheme: internet-facing
-
-  certificateARNs:
-    - arn:aws:acm:ap-southeast-1:697982515707:certificate/de0814d6-d4d1-4991-922a-39783bac4a6c

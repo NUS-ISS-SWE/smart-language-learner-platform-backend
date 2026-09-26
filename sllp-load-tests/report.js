@@ -273,7 +273,7 @@ export function buildReport(data, opts) {
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grading Load Test</title>
-<link rel="stylesheet" href="report.css"></head>
+<link rel="stylesheet" href="load-test-report.css"></head>
 <body><main>
   <h1>Grading load test</h1>
   <div class="sub">${essayCount} essays submitted at once${opts.reviewAutoApproved ? ' · review auto-approved' : ''} · ${esc(new Date().toISOString().replace('T', ' ').slice(0, 19))} UTC</div>

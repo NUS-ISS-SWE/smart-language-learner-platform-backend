@@ -302,8 +302,8 @@ pipeline {
                 always {
                     script {
                         // Surface the one-line result on the build page itself.
-                        if (fileExists('load-test-reports/summary.txt')) {
-                            def summary = readFile('load-test-reports/summary.txt').trim()
+                        if (fileExists('load-test-reports/load-test-summary.txt')) {
+                            def summary = readFile('load-test-reports/load-test-summary.txt').trim()
                             currentBuild.description = currentBuild.description
                                 ? "${currentBuild.description}<br>${summary}"
                                 : summary
@@ -315,7 +315,7 @@ pipeline {
                     publishHTML(target: [
                         reportName           : 'Load Test Report',
                         reportDir            : 'load-test-reports',
-                        reportFiles          : 'report.html',
+                        reportFiles          : 'load-test-report.html',
                         keepAll              : true,
                         alwaysLinkToLastBuild: true,
                         allowMissing         : true

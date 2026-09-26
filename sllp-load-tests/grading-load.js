@@ -150,9 +150,9 @@ export function handleSummary(data) {
   });
   return {
     stdout: report.text,
-    [`${REPORT_DIR}/report.html`]: report.html,
-    [`${REPORT_DIR}/report.css`]: report.css,
-    [`${REPORT_DIR}/summary.txt`]: `${report.oneLine}\n`,
-    [`${REPORT_DIR}/summary.json`]: JSON.stringify(data, null, 2),
+    [`${REPORT_DIR}/load-test-report.html`]: report.html,
+    [`${REPORT_DIR}/load-test-report.css`]: report.css,
+    [`${REPORT_DIR}/load-test-summary.txt`]: `${report.oneLine}\n`,
+    [`${REPORT_DIR}/load-test-k6-metrics.json`]: JSON.stringify(data, null, 2),
   };
 }

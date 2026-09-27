@@ -11,7 +11,7 @@ pipeline {
         GIT_CREDENTIALS_ID    = 'github-pat'
         DOCKER_HUB_USER       = 'maxin0525'
         // Java services live in the Maven reactor and share the sllp-contracts module.
-        ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service product-guide-service evidence-service subscription-service admin-service'
+        ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service review-service product-guide-service evidence-service subscription-service admin-service'
         // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
         ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
         // Real OpenAI key (Jenkins secret-text credential), used by every stage: unit tests
@@ -40,6 +40,7 @@ pipeline {
             'api-gateway',
             'composition-service',
             'evaluation-service',
+            'review-service',
             'product-guide-service',
             'evidence-service',
             'subscription-service',
@@ -52,6 +53,9 @@ pipeline {
                      description: 'Start the full docker-compose stack and run the API integration tests')
         booleanParam(name: 'RUN_LOAD_TEST',     defaultValue: false,
                      description: 'Grading load test: 3 essays graded at once (uses the real OpenAI key — costs money)')
+        booleanParam(name: 'KEEP_TEST_ENV',     defaultValue: false,
+                     description: 'Leave the docker-compose test environment (started even without the tests) running after the build, ' +
+                                  'e.g. to try a frontend against it on port 18080. The next build that starts a test environment removes it.')
         booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: false, description: 'Push image to Docker Hub')
         string(name: 'IMAGE_TAG', defaultValue: '', trim: true,
                description: 'Release tag pushed to Docker Hub (required when UPLOAD_DOCKER_HUB), format vX.Y.Z e.g. v1.0.0. ' +
@@ -216,7 +220,7 @@ pipeline {
         // load tests to call. They share this one environment: it is started once
         // here, used by whichever of the two stages is enabled, and torn down afterwards.
         stage('Start Test Environment') {
-            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
+            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST || params.KEEP_TEST_ENV } }
             environment {
                 // The load test runs the real assessment agents; the review step is
                 // auto-approved (the review agent is out of scope for the load test for now).
@@ -231,6 +235,14 @@ pipeline {
                         // read the same compose variable, so a fresh random value per build is
                         // enough — nothing has to be stored in Jenkins.
                         def startStack = '''
+                            # A KEEP_TEST_ENV build leaves its environment running; it holds the
+                            # same fixed host ports, so remove any such leftover before starting.
+                            for p in $(docker ps -a --filter label=com.docker.compose.project \
+                                           --format '{{.Label "com.docker.compose.project"}}' | grep '^sllp-test-' | sort -u); do
+                                echo "Removing leftover test environment $p"
+                                docker compose -p "$p" down -v --remove-orphans || true
+                            done
+
                             for v in EVIDENCE_AGENT_TOKEN GRADING_AGENT_TOKEN REVIEW_AGENT_TOKEN SUGGESTION_AGENT_TOKEN; do
                                 export "$v=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n')"
                             done
@@ -356,7 +368,7 @@ pipeline {
         }
 
         stage('Stop Test Environment') {
-            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
+            when { expression { return (params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST) && !params.KEEP_TEST_ENV } }
             steps {
                 dir('source') {
                     sh 'docker compose down -v --remove-orphans || true'
@@ -471,10 +483,20 @@ pipeline {
 
     post {
         always {
-            // Safety net: 'Stop Test Environment' is skipped when an earlier stage fails, so make
-            // sure this build's compose stack never outlives the build. No-op if none exists.
-            dir('source') {
-                sh 'docker compose down -v --remove-orphans || true'
+            script {
+                if (params.KEEP_TEST_ENV) {
+                    echo "KEEP_TEST_ENV: test environment ${COMPOSE_PROJECT_NAME} left running " +
+                         "(api-gateway on host port ${GATEWAY_HOST_PORT}). Remove it with: " +
+                         "docker compose -p ${COMPOSE_PROJECT_NAME} down -v --remove-orphans"
+                    currentBuild.description = (currentBuild.description ? "${currentBuild.description}<br>" : '') +
+                        "Test env kept running: ${COMPOSE_PROJECT_NAME}"
+                } else {
+                    // Safety net: 'Stop Test Environment' is skipped when an earlier stage fails, so make
+                    // sure this build's compose stack never outlives the build. No-op if none exists.
+                    dir('source') {
+                        sh 'docker compose down -v --remove-orphans || true'
+                    }
+                }
             }
         }
         success {

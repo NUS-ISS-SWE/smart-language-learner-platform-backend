@@ -1,15 +1,4 @@
 services:
-  frontend-service:
-    image: 961125mingwei/sllp-frontend-service:latest
-    container_name: frontend-service
-    ports:
-      - "3000:3000"
-    networks:
-      - sllp-network
-    depends_on:
-      api-gateway:
-        condition: service_started
-
   postgres-db:
     image: pgvector/pgvector:pg18
     container_name: postgres-db
@@ -36,7 +25,7 @@ services:
     build:
       context: .
       dockerfile: sllp-liquibase-service/Dockerfile
-    image: 961125mingwei/sllp-liquibase-service:v3
+    image: sllp-liquibase-service:latest
     container_name: liquibase-service
     environment:
       POSTGRES_DB: sllp_main_db
@@ -112,7 +101,7 @@ services:
     build:
       context: .
       dockerfile: sllp-user-service/Dockerfile
-    image: 961125mingwei/sllp-user-service:v3
+    image: sllp-user-service:latest
     container_name: user-service
     ports:
       - "8082:8082"
@@ -135,7 +124,7 @@ services:
     build:
       context: .
       dockerfile: sllp-composition-service/Dockerfile
-    image: 961125mingwei/sllp-composition-service:v3
+    image: sllp-composition-service:latest
     container_name: composition-service
     ports:
       - "8083:8083"
@@ -153,25 +142,27 @@ services:
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
-#  product-guide-service:
-#    build:
-#      context: .
-#      dockerfile: sllp-product-guide-service/Dockerfile
-#    image: sllp-product-guide-service:latest
-#    container_name: product-guide-service
-#    expose:
-#      - "8087"
-#    networks:
-#      - sllp-network
-#    depends_on:
-#      liquibase-service:
-#        condition: service_completed_successfully
-#    environment:
-#      - SPRING_PROFILES_ACTIVE=uat
-#      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
-#      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
-#      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-#      - DB_PASSWORD=${DB_PASSWORD:-password}
+  product-guide-service:
+    build:
+      context: .
+      dockerfile: sllp-product-guide-service/Dockerfile
+    image: sllp-product-guide-service:latest
+    container_name: product-guide-service
+    expose:
+      - "8087"
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_PROFILES_ACTIVE=uat
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
 
 #  evaluation-service:
 #    build:
@@ -381,8 +372,8 @@ services:
         condition: service_started
       composition-service:
         condition: service_started
-#      product-guide-service:
-#        condition: service_started
+      product-guide-service:
+        condition: service_started
 #      evaluation-service:
 #        condition: service_started
       orchestrator-service:
@@ -446,7 +437,7 @@ services:
     build:
       context: .
       dockerfile: sllp-subscription-service/Dockerfile
-    image: 961125mingwei/sllp-subscription-service:v3
+    image: sllp-subscription-service:latest
     container_name: subscription-service
     ports:
       - "8084:8084"

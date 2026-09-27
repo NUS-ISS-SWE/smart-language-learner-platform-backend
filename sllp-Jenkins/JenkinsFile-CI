@@ -28,6 +28,10 @@ pipeline {
         COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
         // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
         GATEWAY_HOST_PORT     = '18080'
+        // What the integration tests (sllp-integration-tests/tests) reach behind api-gateway:
+        // auth -> user-service, admin -> admin-service, subscription -> subscription-service.
+        // An integration-only run starts just these; add a service here when a new spec needs one.
+        INTEGRATION_TEST_SERVICES = 'postgres-db liquibase-service user-service admin-service subscription-service'
     }
 
     parameters {
@@ -216,9 +220,11 @@ pipeline {
             }
         }
 
-        // Test environment = every service started via docker compose, for the integration and
+        // Test environment = services started via docker compose, for the integration and
         // load tests to call. They share this one environment: it is started once
         // here, used by whichever of the two stages is enabled, and torn down afterwards.
+        // The load test and KEEP_TEST_ENV need every service; an integration-only run
+        // starts just INTEGRATION_TEST_SERVICES + api-gateway, which is much faster.
         stage('Start Test Environment') {
             when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST || params.KEEP_TEST_ENV } }
             environment {
@@ -247,7 +253,17 @@ pipeline {
                                 export "$v=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n')"
                             done
 
-                            docker compose up -d --build
+                            if [ -n "$TEST_ENV_SERVICES" ]; then
+                                # These services' depends_on all stay within the set, so compose
+                                # still orders them (liquibase finishes before the apps start).
+                                docker compose up -d --build $TEST_ENV_SERVICES
+                                # api-gateway depends_on every backend service; --no-deps stops
+                                # compose from pulling all of them in. Routes to services that
+                                # aren't running just fail, and the tests don't call them.
+                                docker compose up -d --build --no-deps api-gateway
+                            else
+                                docker compose up -d --build
+                            fi
 
                             echo "Waiting for api-gateway to accept requests..."
                             for i in $(seq 1 60); do
@@ -263,7 +279,11 @@ pipeline {
                                 sleep 5
                             done
                         '''
-                        sh startStack
+                        def fullStack = params.RUN_LOAD_TEST || params.KEEP_TEST_ENV
+                        echo fullStack ? 'Starting every service' : "Starting ${INTEGRATION_TEST_SERVICES} api-gateway"
+                        withEnv(["TEST_ENV_SERVICES=${fullStack ? '' : INTEGRATION_TEST_SERVICES}"]) {
+                            sh startStack
+                        }
                         if (params.RUN_LOAD_TEST) {
                             // Grading requests sent before the orchestrator's workers and agents are
                             // up would sit in the queue and inflate the measured time.

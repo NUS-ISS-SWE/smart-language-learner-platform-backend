@@ -52,3 +52,13 @@ output "postgres_role_arn" {
   description = "IAM role used by PostgreSQL through EKS Pod Identity"
   value       = module.service_identity["postgres"].role_arn
 }
+
+output "document_bucket_name" {
+  description = "Name of the S3 bucket used by the document service"
+  value       = module.s3.bucket_name
+}
+
+output "document_bucket_arn" {
+  description = "ARN of the S3 bucket used by the document service"
+  value       = module.s3.bucket_arn
+}

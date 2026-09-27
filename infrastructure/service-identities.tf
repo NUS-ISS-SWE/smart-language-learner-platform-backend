@@ -11,6 +11,29 @@ locals {
       ]
     }
 
+    composition_service = {
+      workload_name   = "composition-service"
+      service_account = "sllp-composition-service"
+      policy_name     = "${var.project_name}-composition-service-secrets"
+      policy_sid      = "ReadCompositionServiceSecrets"
+      secret_arns = [
+        module.secrets.postgres_secret_arn,
+        module.secrets.audit_ingest_secret_arn
+      ]
+    }
+
+    document_service = {
+      workload_name   = "document-service"
+      service_account = "sllp-document-service"
+      policy_name     = "${var.project_name}-document-service-secrets"
+      policy_sid      = "ReadDocumentServiceSecrets"
+      secret_arns = [
+        module.secrets.postgres_secret_arn,
+        module.secrets.jwt_secret_arn,
+        module.secrets.audit_ingest_secret_arn
+      ]
+    }
+
     api_gateway = {
       workload_name   = "api-gateway"
       service_account = "sllp-api-gateway"
@@ -66,4 +89,25 @@ module "service_identity" {
   policy_name     = each.value.policy_name
   policy_sid      = each.value.policy_sid
   secret_arns     = each.value.secret_arns
+}
+
+data "aws_iam_policy_document" "document_service_s3" {
+  statement {
+    sid    = "AccessDocumentObjects"
+    effect = "Allow"
+
+    actions = [
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+
+    resources = ["${module.s3.bucket_arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "document_service_s3" {
+  name   = "${var.project_name}-document-service-s3"
+  role   = module.service_identity["document_service"].role_name
+  policy = data.aws_iam_policy_document.document_service_s3.json
 }

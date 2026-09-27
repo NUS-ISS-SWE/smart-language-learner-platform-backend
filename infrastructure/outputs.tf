@@ -18,6 +18,16 @@ output "admin_service_role_arn" {
   value       = module.service_identity["admin_service"].role_arn
 }
 
+output "composition_service_role_arn" {
+  description = "IAM role used by the composition service through EKS Pod Identity"
+  value       = module.service_identity["composition_service"].role_arn
+}
+
+output "document_service_role_arn" {
+  description = "IAM role used by the document service through EKS Pod Identity"
+  value       = module.service_identity["document_service"].role_arn
+}
+
 output "api_gateway_role_arn" {
   description = "IAM role used by the API gateway through EKS Pod Identity"
   value       = module.service_identity["api_gateway"].role_arn

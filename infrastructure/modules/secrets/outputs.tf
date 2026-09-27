@@ -22,3 +22,8 @@ output "mail_secret_arn" {
   description = "ARN of the SMTP credentials secret"
   value       = aws_secretsmanager_secret.mail.arn
 }
+
+output "stripe_secret_arn" {
+  description = "ARN of the Stripe configuration secret"
+  value       = aws_secretsmanager_secret.stripe.arn
+}

@@ -28,6 +28,11 @@ output "document_service_role_arn" {
   value       = module.service_identity["document_service"].role_arn
 }
 
+output "product_guide_service_role_arn" {
+  description = "IAM role used by the product guide service through EKS Pod Identity"
+  value       = module.service_identity["product_guide_service"].role_arn
+}
+
 output "api_gateway_role_arn" {
   description = "IAM role used by the API gateway through EKS Pod Identity"
   value       = module.service_identity["api_gateway"].role_arn
@@ -51,6 +56,16 @@ output "user_service_role_arn" {
 output "mail_secret_arn" {
   description = "ARN of the SMTP credentials secret"
   value       = module.secrets.mail_secret_arn
+}
+
+output "stripe_secret_arn" {
+  description = "ARN of the Stripe configuration secret"
+  value       = module.secrets.stripe_secret_arn
+}
+
+output "subscription_service_role_arn" {
+  description = "IAM role used by the subscription service through EKS Pod Identity"
+  value       = module.service_identity["subscription_service"].role_arn
 }
 
 output "liquibase_service_role_arn" {

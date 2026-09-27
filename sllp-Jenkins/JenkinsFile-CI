@@ -53,6 +53,9 @@ pipeline {
         booleanParam(name: 'RUN_LOAD_TEST',     defaultValue: false,
                      description: 'Grading load test: 3 essays graded at once (uses the real OpenAI key — costs money)')
         booleanParam(name: 'UPLOAD_DOCKER_HUB', defaultValue: false, description: 'Push image to Docker Hub')
+        string(name: 'IMAGE_TAG', defaultValue: '', trim: true,
+               description: 'Release tag pushed to Docker Hub (required when UPLOAD_DOCKER_HUB), format vX.Y.Z e.g. v1.0.0. ' +
+                            'Must not already exist on Docker Hub — use a new version, or delete the old tag there first.')
     }
 
     stages {
@@ -80,6 +83,31 @@ pipeline {
 
                     echo "Java targets:   ${env.JAVA_TARGETS ?: '(none)'}"
                     echo "Python targets: ${env.PYTHON_TARGETS ?: '(none)'}"
+
+                    // Checked up front so a bad or already-used tag fails the build before
+                    // the (slow) tests run rather than at the push.
+                    if (params.UPLOAD_DOCKER_HUB) {
+                        if (!(params.IMAGE_TAG ==~ /^v\d+\.\d+\.\d+$/)) {
+                            error "IMAGE_TAG '${params.IMAGE_TAG}' is invalid: expected vX.Y.Z, e.g. v1.0.0"
+                        }
+                        // Release tags are immutable: never overwrite one that is already pushed.
+                        withCredentials([usernamePassword(
+                            credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
+                            sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                            def taken = selected.findAll { svc ->
+                                sh(script: "docker manifest inspect ${DOCKER_HUB_USER}/sllp-${svc}:${params.IMAGE_TAG} > /dev/null 2>&1",
+                                   returnStatus: true) == 0
+                            }
+                            if (taken) {
+                                error "Tag ${params.IMAGE_TAG} already exists on Docker Hub for: ${taken.join(', ')}. " +
+                                      "Use a new version, or delete that tag on Docker Hub first."
+                            }
+                        }
+                        currentBuild.description = "Image tag: ${params.IMAGE_TAG}"
+                    }
                 }
             }
         }
@@ -379,9 +407,9 @@ pipeline {
                             // Build context must be the repo root: these Dockerfiles COPY
                             // pom.xml / sllp-contracts from the root for the reactor build.
                             sh """
-                                docker build -f source/sllp-${svc}/Dockerfile -t ${img}:latest -t ${img}:v1 source
+                                docker build -f source/sllp-${svc}/Dockerfile -t ${img}:${params.IMAGE_TAG} -t ${img}:latest source
+                                docker push ${img}:${params.IMAGE_TAG}
                                 docker push ${img}:latest
-                                docker push ${img}:v1
                             """
                         }
                     }
@@ -401,7 +429,7 @@ pipeline {
                     '''
 
                     env.ALL_TARGETS.split(',').each { svc ->
-                        def img = "${DOCKER_HUB_USER}/sllp-${svc}:latest"
+                        def img = "${DOCKER_HUB_USER}/sllp-${svc}:${params.IMAGE_TAG}"
                         sh """
                             docker run --rm \
                                 -v /var/run/docker.sock:/var/run/docker.sock \
@@ -448,7 +476,11 @@ pipeline {
                 sh 'docker compose down -v --remove-orphans || true'
             }
         }
-        success { echo "CI complete — ${params.MICROSERVICE_NAME} built & pushed to Docker Hub" }
+        success {
+            echo params.UPLOAD_DOCKER_HUB
+                ? "CI complete — ${params.MICROSERVICE_NAME} pushed to Docker Hub as ${params.IMAGE_TAG}"
+                : "CI complete — ${params.MICROSERVICE_NAME} built (not pushed)"
+        }
         failure { echo "CI failed for ${params.MICROSERVICE_NAME}" }
     }
 }

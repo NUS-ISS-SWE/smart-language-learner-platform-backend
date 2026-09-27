@@ -19,7 +19,7 @@ pipeline {
         // credentials() masks it in the console log.
         OPENAI_API_KEY        = credentials('openai-api-key')
 
-        // --- Test stack (integration + load tests) ---
+        // --- Test environment: full docker-compose stack used by the integration + load tests ---
         // Isolates this build's containers/volumes/network from any other build or
         // from a developer's own `docker compose up` on the same agent, and guarantees
         // a brand-new Postgres volume every run (seed data's ON CONFLICT DO UPDATE only
@@ -212,9 +212,10 @@ pipeline {
             }
         }
 
-        // The integration and load tests share one docker-compose stack: it is started once
+        // Test environment = every service started via docker compose, for the integration and
+        // load tests to call. They share this one environment: it is started once
         // here, used by whichever of the two stages is enabled, and torn down afterwards.
-        stage('Start Test Stack') {
+        stage('Start Test Environment') {
             when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
             environment {
                 // The load test runs the real assessment agents; the review step is
@@ -354,7 +355,7 @@ pipeline {
             }
         }
 
-        stage('Stop Test Stack') {
+        stage('Stop Test Environment') {
             when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST } }
             steps {
                 dir('source') {
@@ -470,7 +471,7 @@ pipeline {
 
     post {
         always {
-            // Safety net: 'Stop Test Stack' is skipped when an earlier stage fails, so make
+            // Safety net: 'Stop Test Environment' is skipped when an earlier stage fails, so make
             // sure this build's compose stack never outlives the build. No-op if none exists.
             dir('source') {
                 sh 'docker compose down -v --remove-orphans || true'

@@ -28,10 +28,15 @@ pipeline {
         COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
         // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
         GATEWAY_HOST_PORT     = '18080'
-        // What the integration tests (sllp-integration-tests/tests) reach behind api-gateway:
-        // auth -> user-service, admin -> admin-service, subscription -> subscription-service.
-        // An integration-only run starts just these; add a service here when a new spec needs one.
+        // Services each test needs behind api-gateway (which is always started, see
+        // 'Start Test Environment'); unless KEEP_TEST_ENV is set, only these are started.
+        // subscription-service is in both because the gateway readiness check calls it.
+        // Integration tests (sllp-integration-tests/tests): auth -> user, admin -> admin,
+        // subscription -> subscription. Add a service here when a new spec needs one.
         INTEGRATION_TEST_SERVICES = 'postgres-db liquibase-service user-service admin-service subscription-service'
+        // Load test: composition -> Kafka -> orchestrator -> all four A2A agents (the orchestrator's
+        // /ready requires every agent; the agents call user-service and admin-service).
+        LOAD_TEST_SERVICES        = 'postgres-db liquibase-service kafka-service user-service admin-service subscription-service composition-service orchestrator-service evidence-agent grading-agent review-agent suggestions-agent'
     }
 
     parameters {
@@ -223,8 +228,8 @@ pipeline {
         // Test environment = services started via docker compose, for the integration and
         // load tests to call. They share this one environment: it is started once
         // here, used by whichever of the two stages is enabled, and torn down afterwards.
-        // The load test and KEEP_TEST_ENV need every service; an integration-only run
-        // starts just INTEGRATION_TEST_SERVICES + api-gateway, which is much faster.
+        // KEEP_TEST_ENV starts every service; otherwise only what the selected tests need
+        // (INTEGRATION_TEST_SERVICES / LOAD_TEST_SERVICES) + api-gateway, which is much faster.
         stage('Start Test Environment') {
             when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST || params.KEEP_TEST_ENV } }
             environment {
@@ -279,9 +284,14 @@ pipeline {
                                 sleep 5
                             done
                         '''
-                        def fullStack = params.RUN_LOAD_TEST || params.KEEP_TEST_ENV
-                        echo fullStack ? 'Starting every service' : "Starting ${INTEGRATION_TEST_SERVICES} api-gateway"
-                        withEnv(["TEST_ENV_SERVICES=${fullStack ? '' : INTEGRATION_TEST_SERVICES}"]) {
+                        def services = [] as LinkedHashSet
+                        if (!params.KEEP_TEST_ENV) {
+                            if (params.RUN_INTEGRATION_TESTS) { services.addAll(INTEGRATION_TEST_SERVICES.split(' ') as List) }
+                            if (params.RUN_LOAD_TEST)         { services.addAll(LOAD_TEST_SERVICES.split(' ') as List) }
+                        }
+                        def targets = services.join(' ')
+                        echo targets ? "Starting ${targets} api-gateway" : 'Starting every service'
+                        withEnv(["TEST_ENV_SERVICES=${targets}"]) {
                             sh startStack
                         }
                         if (params.RUN_LOAD_TEST) {

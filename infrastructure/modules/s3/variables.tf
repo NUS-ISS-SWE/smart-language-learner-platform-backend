@@ -3,8 +3,8 @@ variable "project_name" {
   type        = string
 }
 
-variable "aws_region" {
-  description = "AWS region containing the bucket"
+variable "bucket_name" {
+  description = "Fixed name of the document upload bucket"
   type        = string
 }
 

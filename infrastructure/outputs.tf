@@ -28,6 +28,31 @@ output "document_service_role_arn" {
   value       = module.service_identity["document_service"].role_arn
 }
 
+output "evidence_service_role_arn" {
+  description = "IAM role used by the evidence service through EKS Pod Identity"
+  value       = module.service_identity["evidence_service"].role_arn
+}
+
+output "evaluation_service_role_arn" {
+  description = "IAM role used by the evaluation service through EKS Pod Identity"
+  value       = module.service_identity["evaluation_service"].role_arn
+}
+
+output "review_service_role_arn" {
+  description = "IAM role used by the review service through EKS Pod Identity"
+  value       = module.service_identity["review_service"].role_arn
+}
+
+output "suggestions_agent_role_arn" {
+  description = "IAM role used by the suggestions agent through EKS Pod Identity"
+  value       = module.service_identity["suggestions_agent"].role_arn
+}
+
+output "orchestrator_service_role_arn" {
+  description = "IAM role used by the orchestrator service through EKS Pod Identity"
+  value       = module.service_identity["orchestrator_service"].role_arn
+}
+
 output "product_guide_service_role_arn" {
   description = "IAM role used by the product guide service through EKS Pod Identity"
   value       = module.service_identity["product_guide_service"].role_arn
@@ -61,6 +86,11 @@ output "mail_secret_arn" {
 output "stripe_secret_arn" {
   description = "ARN of the Stripe configuration secret"
   value       = module.secrets.stripe_secret_arn
+}
+
+output "agent_tokens_secret_arn" {
+  description = "ARN of the A2A agent tokens secret"
+  value       = module.secrets.agent_tokens_secret_arn
 }
 
 output "subscription_service_role_arn" {

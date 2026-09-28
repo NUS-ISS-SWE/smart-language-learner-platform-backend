@@ -30,7 +30,7 @@ module "s3" {
   source = "./modules/s3"
 
   project_name = var.project_name
-  aws_region   = var.aws_region
+  bucket_name  = var.document_bucket_name
   domain_name  = var.domain_name
 }
 

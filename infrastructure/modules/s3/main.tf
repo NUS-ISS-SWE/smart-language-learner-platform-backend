@@ -1,11 +1,5 @@
-data "aws_caller_identity" "current" {}
-
-locals {
-  bucket_name = "${var.project_name}-uploads-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
-}
-
 resource "aws_s3_bucket" "documents" {
-  bucket        = local.bucket_name
+  bucket        = var.bucket_name
   force_destroy = true
 
   tags = {

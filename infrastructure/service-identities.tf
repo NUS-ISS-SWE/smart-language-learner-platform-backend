@@ -34,6 +34,63 @@ locals {
       ]
     }
 
+    evidence_service = {
+      workload_name   = "evidence-service"
+      service_account = "sllp-evidence-service"
+      policy_name     = "${var.project_name}-evidence-service-secrets"
+      policy_sid      = "ReadEvidenceServiceSecrets"
+      secret_arns = [
+        module.secrets.openai_secret_arn,
+        module.secrets.audit_ingest_secret_arn,
+        module.secrets.agent_tokens_secret_arn
+      ]
+    }
+
+    evaluation_service = {
+      workload_name   = "evaluation-service"
+      service_account = "sllp-evaluation-service"
+      policy_name     = "${var.project_name}-evaluation-service-secrets"
+      policy_sid      = "ReadEvaluationServiceSecrets"
+      secret_arns = [
+        module.secrets.openai_secret_arn,
+        module.secrets.agent_tokens_secret_arn
+      ]
+    }
+
+    review_service = {
+      workload_name   = "review-service"
+      service_account = "sllp-review-service"
+      policy_name     = "${var.project_name}-review-service-secrets"
+      policy_sid      = "ReadReviewServiceSecrets"
+      secret_arns = [
+        module.secrets.openai_secret_arn,
+        module.secrets.agent_tokens_secret_arn
+      ]
+    }
+
+    suggestions_agent = {
+      workload_name   = "suggestions-agent"
+      service_account = "sllp-suggestions-agent"
+      policy_name     = "${var.project_name}-suggestions-agent-secrets"
+      policy_sid      = "ReadSuggestionsAgentSecrets"
+      secret_arns = [
+        module.secrets.openai_secret_arn,
+        module.secrets.agent_tokens_secret_arn
+      ]
+    }
+
+    orchestrator_service = {
+      workload_name   = "orchestrator-service"
+      service_account = "sllp-orchestrator-service"
+      policy_name     = "${var.project_name}-orchestrator-service-secrets"
+      policy_sid      = "ReadOrchestratorServiceSecrets"
+      secret_arns = [
+        module.secrets.postgres_secret_arn,
+        module.secrets.audit_ingest_secret_arn,
+        module.secrets.agent_tokens_secret_arn
+      ]
+    }
+
     api_gateway = {
       workload_name   = "api-gateway"
       service_account = "sllp-api-gateway"

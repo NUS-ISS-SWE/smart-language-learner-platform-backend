@@ -10,6 +10,11 @@ variable "project_name" {
   default     = "sllp"
 }
 
+variable "document_bucket_name" {
+  description = "Fixed S3 bucket name used by the document service"
+  type        = string
+}
+
 variable "domain_name" {
   description = "Root domain name"
   type        = string

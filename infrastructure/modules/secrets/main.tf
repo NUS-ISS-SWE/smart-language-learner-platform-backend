@@ -57,3 +57,13 @@ resource "aws_secretsmanager_secret" "stripe" {
     Name = "${var.project_name}-stripe-secret"
   }
 }
+
+resource "aws_secretsmanager_secret" "agent_tokens" {
+  name        = "${var.project_name}/agent-tokens"
+  description = "Shared authentication tokens for SLLP A2A agents"
+
+  recovery_window_in_days = 0
+  tags = {
+    Name = "${var.project_name}-agent-tokens-secret"
+  }
+}

@@ -43,7 +43,7 @@ data:
   SERVER_PORT: "8089"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
-  AWS_S3_BUCKET: "sllp-uploads-697982515707-ap-southeast-1"
+  AWS_S3_BUCKET: "sllp-upload-documents"
   AWS_REGION: "ap-southeast-1"
   CLAMAV_HOST: "clamav"
   CLAMAV_PORT: "3310"

@@ -47,3 +47,23 @@ resource "aws_secretsmanager_secret" "mail" {
     Name = "${var.project_name}-mail-secret"
   }
 }
+
+resource "aws_secretsmanager_secret" "stripe" {
+  name        = "${var.project_name}/stripe"
+  description = "Stripe webhook and Payment Link configuration for SLLP"
+
+  recovery_window_in_days = 0
+  tags = {
+    Name = "${var.project_name}-stripe-secret"
+  }
+}
+
+resource "aws_secretsmanager_secret" "agent_tokens" {
+  name        = "${var.project_name}/agent-tokens"
+  description = "Shared authentication tokens for SLLP A2A agents"
+
+  recovery_window_in_days = 0
+  tags = {
+    Name = "${var.project_name}-agent-tokens-secret"
+  }
+}

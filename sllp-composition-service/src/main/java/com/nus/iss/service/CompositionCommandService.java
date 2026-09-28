@@ -18,6 +18,7 @@ import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
 import com.nus.iss.exception.InvalidCompositionRequestException;
+import com.nus.iss.exception.CompositionModeratedException;
 import com.nus.iss.repository.CompositionRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +63,7 @@ public class CompositionCommandService {
     public CompositionResponse update(Long userId, Long compositionId, UpdateCompositionRequest request) {
         validateUpdateRequest(request);
         Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
         composition.setTitle(request.title());
         composition.setContent(request.content());
         composition.setLanguage(detectLanguage(request.content()));
@@ -77,13 +79,16 @@ public class CompositionCommandService {
 
     @Transactional
     public void delete(Long userId, Long compositionId) {
-        compositionRepository.delete(compositionAccessService.requireOwned(userId, compositionId));
+        Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
+        compositionRepository.delete(composition);
         log.info("Deleted composition with ID: {} for user: {}", compositionId, userId);
     }
 
     @Transactional
     public CompositionResponse requestGrading(Long userId, Long compositionId) {
         Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
         if (composition.getCompositionStatus() != CompositionStatus.DRAFT) {
             throw new InvalidCompositionRequestException("Only draft compositions can be submitted for review");
         }
@@ -146,5 +151,12 @@ public class CompositionCommandService {
 
     private static void validateContent(String content) {
         if (content == null || content.isBlank()) throw new InvalidCompositionRequestException("Composition content is required");
+    }
+
+    private static void requireActive(Composition composition) {
+        if (composition.getModerationStatus() != null
+                && composition.getModerationStatus() != com.nus.iss.enums.ModerationStatus.ACTIVE) {
+            throw new CompositionModeratedException();
+        }
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.util.NoSuchElementException;
 
@@ -33,6 +34,23 @@ public class GlobalExceptionHandler {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problemDetail.setTitle("Not Found");
         problemDetail.setProperty("code", "RESOURCE_NOT_FOUND");
+        return problemDetail;
+    }
+
+    @ExceptionHandler({CompositionModeratedException.class, ModerationConflictException.class})
+    public ProblemDetail handleModerationConflict(RuntimeException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setTitle("Moderation conflict");
+        problemDetail.setProperty("code", "MODERATION_CONFLICT");
+        return problemDetail;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleConcurrentModeration(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "This composition was changed by another administrator. Refresh and try again.");
+        problemDetail.setTitle("Moderation conflict");
+        problemDetail.setProperty("code", "MODERATION_CONFLICT");
         return problemDetail;
     }
 

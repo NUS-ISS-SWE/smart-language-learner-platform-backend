@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class SllpProperties {
 
-    private Kafka kafka = new Kafka();
     private Services services = new Services();
     private String a2aToken;
     private String publicBaseUrl = "http://localhost:8093";
@@ -26,24 +25,4 @@ public class SllpProperties {
         private String adminServiceUrl;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Kafka {
-        private String bootstrapServers;
-        private Topics topics = new Topics();
-        private String groupId;
-        private String autoOffsetReset;
-        private int retryBackoffMs;
-        private int requestTimeoutMs;
-        private int defaultApiTimeoutMs;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Topics {
-        private String compositionGradingRequested;
-        private String compositionGradingCompleted;
-    }
 }

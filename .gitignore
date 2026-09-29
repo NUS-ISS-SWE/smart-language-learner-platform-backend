@@ -67,3 +67,4 @@ crash.*.log
 .coverage
 coverage.xml
 htmlcov/
+coverage-reports/

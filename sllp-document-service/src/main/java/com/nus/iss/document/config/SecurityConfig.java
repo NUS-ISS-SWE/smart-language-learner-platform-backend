@@ -2,6 +2,7 @@ package com.nus.iss.document.config;
 
 import com.nus.iss.document.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -35,5 +36,18 @@ public class SecurityConfig {
             .headers(headers -> headers.frameOptions(fo -> fo.disable()));
 
         return http.build();
+    }
+
+    /**
+     * The filter is a @Component, so Boot would also register it as a plain servlet filter. If that
+     * copy runs first, SecurityContextHolderFilter discards the authentication it set and the copy
+     * inside the security chain is skipped as "already filtered" — valid tokens get 403. Keep it
+     * in the security chain only.
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 }

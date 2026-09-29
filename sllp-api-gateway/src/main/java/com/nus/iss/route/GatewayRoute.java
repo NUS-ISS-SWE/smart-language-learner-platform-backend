@@ -83,6 +83,24 @@ public class GatewayRoute {
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(allUserList)))
                         .uri(sllpProperties.getCompositionService()))
 
+                // Admin document routes first: "/api/documents/{id}" below would otherwise
+                // also match "/api/documents/admin" and let any user through.
+                .route("admin_document_content", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/admin/{id}/content")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("admin_document_get", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/admin/{id}")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getDocumentService()))
+                .route("admin_documents", r -> r.method(HttpMethod.GET)
+                        .and()
+                        .path("/api/documents/admin")
+                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
+                        .uri(sllpProperties.getDocumentService()))
+
                 // Document service routes
                 .route("document_upload", r -> r.method(HttpMethod.POST)
                         .and()
@@ -200,21 +218,6 @@ public class GatewayRoute {
                         .path("/api/v1/admin/compositions")
                         .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
                         .uri(sllpProperties.getCompositionService()))
-                .route("admin_document_content", r -> r.method(HttpMethod.GET)
-                        .and()
-                        .path("/api/documents/admin/{id}/content")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
-                        .uri(sllpProperties.getDocumentService()))
-                .route("admin_document_get", r -> r.method(HttpMethod.GET)
-                        .and()
-                        .path("/api/documents/admin/{id}")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
-                        .uri(sllpProperties.getDocumentService()))
-                .route("admin_documents", r -> r.method(HttpMethod.GET)
-                        .and()
-                        .path("/api/documents/admin")
-                        .filters(f -> f.filter(jwtAuthenticationFilter.jwtRoleFilter(ADMIN_ONLY)))
-                        .uri(sllpProperties.getDocumentService()))
 
                 .build();
     }

@@ -1,0 +1,101 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_CREDENTIALS_ID = 'github-pat'
+        // AWS access comes from the IAM role attached to the Jenkins EC2 instance
+        // (instance profile), so no AWS keys are stored in Jenkins.
+        AWS_DEFAULT_REGION = 'ap-southeast-1'
+        // Never prompt for input on the agent; fail instead.
+        TF_INPUT           = 'false'
+        TF_IN_AUTOMATION   = 'true'
+        // Own bucket name for this pipeline so it never touches the team's real bucket
+        // (S3 names are global). Passed with -var because terraform.tfvars overrides TF_VAR_*.
+        // plan/apply/destroy must all use the same value.
+        TF_VAR_ARGS        = '-var=document_bucket_name=sllp-demo-docs-maxin0525'
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cd_infra', trim: true,
+               description: 'Branch to deploy the infrastructure from')
+        choice(name: 'ACTION', choices: ['apply', 'destroy'],
+               description: 'apply: create/update the infrastructure. destroy: delete everything this pipeline created.')
+    }
+
+    options {
+        // Two concurrent applies against the same state would corrupt it.
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Terraform state is a local file in source/infrastructure/ (gitignored, so the
+                // checkout leaves it alone). Don't wipe the workspace between apply and destroy,
+                // or destroy won't know what to delete.
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('source') {
+                    // Shows which AWS identity Terraform will act as (should be the EC2 role).
+                    sh 'aws sts get-caller-identity || true'
+                    sh 'terraform -chdir=infrastructure init'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('source') {
+                    script {
+                        def destroyFlag = params.ACTION == 'destroy' ? '-destroy' : ''
+                        sh "terraform -chdir=infrastructure plan ${destroyFlag} ${TF_VAR_ARGS}"
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when { expression { return params.ACTION == 'apply' } }
+            steps {
+                dir('source') {
+                    sh "terraform -chdir=infrastructure apply -auto-approve ${TF_VAR_ARGS}"
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when { expression { return params.ACTION == 'destroy' } }
+            steps {
+                dir('source') {
+                    sh "terraform -chdir=infrastructure destroy -auto-approve ${TF_VAR_ARGS}"
+                    // Fails the build if anything is still tracked, so a partial destroy can't pass silently.
+                    sh '''
+                        left=$(terraform -chdir=infrastructure state list)
+                        if [ -n "$left" ]; then
+                            echo "Resources still in state after destroy:"
+                            echo "$left"
+                            exit 1
+                        fi
+                        echo "All resources destroyed."
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Backup copy of the state: if the workspace is ever lost after an apply, restore
+            // this file to source/infrastructure/ and run destroy again.
+            archiveArtifacts artifacts: 'source/infrastructure/terraform.tfstate', allowEmptyArchive: true
+        }
+    }
+}

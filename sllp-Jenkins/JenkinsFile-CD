@@ -1,0 +1,164 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_CREDENTIALS_ID = 'github-pat'
+        // AWS access comes from the IAM role attached to the Jenkins EC2 instance. It is the
+        // role that created the cluster (JenkinsFile-Infra), so it is already a cluster admin.
+        AWS_DEFAULT_REGION = 'ap-southeast-1'
+        EKS_CLUSTER_NAME   = 'sllp-eks'
+        K8S_NAMESPACE      = 'sllp'
+        // Images pushed by JenkinsFile-CI; the manifests in k8s/ point at the team's Docker Hub
+        // account with :latest, rewritten below to this account and the chosen release tag.
+        MANIFEST_IMAGE_USER = '961125mingwei'
+        DOCKER_HUB_USER     = 'maxin0525'
+        // Same service names as JenkinsFile-CI; each one's manifests live in k8s/sllp-<name>/.
+        ALL_SERVICES        = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service review-service product-guide-service evidence-service subscription-service admin-service orchestrator-service suggestions-agent'
+        // Private kubeconfig for this job, so the jenkins user's ~/.kube/config is never touched.
+        KUBECONFIG          = "${env.WORKSPACE}/.kube/config"
+    }
+
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'mx_cd_infra', trim: true, description: 'Branch to take the k8s manifests from')
+        choice(name: 'ACTION', choices: ['deploy', 'undeploy'],
+               description: 'deploy: apply the selected service(s). undeploy: delete the whole sllp namespace ' +
+                            '(run this before destroying the infrastructure).')
+        choice(name: 'MICROSERVICE_NAME', choices: [
+            'all',
+            'user-service',
+            'liquibase-service',
+            'document-service',
+            'api-gateway',
+            'composition-service',
+            'evaluation-service',
+            'review-service',
+            'product-guide-service',
+            'evidence-service',
+            'subscription-service',
+            'admin-service',
+            'orchestrator-service',
+            'suggestions-agent'
+        ], description: 'Service to deploy (all = every service)')
+        string(name: 'IMAGE_TAG', defaultValue: '', trim: true,
+               description: 'Docker Hub release tag pushed by the CI pipeline, format vX.Y.Z e.g. v1.0.0 (required for deploy)')
+        booleanParam(name: 'DEMO_MODE', defaultValue: true,
+                     description: 'Create every resource but start no pods (Deployments scaled to 0, liquibase Job suspended). ' +
+                                  'For a cluster without secret values, Postgres or Kafka, where the pods could never become ready.')
+    }
+
+    options {
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                dir('source') {
+                    git branch: "${params.BRANCH_NAME}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}",
+                        url: 'https://github.com/NUS-ISS-SWE/smart-language-learner-platform-backend.git'
+                }
+            }
+        }
+
+        stage('Prepare') {
+            when { expression { return params.ACTION == 'deploy' } }
+            steps {
+                script {
+                    if (!(params.IMAGE_TAG ==~ /^v\d+\.\d+\.\d+$/)) {
+                        error "IMAGE_TAG '${params.IMAGE_TAG}' is invalid: expected vX.Y.Z, e.g. v1.0.0"
+                    }
+                    def selected = params.MICROSERVICE_NAME == 'all' ? ALL_SERVICES.split(' ') as List : [params.MICROSERVICE_NAME]
+                    env.DEPLOY_TARGETS = selected.join(',')
+
+                    // Fail before touching the cluster if CI never pushed this tag.
+                    def missing = selected.findAll { svc ->
+                        sh(script: "docker manifest inspect ${DOCKER_HUB_USER}/sllp-${svc}:${params.IMAGE_TAG} > /dev/null 2>&1",
+                           returnStatus: true) != 0
+                    }
+                    if (missing) {
+                        error "Tag ${params.IMAGE_TAG} not found on Docker Hub for: ${missing.join(', ')}. Push it with the CI pipeline first."
+                    }
+                    currentBuild.description = "${params.MICROSERVICE_NAME} @ ${params.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Connect to EKS') {
+            steps {
+                sh '''
+                    aws sts get-caller-identity
+                    aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME" --kubeconfig "$KUBECONFIG"
+                    kubectl get nodes || true
+                '''
+            }
+        }
+
+        stage('Render Manifests') {
+            when { expression { return params.ACTION == 'deploy' } }
+            steps {
+                script {
+                    // Rewritten copies in rendered/; the checked-out manifests stay untouched.
+                    sh 'rm -rf rendered && mkdir -p rendered'
+                    env.DEPLOY_TARGETS.split(',').each { svc ->
+                        sh """
+                            mkdir -p rendered/${svc}
+                            cp source/k8s/sllp-${svc}/*.yaml rendered/${svc}/
+                            sed -i 's#${MANIFEST_IMAGE_USER}/\\(sllp-[a-z-]*\\):latest#${DOCKER_HUB_USER}/\\1:${params.IMAGE_TAG}#g' rendered/${svc}/*.yaml
+                            echo "--- ${svc} images:"
+                            grep -h 'image:' rendered/${svc}/*.yaml
+                        """
+                    }
+                    if (params.DEMO_MODE) {
+                        // Only top-level (2-space) keys: Deployment spec.replicas and Job spec.backoffLimit.
+                        sh '''
+                            sed -i 's/^  replicas: [0-9][0-9]*$/  replicas: 0/' rendered/*/*.yaml
+                            if [ -d rendered/liquibase-service ]; then
+                                sed -i 's/^\\(  backoffLimit:.*\\)$/  suspend: true\\n\\1/' rendered/liquibase-service/*.yaml
+                            fi
+                            echo "--- DEMO_MODE: replicas / suspend after rendering:"
+                            grep -Hn -E '^  (replicas|suspend):' rendered/*/*.yaml || true
+                        '''
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'rendered/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when { expression { return params.ACTION == 'deploy' } }
+            steps {
+                script {
+                    sh 'kubectl apply -f source/k8s/namespace.yaml'
+                    env.DEPLOY_TARGETS.split(',').each { svc ->
+                        if (svc == 'liquibase-service') {
+                            // A Job's pod template is immutable, so a new image needs a fresh Job.
+                            sh 'kubectl delete job sllp-liquibase-service -n "$K8S_NAMESPACE" --ignore-not-found'
+                        }
+                        sh "kubectl apply -f rendered/${svc}/"
+                    }
+                }
+            }
+        }
+
+        stage('Status') {
+            when { expression { return params.ACTION == 'deploy' } }
+            steps {
+                sh 'kubectl get deployments,jobs,pods,services -n "$K8S_NAMESPACE" -o wide || true'
+            }
+        }
+
+        stage('Undeploy') {
+            when { expression { return params.ACTION == 'undeploy' } }
+            steps {
+                // Deletes every workload, volume claim and load balancer in the namespace, so
+                // nothing created by Kubernetes (outside Terraform) blocks `terraform destroy`.
+                sh 'kubectl delete namespace "$K8S_NAMESPACE" --ignore-not-found --wait=true --timeout=10m'
+            }
+        }
+    }
+}

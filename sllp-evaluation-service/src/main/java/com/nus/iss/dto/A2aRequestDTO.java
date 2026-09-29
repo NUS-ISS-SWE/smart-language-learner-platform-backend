@@ -18,13 +18,19 @@ public class A2aRequestDTO {
     private String method;
     private Params params;
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class Params {
         private Message message;
         private Object configuration;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class Message {
         private String messageId;
         private String contextId;
@@ -32,13 +38,19 @@ public class A2aRequestDTO {
         private List<Part> parts;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class Part {
         private String mediaType;
         private GradingData data;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class GradingData {
         private String schemaVersion;
         private String workflowId;
@@ -48,7 +60,10 @@ public class A2aRequestDTO {
         private EvidenceArtifact evidence;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class Composition {
         private Long compositionId;
         private Long userId;
@@ -58,33 +73,48 @@ public class A2aRequestDTO {
         private String requestedAt;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class EvidenceArtifact {
         private String rubricVersion;
         private RubricSnapshot rubricSnapshot;
         private List<EvidenceCriterion> criteria;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class RubricSnapshot {
         private String version;
         private List<RubricCriterion> criteria;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class RubricCriterion {
         private String name;
         private BigDecimal weight;
         private String guidance;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class EvidenceCriterion {
         private String criterion;
         private List<EvidenceItem> evidence;
     }
 
-    @Data @NoArgsConstructor @AllArgsConstructor @Builder
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
     public static class EvidenceItem {
         private String excerpt;
         private String polarity;

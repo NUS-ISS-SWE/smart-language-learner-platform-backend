@@ -38,21 +38,55 @@ public class A2aResponseDTO {
                 .error(new RpcError(code, message)).build();
     }
 
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class Result { private Task task; }
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Result {
+        private Task task;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Task {
         private String id;
         private String contextId;
         private TaskStatus status;
         private List<Artifact> artifacts;
     }
-    @Data @NoArgsConstructor @AllArgsConstructor
-    public static class TaskStatus { private String state; }
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class Artifact { private String artifactId; private List<Part> parts; }
-    @Data @Builder @NoArgsConstructor @AllArgsConstructor
-    public static class Part { private String mediaType; private GradingResultDTO data; }
-    @Data @NoArgsConstructor @AllArgsConstructor
-    public static class RpcError { private int code; private String message; }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TaskStatus {
+        private String state;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Artifact {
+        private String artifactId;
+        private List<Part> parts;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Part {
+        private String mediaType;
+        private GradingResultDTO data;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RpcError {
+        private int code;
+        private String message;
+    }
 }

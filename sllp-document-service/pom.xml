@@ -18,7 +18,9 @@
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws-sdk.version>2.25.0</aws-sdk.version>
-        <tika.version>2.9.2</tika.version>
+        <!-- 3.2.2+ fixes CRITICAL CVE-2025-54988 / CVE-2025-66516: XXE in the PDF parser's XFA
+             handling, reachable here because every user-uploaded PDF goes through AutoDetectParser. -->
+        <tika.version>3.3.2</tika.version>
     </properties>
 
     <dependencies>

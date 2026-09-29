@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.6</version>
+        <version>4.0.8</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.nus.iss</groupId>
@@ -52,6 +52,13 @@
              ExceptionInInitializerError: com.sun.tools.javac.tree.EndPosTable).
              1.18.48 is the first release with JDK 25 support. -->
         <lombok.version>1.18.48</lombok.version>
+        <!-- Security patches ahead of what spring-boot-starter-parent 4.0.8 manages (Trivy):
+             Tomcat 11.0.24 still has CRITICAL CVE-2026-65182 / -65905 / -68525 (fixed in 11.0.25);
+             Jackson 3.1.5 / 2.21.5 still have HIGH CVE-2026-68497 (fixed in 3.1.6 / 2.21.6).
+             Drop these once the Boot parent manages these versions or newer. -->
+        <tomcat.version>11.0.26</tomcat.version>
+        <jackson-bom.version>3.1.7</jackson-bom.version>
+        <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
         <!-- Default for surefire's @{argLine}; jacoco:prepare-agent overrides it whenever
              tests run. Without this, a build that skips JaCoCo (e.g. -Djacoco.skip) passes
              the literal "@{argLine}" to java and the test fork fails to start. -->

@@ -19,3 +19,9 @@ variable "domain_name" {
   description = "Root domain name"
   type        = string
 }
+
+variable "enable_acm" {
+  description = "Create the ACM certificate (requires the domain's Route 53 hosted zone in this AWS account)"
+  type        = bool
+  default     = false
+}

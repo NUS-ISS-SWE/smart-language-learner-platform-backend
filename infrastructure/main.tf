@@ -34,9 +34,17 @@ module "s3" {
   domain_name  = var.domain_name
 }
 
+# Needs the domain's Route 53 hosted zone in this AWS account; off unless enable_acm = true.
 module "acm" {
+  count  = var.enable_acm ? 1 : 0
   source = "./modules/acm"
 
   project_name = var.project_name
   domain_name  = var.domain_name
+}
+
+# Keeps existing state (created before the count above) pointing at the same certificate.
+moved {
+  from = module.acm
+  to   = module.acm[0]
 }

@@ -16,6 +16,7 @@ import java.util.UUID;
 public class A2aExceptionHandler {
     @ExceptionHandler(A2aUnauthorizedException.class)
     public ResponseEntity<Void> unauthorized() {
+        log.warn("Rejected unauthorized A2A grading request");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
@@ -23,6 +24,7 @@ public class A2aExceptionHandler {
     public ResponseEntity<A2aResponseDTO> invalidRequest(Exception error) {
         String requestId = error instanceof A2aInvalidRequestException invalid
                 ? invalid.getRequestId() : UUID.randomUUID().toString();
+        log.warn("Rejected invalid A2A grading request requestId={} category={}", requestId, error.getClass().getSimpleName());
         return ResponseEntity.ok(A2aResponseDTO.error(requestId, -32602, "invalid A2A grading request"));
     }
 

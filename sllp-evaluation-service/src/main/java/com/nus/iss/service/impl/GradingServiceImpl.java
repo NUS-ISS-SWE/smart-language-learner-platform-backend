@@ -68,6 +68,10 @@ public class GradingServiceImpl implements GradingService {
 
     @Override
     public GradingResultDTO grade(GradingRequestDTO request) {
+        long startedAt = System.nanoTime();
+        log.info("Grading started requestId={} contextId={} compositionId={} rubricVersion={}",
+                request.getRequestId(), request.getContextId(), request.getCompositionId(),
+                request.getRubricSnapshot() == null ? null : request.getRubricSnapshot().getVersion());
         GradingAttempt attempt;
         try {
             attempt = acquireAttempt(request);
@@ -77,9 +81,14 @@ public class GradingServiceImpl implements GradingService {
             throw new A2aExecutionException(request.getRequestId(), "could not acquire grading audit attempt", error);
         }
         if (attempt.getStatus() == GradingAttemptStatus.COMPLETED) {
+            log.info("Returning persisted grading result requestId={} attempt={} taskId={}",
+                    request.getRequestId(), attempt.getAttemptNumber(), attempt.getTaskId());
             return savedResult(attempt);
         }
         try {
+            log.info("Invoking AI grading requestId={} attempt={} criteriaCount={} evidenceCount={}",
+                    request.getRequestId(), attempt.getAttemptNumber(),
+                    request.getRubricSnapshot().getCriteria().size(), request.getEvidence().size());
             ResponseEntity<ChatResponse, AiGradingOutputDTO> response = chatClient.prompt()
                     .user(user -> user.text("""
                             Grade this student composition using the immutable rubric snapshot.
@@ -122,12 +131,22 @@ public class GradingServiceImpl implements GradingService {
                     .modelVersion(usage.getModel()).promptVersion(SllpConstant.PROMPT_VERSION)
                     .usage(usage).build();
             complete(attempt, result);
+            log.info("Grading completed requestId={} attempt={} taskId={} score={} confidence={} model={} totalTokens={} durationMs={}",
+                    request.getRequestId(), attempt.getAttemptNumber(), attempt.getTaskId(),
+                    result.getOverallScore(), result.getConfidence(), result.getModelVersion(),
+                    usage.getTotalTokens(), elapsedMillis(startedAt));
             return result;
         } catch (A2aInvalidRequestException error) {
             fail(attempt, "INVALID_REQUEST", "structured grading request was invalid");
+            log.warn("Grading rejected requestId={} attempt={} category={} durationMs={}",
+                    request.getRequestId(), attempt.getAttemptNumber(),
+                    error.getClass().getSimpleName(), elapsedMillis(startedAt));
             throw error;
         } catch (Exception error) {
             fail(attempt, error.getClass().getSimpleName(), "grading execution failed");
+            log.warn("Grading failed requestId={} attempt={} category={} durationMs={}",
+                    request.getRequestId(), attempt.getAttemptNumber(),
+                    error.getClass().getSimpleName(), elapsedMillis(startedAt));
             throw new A2aExecutionException(request.getRequestId(), "grading execution failed", error);
         }
     }
@@ -137,13 +156,19 @@ public class GradingServiceImpl implements GradingService {
         if (latest.isPresent()) {
             GradingAttempt current = latest.get();
             if (!current.getRequestHash().equals(request.getRequestHash())) {
+                log.warn("Request ID reuse detected with different input requestId={} latestAttempt={}",
+                        request.getRequestId(), current.getAttemptNumber());
                 throw new A2aInvalidRequestException(request.getRequestId(), "request ID was reused with different input");
             }
             if (current.getStatus() == GradingAttemptStatus.COMPLETED) return current;
             if (current.getStatus() == GradingAttemptStatus.IN_PROGRESS && !stale(current)) {
+                log.info("Duplicate grading request is already in progress requestId={} attempt={}",
+                        request.getRequestId(), current.getAttemptNumber());
                 throw new A2aExecutionException(request.getRequestId(), "grading request is already in progress");
             }
             if (current.getStatus() == GradingAttemptStatus.IN_PROGRESS) {
+                log.warn("Marking stale grading attempt as failed requestId={} attempt={}",
+                        request.getRequestId(), current.getAttemptNumber());
                 current.setStatus(GradingAttemptStatus.FAILED);
                 current.setCompletedAt(now());
                 current.setErrorCode("STALE_ATTEMPT");
@@ -159,8 +184,13 @@ public class GradingServiceImpl implements GradingService {
                 .userId(request.getUserId()).taskId(UUID.randomUUID().toString())
                 .artifactId(UUID.randomUUID().toString()).receivedAt(now()).build();
         try {
-            return gradingRepository.saveAndFlush(created);
+            GradingAttempt saved = gradingRepository.saveAndFlush(created);
+            log.info("Grading audit attempt created requestId={} attempt={} taskId={}",
+                    saved.getRequestId(), saved.getAttemptNumber(), saved.getTaskId());
+            return saved;
         } catch (DataIntegrityViolationException race) {
+            log.info("Concurrent grading attempt detected requestId={} attempt={}",
+                    request.getRequestId(), attemptNumber);
             GradingAttempt winner = gradingRepository.findFirstByRequestIdOrderByAttemptNumberDesc(request.getRequestId())
                     .orElseThrow(() -> race);
             if (winner.getStatus() == GradingAttemptStatus.COMPLETED
@@ -183,6 +213,8 @@ public class GradingServiceImpl implements GradingService {
             attempt.setEstimatedCostMicros(usage.getEstimatedCostMicros());
             attempt.setResultPayload(objectMapper.writeValueAsString(result));
             gradingRepository.saveAndFlush(attempt);
+            log.info("Completed grading audit persisted requestId={} attempt={}",
+                    attempt.getRequestId(), attempt.getAttemptNumber());
         } catch (Exception error) {
             throw new IllegalStateException("could not persist completed grading attempt", error);
         }
@@ -195,6 +227,8 @@ public class GradingServiceImpl implements GradingService {
             attempt.setErrorCode(code == null ? "GRADING_FAILURE" : code.substring(0, Math.min(code.length(), 100)));
             attempt.setErrorMessage(message);
             gradingRepository.saveAndFlush(attempt);
+            log.info("Failed grading audit persisted requestId={} attempt={} errorCode={}",
+                    attempt.getRequestId(), attempt.getAttemptNumber(), attempt.getErrorCode());
         } catch (Exception persistenceError) {
             log.error("Could not persist failed grading attempt requestId={}", attempt.getRequestId(), persistenceError);
         }
@@ -229,4 +263,8 @@ public class GradingServiceImpl implements GradingService {
     }
 
     private static LocalDateTime now() { return LocalDateTime.now(ZoneOffset.UTC); }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
 }

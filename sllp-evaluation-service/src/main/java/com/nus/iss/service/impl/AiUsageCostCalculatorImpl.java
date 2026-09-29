@@ -4,6 +4,7 @@ import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.AiUsage;
 import com.nus.iss.service.AiUsageCostCalculator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AiUsageCostCalculatorImpl implements AiUsageCostCalculator {
     private static final BigDecimal ONE_MILLION = BigDecimal.valueOf(1_000_000L);
     private final SllpProperties properties;
@@ -33,7 +35,7 @@ public class AiUsageCostCalculatorImpl implements AiUsageCostCalculator {
         long estimatedCost = cost(prompt - cached, pricing.getInputPriceMicrosPerMillion())
                 + cost(cached, pricing.getCachedInputPriceMicrosPerMillion())
                 + cost(completion, pricing.getOutputPriceMicrosPerMillion());
-        return AiUsage.builder()
+        AiUsage result = AiUsage.builder()
                 .promptTokens(prompt).completionTokens(completion).cachedInputTokens(cached).totalTokens(total)
                 .estimatedCostMicros(estimatedCost).provider(pricing.getProvider())
                 .model(blankToDefault(responseModel, pricing.getDefaultModel()))
@@ -41,6 +43,10 @@ public class AiUsageCostCalculatorImpl implements AiUsageCostCalculator {
                 .inputPriceMicrosPerMillion(pricing.getInputPriceMicrosPerMillion())
                 .cachedInputPriceMicrosPerMillion(pricing.getCachedInputPriceMicrosPerMillion())
                 .outputPriceMicrosPerMillion(pricing.getOutputPriceMicrosPerMillion()).build();
+        log.info("AI usage calculated provider={} model={} promptTokens={} cachedTokens={} completionTokens={} totalTokens={} estimatedCostMicros={}",
+                result.getProvider(), result.getModel(), result.getPromptTokens(), result.getCachedInputTokens(),
+                result.getCompletionTokens(), result.getTotalTokens(), result.getEstimatedCostMicros());
+        return result;
     }
 
     private static long cost(long tokens, long rate) {

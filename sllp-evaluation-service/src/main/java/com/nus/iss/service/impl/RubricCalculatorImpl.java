@@ -5,6 +5,7 @@ import com.nus.iss.dto.A2aRequestDTO;
 import com.nus.iss.dto.CriterionAssessmentDTO;
 import com.nus.iss.service.RubricCalculator;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -15,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class RubricCalculatorImpl implements RubricCalculator {
     @Override
     public Map<String, BigDecimal> rubricScores(List<CriterionAssessmentDTO> assessments) {
@@ -32,7 +34,10 @@ public class RubricCalculatorImpl implements RubricCalculator {
                 .map(criterion -> byName.get(criterion.getName()).getScore()
                         .multiply(criterion.getWeight()).movePointLeft(2))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return normalized(weighted);
+        BigDecimal result = normalized(weighted);
+        log.info("Deterministic rubric score calculated rubricVersion={} criteriaCount={} overallScore={}",
+                snapshot.getVersion(), assessments.size(), result);
+        return result;
     }
 
     private static BigDecimal normalized(BigDecimal score) {

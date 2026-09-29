@@ -12,6 +12,7 @@ import com.nus.iss.exception.A2aInvalidRequestException;
 import com.nus.iss.exception.A2aUnauthorizedException;
 import com.nus.iss.service.ValidationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ValidationServiceImpl implements ValidationService {
     private final SllpProperties properties;
     private final ObjectMapper objectMapper;
@@ -38,6 +40,7 @@ public class ValidationServiceImpl implements ValidationService {
                 expected.getBytes(StandardCharsets.UTF_8), received.getBytes(StandardCharsets.UTF_8))) {
             throw new A2aUnauthorizedException();
         }
+        log.info("A2A bearer authorization validated");
     }
 
     @Override
@@ -75,12 +78,15 @@ public class ValidationServiceImpl implements ValidationService {
                     .flatMap(item -> item.getEvidence().stream())
                     .filter(item -> item != null && !blank(item.getExcerpt()))
                     .map(A2aRequestDTO.EvidenceItem::getExcerpt).toList();
-            return GradingRequestDTO.builder().requestId(requestId)
+            GradingRequestDTO result = GradingRequestDTO.builder().requestId(requestId)
                     .contextId(request.getParams().getMessage().getContextId())
                     .compositionId(composition.getCompositionId()).userId(composition.getUserId())
                     .title(composition.getTitle().trim()).content(composition.getContent())
                     .language(language).rubricSnapshot(snapshot).evidence(evidence)
                     .requestHash(hash(request.getParams().getMessage().getContextId(), part.getData())).build();
+            log.info("A2A request normalization completed requestId={} contextId={} rubricVersion={} criteriaCount={}",
+                    result.getRequestId(), result.getContextId(), snapshot.getVersion(), snapshot.getCriteria().size());
+            return result;
         } catch (A2aInvalidRequestException error) {
             throw error;
         } catch (Exception error) {
@@ -114,6 +120,8 @@ public class ValidationServiceImpl implements ValidationService {
         if (!actual.equals(expected)) {
             throw new IllegalStateException("AI grading did not cover every rubric criterion exactly once");
         }
+        log.info("AI structured output validated requestId={} criteriaCount={} confidence={}",
+                request.getRequestId(), actual.size(), output.getConfidence());
     }
 
     private static void validateRubric(String requestId, A2aRequestDTO.RubricSnapshot snapshot) {

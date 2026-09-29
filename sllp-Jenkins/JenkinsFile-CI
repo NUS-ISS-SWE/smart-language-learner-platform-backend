@@ -14,8 +14,8 @@ pipeline {
         ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service review-service product-guide-service evidence-service subscription-service admin-service'
         // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
         ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
-        // Real OpenAI key (Jenkins secret-text credential), used by every stage: unit tests
-        // (EvidenceGoldenSetTest runs only when it is set), the compose stack and the load test.
+        // Real OpenAI key (Jenkins secret-text credential), used by every stage: the "llm" unit
+        // tests (EvidenceGoldenSetTest, only with RUN_LLM_EVA_UNIT), the compose stack and the load test.
         // credentials() masks it in the console log.
         OPENAI_API_KEY        = credentials('openai-api-key')
 
@@ -57,7 +57,10 @@ pipeline {
             'orchestrator-service',
             'suggestions-agent'
         ], description: 'Select microservice to build (all = build & push every service)')
-        booleanParam(name: 'RUN_UNIT_TESTS',         defaultValue: false, description: 'Run unit tests')
+        booleanParam(name: 'RUN_UNIT_TESTS',         defaultValue: false, description: 'Run unit tests (with JaCoCo / pytest-cov coverage reports)')
+        booleanParam(name: 'RUN_LLM_EVA_UNIT',       defaultValue: false,
+                     description: 'Also run the unit tests tagged "llm" (EvidenceGoldenSetTest), which call the real OpenAI API — ' +
+                                  'costs money. Requires RUN_UNIT_TESTS.')
         booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false,
                      description: 'Start the full docker-compose stack and run the API integration tests')
         booleanParam(name: 'RUN_LOAD_TEST',     defaultValue: false,
@@ -96,6 +99,10 @@ pipeline {
 
                     echo "Java targets:   ${env.JAVA_TARGETS ?: '(none)'}"
                     echo "Python targets: ${env.PYTHON_TARGETS ?: '(none)'}"
+
+                    if (params.RUN_LLM_EVA_UNIT && !params.RUN_UNIT_TESTS) {
+                        error 'RUN_LLM_EVA_UNIT runs as part of the unit tests: enable RUN_UNIT_TESTS as well.'
+                    }
 
                     // Checked up front so a bad or already-used tag fails the build before
                     // the (slow) tests run rather than at the push.
@@ -162,7 +169,11 @@ pipeline {
                     script {
                         def modules = env.JAVA_TARGETS.split(',').collect { "sllp-${it}" }.join(',')
                         if (params.RUN_UNIT_TESTS) {
-                            sh "mvn -pl ${modules} -am clean verify --no-transfer-progress"
+                            // Tests tagged "llm" (real OpenAI calls) are excluded by the root pom unless
+                            // RUN_LLM_EVA_UNIT; OPENAI_API_KEY is always set here, so the tag is the only guard.
+                            def excluded = params.RUN_LLM_EVA_UNIT ? '' : 'llm'
+                            // verify also runs jacoco:report -> target/site/jacoco/ in every tested module.
+                            sh "mvn -pl ${modules} -am clean verify -Dtest.excludedGroups=${excluded} --no-transfer-progress"
                         } else {
                             sh "mvn -pl ${modules} -am clean package -DskipTests --no-transfer-progress"
                         }
@@ -182,6 +193,24 @@ pipeline {
                         done
                     '''
                     archiveArtifacts artifacts: 'unit-test-reports/java/*.xml', allowEmptyArchive: true
+                    script {
+                        if (params.RUN_UNIT_TESTS) {
+                            // Only this build's targets are copied, so a stale target/ left in the
+                            // workspace by an earlier build of another service is never reported.
+                            // Modules without tests (e.g. liquibase-service) have no report.
+                            withEnv(["COVERAGE_TARGETS=${env.JAVA_TARGETS.replace(',', ' ')}"]) {
+                                sh '''
+                                    rm -rf coverage-reports/java && mkdir -p coverage-reports/java
+                                    for svc in $COVERAGE_TARGETS; do
+                                        r="source/sllp-$svc/target/site/jacoco"
+                                        [ -f "$r/jacoco.xml" ] && cp -r "$r" "coverage-reports/java/$svc" || true
+                                    done
+                                '''
+                            }
+                            publishCoverage('java', 'Java Coverage (JaCoCo)', 'JACOCO', 'jacoco.xml',
+                                            'JaCoCo Report', 'src/main/java')
+                        }
+                    }
                 }
             }
         }
@@ -202,8 +231,11 @@ pipeline {
                                     rm -rf .venv
                                     python3.12 -m venv .venv
                                     .venv/bin/pip install --quiet --upgrade pip
-                                    .venv/bin/pip install --quiet -r requirements.txt pytest
-                                    .venv/bin/pytest --junitxml=pytest-report.xml
+                                    .venv/bin/pip install --quiet -r requirements.txt pytest pytest-cov
+                                    rm -rf .coverage coverage.xml htmlcov
+                                    # Coverage settings (branch, source=app) are in pyproject.toml.
+                                    .venv/bin/pytest --junitxml=pytest-report.xml \
+                                        --cov --cov-report=xml:coverage.xml --cov-report=html:htmlcov
                                 '''
                             }
                         }
@@ -221,6 +253,21 @@ pipeline {
                         done
                     '''
                     archiveArtifacts artifacts: 'unit-test-reports/python/*.xml', allowEmptyArchive: true
+                    withEnv(["COVERAGE_TARGETS=${env.PYTHON_TARGETS.replace(',', ' ')}"]) {
+                        sh '''
+                            rm -rf coverage-reports/python && mkdir -p coverage-reports/python
+                            for svc in $COVERAGE_TARGETS; do
+                                d="source/sllp-$svc"
+                                if [ -f "$d/coverage.xml" ]; then
+                                    mkdir -p "coverage-reports/python/$svc"
+                                    cp -r "$d/htmlcov/." "coverage-reports/python/$svc/" || true
+                                    cp "$d/coverage.xml" "coverage-reports/python/$svc/"
+                                fi
+                            done
+                        '''
+                    }
+                    publishCoverage('python', 'Python Coverage (pytest-cov)', 'COBERTURA', 'coverage.xml',
+                                    'Python Coverage Report', 'app')
                 }
             }
         }
@@ -536,4 +583,32 @@ pipeline {
         }
         failure { echo "CI failed for ${params.MICROSERVICE_NAME}" }
     }
+}
+
+// Publishes coverage-reports/<lang>/<service>/ (filled by the calling stage, one folder per
+// service holding its <xmlName> and index.html): the Coverage plugin's summary and drill-down
+// page for the build, plus every service's own HTML report as a tab of one "<htmlName>" link.
+def publishCoverage(String lang, String title, String parser, String xmlName, String htmlName, String srcSubdir) {
+    def services = sh(script: "ls coverage-reports/${lang} 2>/dev/null || true", returnStdout: true)
+                       .trim().split('\\s+').findAll { it }
+    if (!services) {
+        echo "No ${lang} coverage report found."
+        return
+    }
+    recordCoverage(id: "${lang}-coverage", name: title,
+                   tools: [[parser: parser, pattern: "coverage-reports/${lang}/*/${xmlName}"]],
+                   sourceDirectories: services.collect { [path: "source/sllp-${it}/${srcSubdir}"] },
+                   sourceCodeRetention: 'LAST_BUILD',
+                   enabledForFailure: true,
+                   skipPublishingChecks: true)
+    publishHTML(target: [
+        reportName           : htmlName,
+        reportDir            : "coverage-reports/${lang}",
+        reportFiles          : services.collect { "${it}/index.html" }.join(','),
+        reportTitles         : services.join(','),
+        keepAll              : true,
+        alwaysLinkToLastBuild: true,
+        allowMissing         : true
+    ])
+    archiveArtifacts artifacts: "coverage-reports/${lang}/**", allowEmptyArchive: true
 }

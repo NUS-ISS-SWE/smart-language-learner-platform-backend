@@ -12,6 +12,7 @@ import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
 import com.nus.iss.service.EvidenceCollectionService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.slf4j.Logger;
@@ -30,13 +31,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Real-model evaluation: a small hand-labeled sample set, run against the live agent. Skipped
- * unless OPENAI_API_KEY is set, so a plain `mvn test` never needs live credentials or burns
- * tokens by accident — but it's a genuine eval, not a placeholder, when it does run.
+ * Real-model evaluation: a small hand-labeled sample set, run against the live agent. Tagged
+ * "llm", which the root pom excludes by default, and skipped unless OPENAI_API_KEY is set, so a
+ * plain `mvn test` never needs live credentials or burns tokens by accident — but it's a genuine
+ * eval, not a placeholder, when it does run (CI: RUN_LLM_EVA_UNIT).
  *
  * composition/admin/user-service are mocked so this only depends on the model, not on the rest
  * of the platform being up.
  */
+@Tag("llm")
 @SpringBootTest
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 class EvidenceGoldenSetTest {

@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.URI;
+import java.time.Duration;
+
 @Configuration
 @ConfigurationProperties(prefix = "sllp")
 @NoArgsConstructor
@@ -14,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 public class SllpProperties {
 
     private Services services = new Services();
+    private Health health = new Health();
     private String a2aToken;
     private String publicBaseUrl = "http://localhost:8093";
 
@@ -23,6 +27,15 @@ public class SllpProperties {
     public static class Services {
         private String userServiceUrl;
         private String adminServiceUrl;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Health {
+        private URI openAiStatusUrl = URI.create("https://status.openai.com/proxy/status.openai.com");
+        private Duration connectTimeout = Duration.ofSeconds(1);
+        private Duration readTimeout = Duration.ofSeconds(2);
     }
 
 }

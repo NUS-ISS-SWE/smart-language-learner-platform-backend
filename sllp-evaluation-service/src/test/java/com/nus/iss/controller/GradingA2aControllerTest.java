@@ -4,10 +4,12 @@ import com.nus.iss.agent.GradingAgentService;
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.A2aGradingResult;
 import com.nus.iss.dto.AiUsage;
+import com.nus.iss.service.OpenAiStatusClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Contract tests for Grading's synchronous A2A endpoint. */
 @WebMvcTest(GradingA2aController.class)
+@Import(AgentMetadataController.class)
 class GradingA2aControllerTest {
 
     @Autowired
@@ -37,6 +40,9 @@ class GradingA2aControllerTest {
 
     @MockitoBean
     private SllpProperties properties;
+
+    @MockitoBean
+    private OpenAiStatusClient openAiStatusClient;
 
     @Test
     void advertisesTheGradingCapabilityAndReturnsTheStructuredAssessment() throws Exception {

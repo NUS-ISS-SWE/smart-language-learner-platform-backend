@@ -19,6 +19,10 @@ spring:
 sllp:
   public-base-url: ${GRADING_PUBLIC_BASE_URL:http://localhost:8093}
   a2a-token: ${GRADING_AGENT_TOKEN:}
+  health:
+    open-ai-status-url: ${OPENAI_STATUS_URL:https://status.openai.com/proxy/status.openai.com}
+    connect-timeout: ${OPENAI_STATUS_CONNECT_TIMEOUT:1s}
+    read-timeout: ${OPENAI_STATUS_READ_TIMEOUT:2s}
   ai-usage:
     provider: OPENAI
     default-model: gpt-4o-mini

@@ -43,21 +43,6 @@ public class GradingA2aController {
         this.objectMapper = objectMapper;
     }
 
-    @GetMapping("/.well-known/agent-card.json")
-    public Map<String, Object> card() {
-        return Map.of(
-                "name", "SLLP Grading Agent",
-                "url", properties.getPublicBaseUrl() + "/a2a",
-                "protocolVersion", "1.0",
-                "skills", List.of(Map.of("id", "composition-grading", "name", "Composition grading")),
-                "sllp", Map.of("contractVersion", "2.0"));
-    }
-
-    @GetMapping({"/health", "/ready"})
-    public Map<String, String> health() {
-        return Map.of("status", "ready");
-    }
-
     @PostMapping("/a2a")
     public ResponseEntity<Map<String, Object>> invoke(
             @RequestHeader(value = "Authorization", required = false) String authorization,
@@ -65,7 +50,6 @@ public class GradingA2aController {
         if (!authorized(authorization)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
         JsonNode root = objectMapper.valueToTree(body);
         String requestId = requestId(root);
         try {

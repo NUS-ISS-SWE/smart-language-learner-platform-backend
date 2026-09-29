@@ -1,5 +1,6 @@
 package com.nus.iss.service;
 
+import com.nus.iss.adapter.OpenAiStatusClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;

@@ -1,12 +1,13 @@
 package com.nus.iss.controller;
 
 import com.nus.iss.config.SllpProperties;
-import com.nus.iss.service.OpenAiStatusClient;
+import com.nus.iss.adapter.OpenAiStatusClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.nus.iss.repository.GradingRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import java.util.Map;
 public class AgentMetadataController {
     private final SllpProperties properties;
     private final OpenAiStatusClient openAiStatusClient;
+    private final GradingRepository gradingRepository;
 
     @GetMapping("/.well-known/agent-card.json")
     public Map<String, Object> card() {
@@ -29,7 +31,7 @@ public class AgentMetadataController {
 
     @GetMapping({"/health", "/ready"})
     public ResponseEntity<Map<String, String>> health() {
-        if (openAiStatusClient.isOperational()) {
+        if (openAiStatusClient.isOperational() && databaseOperational()) {
             return ResponseEntity.ok(Map.of("status", "ready", "openai", "operational"));
         }
 
@@ -40,5 +42,14 @@ public class AgentMetadataController {
     @GetMapping("/live")
     public Map<String, String> live() {
         return Map.of("status", "alive");
+    }
+
+    private boolean databaseOperational() {
+        try {
+            gradingRepository.count();
+            return true;
+        } catch (RuntimeException error) {
+            return false;
+        }
     }
 }

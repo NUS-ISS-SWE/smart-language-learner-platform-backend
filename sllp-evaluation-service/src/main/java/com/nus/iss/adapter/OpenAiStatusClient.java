@@ -1,4 +1,4 @@
-package com.nus.iss.service;
+package com.nus.iss.adapter;
 
 import com.nus.iss.dto.OpenAiStatusResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -20,14 +20,9 @@ public class OpenAiStatusClient {
         try {
             var response = restClient.get().retrieve().toEntity(OpenAiStatusResponse.class);
             OpenAiStatusResponse body = response.getBody();
-
-            return response.getStatusCode().value() == 200
-                    && body != null
-                    && body.summary() != null
-                    && body.summary().affectedComponents() != null
-                    && body.summary().affectedComponents().isEmpty()
-                    && body.summary().ongoingIncidents() != null
-                    && body.summary().ongoingIncidents().isEmpty();
+            return response.getStatusCode().value() == 200 && body != null && body.summary() != null
+                    && body.summary().affectedComponents() != null && body.summary().affectedComponents().isEmpty()
+                    && body.summary().ongoingIncidents() != null && body.summary().ongoingIncidents().isEmpty();
         } catch (RestClientException exception) {
             log.warn("OpenAI status check failed: {}", exception.getMessage());
             return false;

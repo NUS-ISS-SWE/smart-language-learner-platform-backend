@@ -1,15 +1,20 @@
 package com.nus.iss.controller;
 
-import com.nus.iss.agent.GradingAgentService;
-import com.nus.iss.config.SllpProperties;
-import com.nus.iss.dto.A2aGradingResult;
+import com.nus.iss.dto.A2aRequestDTO;
 import com.nus.iss.dto.AiUsage;
-import com.nus.iss.service.OpenAiStatusClient;
+import com.nus.iss.dto.CriterionAssessmentDTO;
+import com.nus.iss.dto.EvidenceDTO;
+import com.nus.iss.dto.GradingRequestDTO;
+import com.nus.iss.dto.GradingResultDTO;
+import com.nus.iss.enums.Language;
+import com.nus.iss.exception.A2aExecutionException;
+import com.nus.iss.exception.A2aUnauthorizedException;
+import com.nus.iss.service.GradingService;
+import com.nus.iss.service.ValidationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,83 +22,75 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Contract tests for Grading's synchronous A2A endpoint. */
 @WebMvcTest(GradingA2aController.class)
-@Import(AgentMetadataController.class)
 class GradingA2aControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
-    private GradingAgentService service;
-
-    @MockitoBean
-    private SllpProperties properties;
-
-    @MockitoBean
-    private OpenAiStatusClient openAiStatusClient;
+    @Autowired private MockMvc mockMvc;
+    @MockitoBean private ValidationService validationService;
+    @MockitoBean private GradingService gradingService;
 
     @Test
-    void advertisesTheGradingCapabilityAndReturnsTheStructuredAssessment() throws Exception {
-        when(properties.getPublicBaseUrl()).thenReturn("http://grading.test");
-        when(properties.getA2aToken()).thenReturn("test-token");
-        when(service.gradeStructured(argThat(request -> request.userId() == 7L
-                && request.evidence().equals(List.of("I went home.")))))
-                .thenReturn(result());
-
-        mockMvc.perform(get("/.well-known/agent-card.json"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.skills[0].id").value("composition-grading"));
+    void delegatesTypedRequestAndReturnsStructuredAssessment() throws Exception {
+        GradingRequestDTO command = command();
+        when(validationService.validateAndExtract(any(A2aRequestDTO.class))).thenReturn(command);
+        when(gradingService.grade(command)).thenReturn(result());
 
         mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer test-token").content(requestBody()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("request-1"))
+                .andExpect(jsonPath("$.result.task.id").value("task-1"))
                 .andExpect(jsonPath("$.result.task.status.state").value("TASK_STATE_COMPLETED"))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.criteria[0].criterion").value("TASK_IDEAS"))
-                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.usage.totalTokens").value(12));
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.usage.totalTokens").value(12))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.usage.estimatedCostMicros").doesNotExist());
 
-        verify(service).gradeStructured(argThat(request -> request.evidence().equals(List.of("I went home."))));
+        verify(validationService).validateAuthorization("Bearer test-token");
+        verify(gradingService).grade(command);
     }
 
     @Test
-    void rejectsAnUnauthenticatedA2aCall() throws Exception {
-        when(properties.getA2aToken()).thenReturn("test-token");
-
+    void rejectsUnauthenticatedCallBeforeGrading() throws Exception {
+        doThrow(new A2aUnauthorizedException()).when(validationService).validateAuthorization(null);
         mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON).content(requestBody()))
                 .andExpect(status().isUnauthorized());
-
-        verifyNoInteractions(service);
+        verifyNoInteractions(gradingService);
     }
 
     @Test
-    void returnsARetriableServerErrorWhenGradingExecutionFails() throws Exception {
-        when(properties.getA2aToken()).thenReturn("test-token");
-        when(service.gradeStructured(any())).thenThrow(new IllegalStateException("model result is incomplete"));
-
+    void mapsExecutionFailureToRetriableJsonRpcError() throws Exception {
+        when(validationService.validateAndExtract(any(A2aRequestDTO.class))).thenReturn(command());
+        when(gradingService.grade(any())).thenThrow(new A2aExecutionException("request-1", "failed"));
         mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer test-token").content(requestBody()))
                 .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.id").value("request-1"))
                 .andExpect(jsonPath("$.error.code").value(-32603))
                 .andExpect(jsonPath("$.error.message").value("grading execution failed"));
     }
 
-    private static A2aGradingResult result() {
-        return new A2aGradingResult(new BigDecimal("72.00"), Map.of("TASK_IDEAS", new BigDecimal("72.00")),
-                List.of(new A2aGradingResult.CriterionAssessment("TASK_IDEAS", new BigDecimal("72.00"),
-                        "The event is clear.", List.of(new A2aGradingResult.Evidence("I went home.", "paragraph 1")))),
-                0.9, "test-model", "grading-v2", new AiUsage(10, 2, 0, 12, 1,
-                "OPENAI", "test-model", "test-v1", 1, 1, 1));
+    private static GradingRequestDTO command() {
+        return GradingRequestDTO.builder().requestId("request-1").contextId("workflow-1")
+                .userId(7L).title("A day").content("I went home.").language(Language.ENGLISH)
+                .evidence(List.of("I went home.")).requestHash("hash").build();
+    }
+
+    private static GradingResultDTO result() {
+        CriterionAssessmentDTO assessment = new CriterionAssessmentDTO("TASK_IDEAS", new BigDecimal("72.00"),
+                "The event is clear.", List.of(new EvidenceDTO("I went home.", "paragraph 1")));
+        AiUsage usage = new AiUsage(10, 2, 0, 12, 1L, "OPENAI", "test-model", "test-v1", 1, 1, 1);
+        return GradingResultDTO.builder().taskId("task-1").artifactId("artifact-1")
+                .overallScore(new BigDecimal("72.00")).rubricScores(Map.of("TASK_IDEAS", new BigDecimal("72.00")))
+                .criteria(List.of(assessment)).confidence(0.9).rubricVersion("test-v1")
+                .modelVersion("test-model").promptVersion("grading-v3").usage(usage).build();
     }
 
     private static String requestBody() {

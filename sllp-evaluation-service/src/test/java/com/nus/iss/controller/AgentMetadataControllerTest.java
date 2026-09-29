@@ -1,7 +1,8 @@
 package com.nus.iss.controller;
 
 import com.nus.iss.config.SllpProperties;
-import com.nus.iss.service.OpenAiStatusClient;
+import com.nus.iss.adapter.OpenAiStatusClient;
+import com.nus.iss.repository.GradingRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -25,6 +26,9 @@ class AgentMetadataControllerTest {
 
     @MockitoBean
     private OpenAiStatusClient openAiStatusClient;
+
+    @MockitoBean
+    private GradingRepository gradingRepository;
 
     @Test
     void returnsReadyWhenOpenAiIsOperational() throws Exception {

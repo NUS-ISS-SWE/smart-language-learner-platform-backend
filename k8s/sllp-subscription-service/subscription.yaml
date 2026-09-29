@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-subscription-service
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-subscription-service-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/postgres"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "username"
+            objectAlias: "spring.datasource.username"
+          - path: "password"
+            objectAlias: "spring.datasource.password"
+      - objectName: "sllp/audit-ingest"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "secret"
+            objectAlias: "sllp.audit.ingest-secret"
+      - objectName: "sllp/stripe"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "webhookSecret"
+            objectAlias: "stripe.webhook-secret"
+          - path: "paymentLinkBasic"
+            objectAlias: "stripe.payment-link-basic"
+          - path: "paymentLinkPremium"
+            objectAlias: "stripe.payment-link-premium"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-subscription-service-config
+  namespace: sllp
+data:
+  SPRING_PROFILES_ACTIVE: "prd"
+  SERVER_PORT: "8084"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
+  SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
+  AUDIT_INGEST_URL: "http://admin-service:8086/internal/audit-events"
+  TZ: "UTC"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllp-subscription-service
+  namespace: sllp
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: sllp-subscription-service
+  template:
+    metadata:
+      labels:
+        app: sllp-subscription-service
+    spec:
+      serviceAccountName: sllp-subscription-service
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sllp-subscription-service
+          image: 961125mingwei/sllp-subscription-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8084
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: sllp-subscription-service-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-subscription-service-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subscription-service
+  namespace: sllp
+spec:
+  selector:
+    app: sllp-subscription-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8084
+      targetPort: http
+  type: ClusterIP

@@ -31,6 +31,7 @@ metadata:
   name: sllp-liquibase-service-config
   namespace: sllp
 data:
+  SPRING_PROFILES_ACTIVE: "prd"
   SPRING_MAIN_WEB_APPLICATION_TYPE: "none"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"

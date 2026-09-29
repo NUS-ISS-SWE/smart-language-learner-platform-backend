@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-db:5432/sllp_main_db
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  liquibase:
+    enabled: true
+    change-log: classpath:changelog/db.changelog-master.yml
+    parameters:
+      audit_runtime_password: ${AUDIT_DB_PASSWORD}

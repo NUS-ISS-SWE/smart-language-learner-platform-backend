@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-db:5432/sllp_main_db
+    username: ${DB_USERNAME:sllp_runtime}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://admin-service:8086/internal/audit-events}
+  kafka:
+    bootstrap-servers: kafka-service:9092

@@ -26,6 +26,14 @@ module "secrets" {
   project_name = var.project_name
 }
 
+module "s3" {
+  source = "./modules/s3"
+
+  project_name = var.project_name
+  bucket_name  = var.document_bucket_name
+  domain_name  = var.domain_name
+}
+
 module "acm" {
   source = "./modules/acm"
 

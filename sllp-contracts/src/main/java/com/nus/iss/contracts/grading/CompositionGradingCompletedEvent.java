@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.List;
+import java.util.Map;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,6 +22,8 @@ public class CompositionGradingCompletedEvent {
     private Long compositionId;
     private Long userId;
     private BigDecimal score;
+    /** Immutable criterion score snapshot from the approved grading result. */
+    private Map<String, BigDecimal> rubricScores;
     private String feedback;
     private boolean success;
     private String failureReason;

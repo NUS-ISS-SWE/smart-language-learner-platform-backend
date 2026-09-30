@@ -35,6 +35,7 @@
         <module>sllp-evidence-service</module>
         <module>sllp-subscription-service</module>
         <module>sllp-admin-service</module>
+        <module>sllp-learning-service</module>
         <!--        <module>sllp-knowledge-service</module>-->
 
     </modules>

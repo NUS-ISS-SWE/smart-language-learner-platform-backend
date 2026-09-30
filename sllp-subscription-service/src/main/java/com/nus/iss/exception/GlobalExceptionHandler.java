@@ -10,6 +10,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AssessmentQuotaExceededException.class)
+    public ProblemDetail handleQuotaExceeded(AssessmentQuotaExceededException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        problem.setTitle("Assessment quota exhausted");
+        problem.setProperty("code", "ASSESSMENT_QUOTA_EXHAUSTED");
+        problem.setProperty("renewsAt", ex.renewsAt());
+        return problem;
+    }
+
     @ExceptionHandler(SubscriptionNotFoundException.class)
     public ProblemDetail handleNotFound(SubscriptionNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

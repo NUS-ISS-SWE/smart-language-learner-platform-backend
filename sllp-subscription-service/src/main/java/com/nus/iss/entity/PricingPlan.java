@@ -20,6 +20,7 @@ public class PricingPlan {
     @Column(name = "access_role", nullable = false) private String accessRole;
     @Column(nullable = false) private boolean active;
     @Column(name = "display_order", nullable = false) private Integer displayOrder;
+    @Builder.Default @Column(name = "monthly_assessment_limit", nullable = false) private Integer monthlyAssessmentLimit = 20;
     @Column(name = "created_at", updatable = false) private LocalDateTime createdAt;
     @Column(name = "updated_at") private LocalDateTime updatedAt;
     @OneToMany(mappedBy = "pricingPlan", cascade = CascadeType.ALL, orphanRemoval = true)

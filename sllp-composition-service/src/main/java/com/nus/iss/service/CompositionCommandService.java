@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
@@ -32,17 +33,29 @@ public class CompositionCommandService {
     private final CompositionMapper compositionMapper;
     private final LanguageDetectorService languageDetectorService;
     private final KafkaProducerService kafkaProducerService;
+    private final AssessmentQuotaClient assessmentQuotaClient;
 
     public CompositionCommandService(CompositionRepository compositionRepository,
                                      CompositionAccessService compositionAccessService,
                                      CompositionMapper compositionMapper,
                                      LanguageDetectorService languageDetectorService,
                                      KafkaProducerService kafkaProducerService) {
+        this(compositionRepository, compositionAccessService, compositionMapper, languageDetectorService, kafkaProducerService, AssessmentQuotaClient.noop());
+    }
+
+    @Autowired
+    public CompositionCommandService(CompositionRepository compositionRepository,
+                                     CompositionAccessService compositionAccessService,
+                                     CompositionMapper compositionMapper,
+                                     LanguageDetectorService languageDetectorService,
+                                     KafkaProducerService kafkaProducerService,
+                                     AssessmentQuotaClient assessmentQuotaClient) {
         this.compositionRepository = compositionRepository;
         this.compositionAccessService = compositionAccessService;
         this.compositionMapper = compositionMapper;
         this.languageDetectorService = languageDetectorService;
         this.kafkaProducerService = kafkaProducerService;
+        this.assessmentQuotaClient = assessmentQuotaClient;
     }
 
     @Transactional
@@ -92,6 +105,8 @@ public class CompositionCommandService {
         if (composition.getCompositionStatus() != CompositionStatus.DRAFT) {
             throw new InvalidCompositionRequestException("Only draft compositions can be submitted for review");
         }
+        UUID requestId = UUID.randomUUID();
+        assessmentQuotaClient.reserve(userId, requestId);
         LocalDateTime now = LocalDateTime.now();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         composition.setSystemFeedback(null);
@@ -101,9 +116,20 @@ public class CompositionCommandService {
         composition.setGradingProgressStage("PREPARING");
         composition.setUpdatedAt(now);
         Composition saved = compositionRepository.save(composition);
-        kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
-                .requestId(UUID.randomUUID()).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
-                .language(saved.getLanguage().name()).requestedAt(now).build());
+        try {
+            kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
+                    .requestId(requestId).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
+                    .language(saved.getLanguage().name()).requestedAt(now).build());
+        } catch (RuntimeException error) {
+            // The database transaction rolls back to DRAFT; release the external hold now
+            // rather than forcing the learner to wait for the reservation expiry.
+            try {
+                assessmentQuotaClient.settle(requestId, false);
+            } catch (RuntimeException ignored) {
+                // The reservation has its own expiry as a final recovery path.
+            }
+            throw error;
+        }
         return compositionMapper.toResponse(saved);
     }
 

@@ -19,3 +19,37 @@ groups:
         annotations:
           summary: Audit event ingestion is failing
           description: "{{ $labels.service }} has failed to persist one or more audit events in the last five minutes."
+  - name: agent-behaviour
+    rules:
+      - alert: SuggestionsAgentFailures
+        expr: increase(sllp_suggestions_a2a_requests_total{outcome=~"service_error|invalid_request"}[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Suggestions agent is returning elevated failures
+          description: "The suggestions agent has produced more than five invalid or failed requests in ten minutes."
+      - alert: SuggestionsUnauthorizedTraffic
+        expr: increase(sllp_suggestions_a2a_requests_total{outcome="unauthorized"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Suggestions agent is receiving unauthorized traffic
+          description: "More than ten unauthorized A2A requests arrived in five minutes."
+      - alert: WorkflowSpendGuardActivated
+        expr: increase(sllp_orchestrator_workflow_budget_guards_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Workflow AI spend guard activated
+          description: "At least one workflow was stopped before another agent call because its spend budget was exhausted."
+      - alert: AssessmentAgentFailureSpike
+        expr: increase(sllp_orchestrator_agent_calls_total{result="failure"}[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Assessment agents need human review
+          description: "More than five orchestrated agent calls failed in ten minutes; inspect the admin queue and workflow logs."

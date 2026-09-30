@@ -181,7 +181,7 @@ The orchestrator stores one idempotent event for each successful agent call, key
 }
 ```
 
-`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator permits one `REGRADE`; a rejection or second re-grade request returns only the safe retry message to the student.
+`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator starts one fresh evidence, grading, and review pass when the grading confidence or review confidence is below its configured threshold, or when Review returns `REGRADE`. A rejection or a further questionable result after that bounded reassessment returns only the safe retry message to the student.
 
 ## Suggestion response artifact
 
@@ -190,9 +190,9 @@ The orchestrator stores one idempotent event for each successful agent call, key
   "suggestionStatus": "AVAILABLE",
   "suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Name the feeling and its cause.", "exampleRevision": "I felt proud because...", "learningTip": "Pair each feeling with a detail.", "supportingEvidence": {"excerpt": "I clenched the certificate", "location": "paragraph 3"}}],
   "modelVersion": "model-name",
-  "promptVersion": "suggestion-v1",
+  "promptVersion": "suggestion-v2",
   "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 130, "cachedInputTokens": 0, "completionTokens": 50, "totalTokens": 180, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
 }
 ```
 
-`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence. `AVAILABLE` results contain one to three actionable suggestions. `NO_PRIORITY_IMPROVEMENT` has an empty suggestions array when all evidenced rubric criteria score 100. `TEMPORARILY_UNAVAILABLE` has an empty suggestions array when the peer cannot produce a valid result; the approved assessment still completes. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.
+`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence. Every `AVAILABLE` suggestion must include a non-empty `exampleRevision`: a safe, one- or two-sentence local illustration grounded in the cited evidence that preserves the writer's meaning. `AVAILABLE` results contain one to three actionable suggestions. `NO_PRIORITY_IMPROVEMENT` has an empty suggestions array when all evidenced rubric criteria score 100. `TEMPORARILY_UNAVAILABLE` has an empty suggestions array when the peer cannot produce a valid result; the approved assessment still completes. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.

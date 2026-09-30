@@ -38,6 +38,7 @@ class MemoryRepository:
         self.records: dict[UUID, WorkflowRecord] = {}
         self.agent_usage_events: list[dict] = []
         self.agent_attempt_logs: list[tuple] = []
+        self.cost_micros = 0
 
     def add(self, record: WorkflowRecord) -> None:
         self.records[record.workflow_id] = record
@@ -62,6 +63,9 @@ class MemoryRepository:
 
     def record_agent_usage(self, **kwargs):
         self.agent_usage_events.append(kwargs)
+
+    def workflow_cost_micros(self, workflow_id):
+        return self.cost_micros
 
 
 def usage():
@@ -118,7 +122,7 @@ class FakeAgents:
     def suggest(self, payload, parser):
         self.suggest_calls += 1
         return self._invocation(SuggestionResponse.model_validate(
-            {"suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Explain how you felt.", "learningTip": "Use a feeling and a reason.", "supportingEvidence": {"excerpt": "blue sea"}}], "usage": usage()}
+            {"suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Explain how you felt.", "exampleRevision": "I felt calm as I watched the blue sea.", "learningTip": "Use a feeling and a reason.", "supportingEvidence": {"excerpt": "blue sea"}}], "usage": usage()}
         ))
 
 
@@ -169,6 +173,7 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     assert completed.status is WorkflowStatus.COMPLETED
     assert completed.completion_event["success"] is True
     assert completed.completion_event["score"] == 72
+    assert completed.completion_event["rubricScores"] == {"Description": 72, "Emotion": 70}
     suggestion = completed.completion_event["suggestions"][0]
     assert suggestion["supportingEvidence"]["excerpt"] == "blue sea"
     assert suggestion["learningTip"] == "Use a feeling and a reason."
@@ -208,7 +213,7 @@ def test_placeholder_assessment_is_visibly_labelled_in_feedback():
         }
     )
     suggestions = SuggestionResponse.model_validate(
-        {"suggestions": [{"criterion": "Placeholder", "priority": "HIGH", "recommendation": "Development only.", "supportingEvidence": {"excerpt": "Submitted composition"}}]}
+        {"suggestions": [{"criterion": "Placeholder", "priority": "HIGH", "recommendation": "Development only.", "exampleRevision": "Use a real assessment result.", "supportingEvidence": {"excerpt": "Submitted composition"}}]}
     )
 
     assert render_feedback(grading, suggestions).startswith("Development placeholder assessment")
@@ -255,6 +260,19 @@ def test_failed_agent_attempt_is_logged_for_agent_reliability_metrics():
     assert entries == [{"agent": "grading", "agentAttempt": 1, "status": "FAILED", "httpStatus": 504, "error": "timeout", "latencyMs": 42}]
 
 
+def test_spend_guard_stops_before_the_next_agent_call():
+    repository = MemoryRepository()
+    repository.cost_micros = 100
+    record = workflow_record()
+    repository.add(record)
+    agents = FakeAgents(["APPROVE"])
+
+    failed = OrchestrationWorkflow(replace(settings(), max_workflow_cost_micros=100), repository, agents).run(record)
+
+    assert failed.status is WorkflowStatus.FAILED
+    assert agents.evidence_calls == 0
+
+
 def test_terminal_duplicate_does_not_run_agents_again():
     repository = MemoryRepository()
     record = workflow_record()
@@ -279,7 +297,7 @@ def test_low_confidence_result_still_records_provider_usage():
     repository.add(record)
     completed = OrchestrationWorkflow(settings(), repository, LowConfidenceAgents([])).run(record)
     assert completed.status is WorkflowStatus.FAILED
-    assert [event["agent"] for event in repository.agent_usage_events] == ["evidence", "grading"]
+    assert [event["agent"] for event in repository.agent_usage_events] == ["evidence", "grading", "evidence", "grading"]
 
 
 def test_a2a_response_without_usage_is_recorded_as_a_contract_failure():

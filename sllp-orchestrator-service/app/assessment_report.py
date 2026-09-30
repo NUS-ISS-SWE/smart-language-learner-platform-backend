@@ -37,6 +37,7 @@ def completed_assessment(
         render_feedback(grading, suggestions),
         True,
         suggestions,
+        grading.rubric_scores,
     )
 
 
@@ -51,6 +52,7 @@ def completion_event(
     feedback: str | None,
     success: bool,
     suggestions: SuggestionResponse | None,
+    rubric_scores: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     return GradingCompletionEvent.from_submission(
         submission,
@@ -61,6 +63,7 @@ def completion_event(
         None if success else SAFE_FAILURE_MESSAGE,
         suggestions.suggestion_status if suggestions is not None else None,
         [item.model_dump(by_alias=True, mode="json") for item in suggestions.suggestions] if suggestions is not None else [],
+        rubric_scores,
     ).to_kafka_payload()
 
 

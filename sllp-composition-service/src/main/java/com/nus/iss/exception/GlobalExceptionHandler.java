@@ -13,6 +13,14 @@ import java.util.NoSuchElementException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(AssessmentQuotaExceededException.class)
+    public ProblemDetail handleQuotaExceeded(AssessmentQuotaExceededException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        problemDetail.setTitle("Assessment quota exhausted");
+        problemDetail.setProperty("code", "ASSESSMENT_QUOTA_EXHAUSTED");
+        return problemDetail;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGeneralException(Exception ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");

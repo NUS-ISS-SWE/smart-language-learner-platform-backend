@@ -141,6 +141,8 @@ services:
       - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
+      - SUBSCRIPTION_SERVICE_URL=http://subscription-service:8084
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
 
   product-guide-service:
     build:
@@ -218,6 +220,7 @@ services:
       REVIEW_AGENT_TOKEN: ${REVIEW_AGENT_TOKEN:-}
       SUGGESTION_AGENT_TOKEN: ${SUGGESTION_AGENT_TOKEN:-}
       AGENT_HTTP_TIMEOUT_SECONDS: ${AGENT_HTTP_TIMEOUT_SECONDS:-60}
+      MAX_WORKFLOW_COST_MICROS: ${MAX_WORKFLOW_COST_MICROS:-100000}
       WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-60}
       OUTBOX_LEASE_SECONDS: ${OUTBOX_LEASE_SECONDS:-30}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
@@ -311,6 +314,8 @@ services:
       - SUGGESTIONS_OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - SUGGESTIONS_OPENAI_MODEL=${SUGGESTIONS_OPENAI_MODEL:-gpt-4o-mini}
       - SUGGESTION_AGENT_TOKEN=${SUGGESTION_AGENT_TOKEN:-}
+      - SUGGESTIONS_MAX_A2A_REQUEST_BYTES=${SUGGESTIONS_MAX_A2A_REQUEST_BYTES:-262144}
+      - SUGGESTIONS_MAX_COMPLETION_TOKENS=${SUGGESTIONS_MAX_COMPLETION_TOKENS:-500}
     depends_on:
       user-service:
         condition: service_started
@@ -355,6 +360,31 @@ services:
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
       - TZ=UTC
 
+  learning-service:
+    build:
+      context: .
+      dockerfile: sllp-learning-service/Dockerfile
+    image: sllp-learning-service:latest
+    container_name: learning-service
+    networks:
+      - sllp-network
+    depends_on:
+      liquibase-service:
+        condition: service_completed_successfully
+      kafka-service:
+        condition: service_started
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/sllp_main_db
+      - DB_USERNAME=sllp_runtime
+      - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-service:9092
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8095/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
   api-gateway:
     build:
       context: .
@@ -384,10 +414,13 @@ services:
         condition: service_started
       admin-service:
         condition: service_started
+      learning-service:
+        condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - JWT_SECRET=${JWT_SECRET:-sllpJwtSecretKeyForSigningAndVerificationNusIss2026LocalDevEnv12}
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
+      - LEARNING_SERVICE_URL=http://learning-service:8095
 
   clamav:
     image: clamav/clamav:stable
@@ -455,6 +488,7 @@ services:
       - DB_PASSWORD=${AUDIT_DB_PASSWORD:-password}
       - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
       - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
 
 networks:
   sllp-network:

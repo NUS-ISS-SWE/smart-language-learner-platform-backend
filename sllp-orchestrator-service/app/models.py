@@ -112,6 +112,7 @@ class GradingCompletionEvent(BaseModel):
     composition_id: int
     user_id: int
     score: float | None
+    rubric_scores: dict[str, float] = Field(default_factory=dict)
     feedback: str | None
     success: bool
     failure_reason: str | None
@@ -130,6 +131,7 @@ class GradingCompletionEvent(BaseModel):
         failure_reason: str | None,
         suggestion_status: SuggestionStatus | None = None,
         suggestions: list[dict[str, Any]] | None = None,
+        rubric_scores: dict[str, float] | None = None,
     ) -> "GradingCompletionEvent":
         return cls(
             request_id=submission.completion_request_id(workflow_id),
@@ -137,6 +139,7 @@ class GradingCompletionEvent(BaseModel):
             composition_id=submission.composition.composition_id,
             user_id=submission.composition.user_id,
             score=score,
+            rubric_scores=rubric_scores or {},
             feedback=feedback,
             success=success,
             failure_reason=failure_reason,
@@ -282,7 +285,7 @@ class Suggestion(BaseModel):
     criterion: str = Field(min_length=1)
     priority: Literal["HIGH", "MEDIUM", "LOW"]
     recommendation: str = Field(min_length=1)
-    example_revision: str | None = Field(default=None, validation_alias=AliasChoices("exampleRevision", "example_revision"))
+    example_revision: str = Field(min_length=1, validation_alias=AliasChoices("exampleRevision", "example_revision"))
     learning_tip: str | None = Field(default=None, validation_alias=AliasChoices("learningTip", "learning_tip"))
     supporting_evidence: Evidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 

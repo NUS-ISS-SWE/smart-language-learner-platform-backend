@@ -7,9 +7,10 @@ from typing import Protocol
 import httpx
 
 from app.models import AgentUsage, GeneratedSuggestions
+from app.metrics import record_upstream
 
 
-PROMPT_VERSION = "suggestion-v1"
+PROMPT_VERSION = "suggestion-v2"
 
 
 class GenerationError(RuntimeError):
@@ -30,7 +31,7 @@ class SuggestionGenerator(Protocol):
 
 
 class OpenAIChatGenerator:
-    def __init__(self, api_key: str | None, base_url: str, model: str, temperature: float, client: httpx.Client, *, provider: str = "OPENAI", pricing_version: str = "openai-gpt-4o-mini-2026-08", input_price_micros_per_million: int = 150000, cached_input_price_micros_per_million: int = 75000, output_price_micros_per_million: int = 600000):
+    def __init__(self, api_key: str | None, base_url: str, model: str, temperature: float, client: httpx.Client, *, provider: str = "OPENAI", pricing_version: str = "openai-gpt-4o-mini-2026-08", input_price_micros_per_million: int = 150000, cached_input_price_micros_per_million: int = 75000, output_price_micros_per_million: int = 600000, max_completion_tokens: int = 500):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -41,6 +42,7 @@ class OpenAIChatGenerator:
         self.input_price_micros_per_million = input_price_micros_per_million
         self.cached_input_price_micros_per_million = cached_input_price_micros_per_million
         self.output_price_micros_per_million = output_price_micros_per_million
+        self.max_completion_tokens = max_completion_tokens
 
     def generate(self, prompt: str) -> GenerationResult:
         if not self.api_key:
@@ -52,6 +54,7 @@ class OpenAIChatGenerator:
                 json={
                     "model": self.model,
                     "temperature": self.temperature,
+                    "max_completion_tokens": self.max_completion_tokens,
                     "response_format": {"type": "json_object"},
                     "messages": [
                         {
@@ -76,6 +79,8 @@ class OpenAIChatGenerator:
             completion_tokens = int(usage.get("completion_tokens") or 0)
             cached_tokens = int((usage.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)
             provider_usage = AgentUsage(provider=self.provider, model=body.get("model") or self.model, promptTokens=prompt_tokens, cachedInputTokens=cached_tokens, completionTokens=completion_tokens, totalTokens=prompt_tokens + completion_tokens, pricingVersion=self.pricing_version, inputPriceMicrosPerMillion=self.input_price_micros_per_million, cachedInputPriceMicrosPerMillion=self.cached_input_price_micros_per_million, outputPriceMicrosPerMillion=self.output_price_micros_per_million)
+            record_upstream("openai", True)
             return GenerationResult(output, body.get("model") or self.model, prompt_tokens + completion_tokens, provider_usage)
         except (httpx.HTTPError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            record_upstream("openai", False)
             raise GenerationError("the language model returned no valid suggestion response") from error

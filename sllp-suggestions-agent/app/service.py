@@ -71,18 +71,26 @@ class SuggestionService:
         candidates = self._rank(request.grading, framework.criteria)
         if not candidates:
             return SuggestionResponse(suggestionStatus="NO_PRIORITY_IMPROVEMENT", suggestions=[])
-        try:
-            generated = self.generator.generate(self._prompt(request, learner.difficulty_level, framework.version, candidates))
-        except GenerationError as error:
-            raise SuggestionServiceError("suggestion generation is temporarily unavailable") from error
-        suggestions = self._validate_and_attach(generated.output, candidates)
-        return SuggestionResponse(
-            suggestions=suggestions,
-            modelVersion=generated.model_version,
-            promptVersion=PROMPT_VERSION,
-            tokenUsage=generated.token_usage,
-            usage=generated.usage,
-        )
+        prompt = self._prompt(request, learner.difficulty_level, framework.version, candidates)
+        last_error: Exception | None = None
+        # A usable suggestion must include an illustrative local revision. A single
+        # retry handles a malformed or unsafe model response without publishing
+        # recommendation-only coaching as an AVAILABLE result.
+        for _ in range(2):
+            try:
+                generated = self.generator.generate(prompt)
+                suggestions = self._validate_and_attach(generated.output, candidates)
+                return SuggestionResponse(
+                    suggestions=suggestions,
+                    modelVersion=generated.model_version,
+                    promptVersion=PROMPT_VERSION,
+                    tokenUsage=generated.token_usage,
+                    usage=generated.usage,
+                )
+            except (GenerationError, SuggestionServiceError) as error:
+                last_error = error
+                LOGGER.warning("Suggestion example generation attempt failed: %s", error)
+        raise SuggestionServiceError("suggestion generation is temporarily unavailable") from last_error
 
     @staticmethod
     def _rank(grading: Grading, criteria: list[RubricCriterion]) -> list[Candidate]:
@@ -130,7 +138,7 @@ class SuggestionService:
             ],
             "responseSchema": {
                 "suggestions": [
-                    {"criterion": "exact candidate criterion", "recommendation": "actionable coaching", "exampleRevision": "optional short example", "learningTip": "optional practice tip"}
+                    {"criterion": "exact candidate criterion", "recommendation": "actionable coaching", "exampleRevision": "required one- or two-sentence illustrative local revision of the cited evidence, preserving the writer's meaning", "learningTip": "optional practice tip"}
                 ]
             },
         }
@@ -151,20 +159,12 @@ class SuggestionService:
                 raise SuggestionServiceError("model returned a suggestion outside the selected rubric criteria")
             seen.add(key)
             recommendation = output.recommendation.strip()
-            example_revision = output.example_revision.strip() if output.example_revision else None
+            example_revision = output.example_revision.strip()
             learning_tip = output.learning_tip.strip() if output.learning_tip else None
             _validate_coaching_text(recommendation, "recommendation")
             if learning_tip:
                 _validate_coaching_text(learning_tip, "learning tip")
-            if example_revision:
-                try:
-                    _validate_example_revision(example_revision)
-                except SuggestionServiceError as error:
-                    # An example is optional. Keep the grounded recommendation when
-                    # the model makes its illustrative rewrite too broad or unsafe,
-                    # rather than failing the whole learner assessment.
-                    LOGGER.warning("Discarding invalid example revision for criterion %s: %s", candidate.criterion.name, error)
-                    example_revision = None
+            _validate_example_revision(example_revision)
             suggestions.append(Suggestion(
                 criterion=candidate.criterion.name,
                 priority=priorities[candidates.index(candidate)],

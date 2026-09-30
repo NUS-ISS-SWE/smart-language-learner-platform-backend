@@ -35,15 +35,37 @@ public class CompositionCompletionService {
     private final EvaluationRepository evaluationRepository;
     private final AiUsageEventRepository aiUsageEventRepository;
     private final CompositionAccessService compositionAccessService;
+    private final AssessmentQuotaClient assessmentQuotaClient;
+    private final AgentReviewQueueService agentReviewQueue;
 
     public CompositionCompletionService(CompositionRepository compositionRepository,
                                         EvaluationRepository evaluationRepository,
                                         AiUsageEventRepository aiUsageEventRepository,
                                         CompositionAccessService compositionAccessService) {
+        this(compositionRepository, evaluationRepository, aiUsageEventRepository, compositionAccessService, AssessmentQuotaClient.noop(), AgentReviewQueueService.noop());
+    }
+
+    public CompositionCompletionService(CompositionRepository compositionRepository,
+                                        EvaluationRepository evaluationRepository,
+                                        AiUsageEventRepository aiUsageEventRepository,
+                                        CompositionAccessService compositionAccessService,
+                                        AssessmentQuotaClient assessmentQuotaClient) {
+        this(compositionRepository, evaluationRepository, aiUsageEventRepository, compositionAccessService, assessmentQuotaClient, AgentReviewQueueService.noop());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CompositionCompletionService(CompositionRepository compositionRepository,
+                                        EvaluationRepository evaluationRepository,
+                                        AiUsageEventRepository aiUsageEventRepository,
+                                        CompositionAccessService compositionAccessService,
+                                        AssessmentQuotaClient assessmentQuotaClient,
+                                        AgentReviewQueueService agentReviewQueue) {
         this.compositionRepository = compositionRepository;
         this.evaluationRepository = evaluationRepository;
         this.aiUsageEventRepository = aiUsageEventRepository;
         this.compositionAccessService = compositionAccessService;
+        this.assessmentQuotaClient = assessmentQuotaClient;
+        this.agentReviewQueue = agentReviewQueue;
     }
 
     @Transactional
@@ -65,6 +87,14 @@ public class CompositionCompletionService {
         composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
         saveAiUsage(event, completedAt);
+        if (!event.isSuccess()) {
+            agentReviewQueue.recordFailure(event.getRequestId(), event.getCompositionId(), event.getUserId(), event.getFailureReason());
+        }
+        try {
+            assessmentQuotaClient.settle(event.getRequestId(), event.isSuccess());
+        } catch (RuntimeException ignored) {
+            // A stale reservation expires safely; completion must never be replayed merely because quota settlement is down.
+        }
     }
 
     private void saveAiUsage(CompositionGradingCompletedEvent event, LocalDateTime completedAt) {

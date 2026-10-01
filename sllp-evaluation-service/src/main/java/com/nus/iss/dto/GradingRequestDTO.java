@@ -20,7 +20,6 @@ public class GradingRequestDTO {
     private String title;
     private String content;
     private Language language;
-    private A2aRequestDTO.RubricSnapshot rubricSnapshot;
     private List<String> evidence;
     private String requestHash;
 }

@@ -45,6 +45,7 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
   GRADING_PUBLIC_BASE_URL: "http://grading-agent:8093"
   GRADING_USER_SERVICE_URL: "http://user-service:8082"
+  GRADING_ADMIN_SERVICE_URL: "http://admin-service:8086"
   OPENAI_STATUS_URL: "https://status.openai.com/proxy/status.openai.com"
   OPENAI_STATUS_CONNECT_TIMEOUT: "10s"
   OPENAI_STATUS_READ_TIMEOUT: "10s"

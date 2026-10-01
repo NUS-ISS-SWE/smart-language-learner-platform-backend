@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -78,28 +77,7 @@ public class A2aRequestDTO {
     @AllArgsConstructor
     @Builder
     public static class EvidenceArtifact {
-        private String rubricVersion;
-        private RubricSnapshot rubricSnapshot;
         private List<EvidenceCriterion> criteria;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class RubricSnapshot {
-        private String version;
-        private List<RubricCriterion> criteria;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class RubricCriterion {
-        private String name;
-        private BigDecimal weight;
-        private String guidance;
     }
 
     @Data

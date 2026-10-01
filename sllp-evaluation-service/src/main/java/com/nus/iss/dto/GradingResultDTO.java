@@ -23,8 +23,6 @@ public class GradingResultDTO {
     private Map<String, BigDecimal> rubricScores;
     private List<CriterionAssessmentDTO> criteria;
     private double confidence;
-    private String rubricVersion;
-    private A2aRequestDTO.RubricSnapshot rubricSnapshot;
     private String modelVersion;
     private String promptVersion;
     private AiUsage usage;

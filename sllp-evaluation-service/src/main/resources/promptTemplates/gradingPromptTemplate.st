@@ -1,11 +1,10 @@
-Grade this student composition using the immutable rubric snapshot.
+Grade this student composition using the current Admin rubric.
 
 Title: {title}
 Language: {language}
 Learner difficulty level: {difficultyLevel}
 Required grading standard: {difficultyStandard}
 Judge the composition at this grading standard when assigning every criterion score.
-Rubric version: {rubricVersion}
 Rubric:
 {rubric}
 

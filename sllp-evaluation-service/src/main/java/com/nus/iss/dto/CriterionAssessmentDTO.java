@@ -13,7 +13,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CriterionAssessmentDTO {
+    private Long rubricCriterionId;
     private String criterion;
+    private Integer bandScore;
     private BigDecimal score;
     private String rationale;
     private List<EvidenceDTO> evidence;

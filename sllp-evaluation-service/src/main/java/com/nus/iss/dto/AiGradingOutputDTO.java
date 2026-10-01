@@ -12,6 +12,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiGradingOutputDTO {
-    private List<CriterionAssessmentDTO> criteria;
+    private List<AiCriterionAssessmentDTO> criteria;
     private Double confidence;
 }

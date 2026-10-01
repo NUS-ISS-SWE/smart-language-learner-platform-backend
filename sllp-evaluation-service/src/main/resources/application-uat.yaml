@@ -14,3 +14,4 @@ sllp:
   a2a-token: ${GRADING_AGENT_TOKEN:}
   services:
     user-service-url: ${GRADING_USER_SERVICE_URL:http://user-service:8082}
+    admin-service-url: ${GRADING_ADMIN_SERVICE_URL:http://admin-service:8086}

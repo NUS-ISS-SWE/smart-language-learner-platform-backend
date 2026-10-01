@@ -21,6 +21,7 @@ public class SllpProperties {
     @Data
     public static class Services {
         private String userServiceUrl = "http://localhost:8082";
+        private String adminServiceUrl = "http://localhost:8086";
     }
 
     @Data

@@ -1,14 +1,12 @@
 package com.nus.iss.service;
 
-import com.nus.iss.dto.A2aRequestDTO;
-import com.nus.iss.dto.CriterionAssessmentDTO;
+import com.nus.iss.dto.AdminRubricCriterionDTO;
+import com.nus.iss.dto.AiCriterionAssessmentDTO;
+import com.nus.iss.dto.GradingScoreResult;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 public interface RubricCalculator {
-    Map<String, BigDecimal> rubricScores(List<CriterionAssessmentDTO> assessments);
-    BigDecimal overallScore(List<CriterionAssessmentDTO> assessments,
-                            A2aRequestDTO.RubricSnapshot rubricSnapshot);
+    GradingScoreResult calculate(List<AiCriterionAssessmentDTO> assessments,
+                                 List<AdminRubricCriterionDTO> rubric);
 }

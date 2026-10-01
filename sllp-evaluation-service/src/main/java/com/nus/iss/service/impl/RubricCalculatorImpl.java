@@ -1,8 +1,9 @@
 package com.nus.iss.service.impl;
 
-import com.nus.iss.config.SllpConstant;
-import com.nus.iss.dto.A2aRequestDTO;
+import com.nus.iss.dto.AdminRubricCriterionDTO;
+import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.dto.CriterionAssessmentDTO;
+import com.nus.iss.dto.GradingScoreResult;
 import com.nus.iss.service.RubricCalculator;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -18,30 +19,42 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class RubricCalculatorImpl implements RubricCalculator {
+    private static final BigDecimal BAND_PERCENT_MULTIPLIER = BigDecimal.valueOf(20);
+
     @Override
-    public Map<String, BigDecimal> rubricScores(List<CriterionAssessmentDTO> assessments) {
+    public GradingScoreResult calculate(List<AiCriterionAssessmentDTO> assessments,
+                                        List<AdminRubricCriterionDTO> rubric) {
+        Map<String, AiCriterionAssessmentDTO> byName = assessments.stream()
+                .collect(Collectors.toMap(AiCriterionAssessmentDTO::getCriterion, Function.identity()));
+        List<CriterionAssessmentDTO> scoredCriteria = rubric.stream()
+                .map(criterion -> scored(criterion, byName.get(criterion.criterionName())))
+                .toList();
         Map<String, BigDecimal> scores = new LinkedHashMap<>();
-        assessments.forEach(item -> scores.put(item.getCriterion(), normalized(item.getScore())));
-        return scores;
-    }
-
-    @Override
-    public BigDecimal overallScore(List<CriterionAssessmentDTO> assessments,
-                                   A2aRequestDTO.RubricSnapshot snapshot) {
-        Map<String, CriterionAssessmentDTO> byName = assessments.stream()
+        scoredCriteria.forEach(item -> scores.put(item.getCriterion(), item.getScore()));
+        Map<String, CriterionAssessmentDTO> scoredByName = scoredCriteria.stream()
                 .collect(Collectors.toMap(CriterionAssessmentDTO::getCriterion, Function.identity()));
-        BigDecimal weighted = snapshot.getCriteria().stream()
-                .map(criterion -> byName.get(criterion.getName()).getScore()
-                        .multiply(criterion.getWeight()).movePointLeft(2))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal result = normalized(weighted);
-        log.info("Deterministic rubric score calculated rubricVersion={} criteriaCount={} overallScore={}",
-                snapshot.getVersion(), assessments.size(), result);
-        return result;
+        BigDecimal overall = rubric.stream()
+                .map(criterion -> scoredByName.get(criterion.criterionName()).getScore()
+                        .multiply(criterion.weightPercentage()).movePointLeft(2))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        log.info("Deterministic rubric score calculated criteriaCount={} overallScore={}",
+                scoredCriteria.size(), overall);
+        return new GradingScoreResult(overall, scores, scoredCriteria);
     }
 
-    private static BigDecimal normalized(BigDecimal score) {
-        return score.max(SllpConstant.MIN_SCORE).min(SllpConstant.MAX_SCORE)
+    private static CriterionAssessmentDTO scored(AdminRubricCriterionDTO rubric,
+                                                 AiCriterionAssessmentDTO assessment) {
+        BigDecimal normalizedScore = BigDecimal.valueOf(assessment.getBandScore())
+                .multiply(BAND_PERCENT_MULTIPLIER)
                 .setScale(2, RoundingMode.HALF_UP);
+        return CriterionAssessmentDTO.builder()
+                .rubricCriterionId(rubric.id())
+                .criterion(rubric.criterionName())
+                .bandScore(assessment.getBandScore())
+                .score(normalizedScore)
+                .rationale(assessment.getRationale())
+                .evidence(assessment.getEvidence())
+                .build();
     }
 }

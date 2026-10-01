@@ -44,3 +44,5 @@ sllp:
     output-price-micros-per-million: 600000
   audit:
     in-progress-timeout: 2m
+  services:
+    user-service-url: ${GRADING_USER_SERVICE_URL:http://localhost:8082}

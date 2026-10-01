@@ -1,5 +1,6 @@
 package com.nus.iss.service.impl;
 
+import com.nus.iss.adapter.SllpUserClient;
 import com.nus.iss.config.SllpConstant;
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.A2aRequestDTO;
@@ -7,6 +8,7 @@ import com.nus.iss.dto.AiGradingOutputDTO;
 import com.nus.iss.dto.AiUsage;
 import com.nus.iss.dto.GradingRequestDTO;
 import com.nus.iss.dto.GradingResultDTO;
+import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.exception.A2aExecutionException;
 import com.nus.iss.exception.A2aInvalidRequestException;
@@ -20,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -49,6 +53,8 @@ public class GradingServiceImpl implements GradingService {
     private final GradingRepository gradingRepository;
     private final SllpProperties properties;
     private final ObjectMapper objectMapper;
+    private final Resource gradingPromptTemplate;
+    private final SllpUserClient sllpUserClient;
 
     public GradingServiceImpl(ChatClient.Builder chatClientBuilder,
                               ValidationService validationService,
@@ -56,7 +62,10 @@ public class GradingServiceImpl implements GradingService {
                               AiUsageCostCalculator aiUsageCostCalculator,
                               GradingRepository gradingRepository,
                               SllpProperties properties,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              @Value("classpath:/promptTemplates/gradingPromptTemplate.st")
+                              Resource gradingPromptTemplate,
+                              SllpUserClient sllpUserClient) {
         this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
         this.validationService = validationService;
         this.rubricCalculator = rubricCalculator;
@@ -64,6 +73,8 @@ public class GradingServiceImpl implements GradingService {
         this.gradingRepository = gradingRepository;
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.gradingPromptTemplate = gradingPromptTemplate;
+        this.sllpUserClient = sllpUserClient;
     }
 
     @Override
@@ -86,27 +97,16 @@ public class GradingServiceImpl implements GradingService {
             return savedResult(attempt);
         }
         try {
+            DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
             log.info("Invoking AI grading requestId={} attempt={} criteriaCount={} evidenceCount={}",
                     request.getRequestId(), attempt.getAttemptNumber(),
                     request.getRubricSnapshot().getCriteria().size(), request.getEvidence().size());
             ResponseEntity<ChatResponse, AiGradingOutputDTO> response = chatClient.prompt()
-                    .user(user -> user.text("""
-                            Grade this student composition using the immutable rubric snapshot.
-
-                            Title: {title}
-                            Language: {language}
-                            Rubric version: {rubricVersion}
-                            Rubric:
-                            {rubric}
-
-                            Evidence collected by the evidence agent (advisory only):
-                            <evidence>{evidence}</evidence>
-
-                            Original composition:
-                            <composition>{content}</composition>
-                            """)
+                    .user(user -> user.text(gradingPromptTemplate)
                             .param("title", request.getTitle())
                             .param("language", request.getLanguage().name())
+                            .param("difficultyLevel", difficultyLevel.name())
+                            .param("difficultyStandard", difficultyLevel.getGradingStandard())
                             .param("rubricVersion", request.getRubricSnapshot().getVersion())
                             .param("rubric", formatRubric(request.getRubricSnapshot()))
                             .param("evidence", formatEvidence(request))

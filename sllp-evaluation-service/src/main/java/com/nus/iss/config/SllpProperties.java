@@ -16,6 +16,12 @@ public class SllpProperties {
     private Health health = new Health();
     private AiUsage aiUsage = new AiUsage();
     private Audit audit = new Audit();
+    private Services services = new Services();
+
+    @Data
+    public static class Services {
+        private String userServiceUrl = "http://localhost:8082";
+    }
 
     @Data
     public static class Health {

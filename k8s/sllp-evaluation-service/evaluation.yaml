@@ -25,6 +25,13 @@ spec:
         jmesPath:
           - path: "grading"
             objectAlias: "sllp.a2a-token"
+      - objectName: "sllp/postgres"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "username"
+            objectAlias: "spring.datasource.username"
+          - path: "password"
+            objectAlias: "spring.datasource.password"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -35,10 +42,14 @@ data:
   SPRING_PROFILES_ACTIVE: "prd"
   SERVER_PORT: "8093"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
+  OPENAI_CHAT_MODEL: "gpt-6-luna"
   GRADING_PUBLIC_BASE_URL: "http://grading-agent:8093"
-  SLLP_SERVICES_USER_SERVICE_URL: "http://user-service:8082"
-  SLLP_SERVICES_ADMIN_SERVICE_URL: "http://admin-service:8086"
-  SLLP_KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  GRADING_USER_SERVICE_URL: "http://user-service:8082"
+  GRADING_ADMIN_SERVICE_URL: "http://admin-service:8086"
+  OPENAI_STATUS_URL: "https://status.openai.com/proxy/status.openai.com"
+  OPENAI_STATUS_CONNECT_TIMEOUT: "10s"
+  OPENAI_STATUS_READ_TIMEOUT: "10s"
   TZ: "UTC"
 ---
 apiVersion: apps/v1
@@ -81,7 +92,7 @@ spec:
               readOnly: true
           startupProbe:
             httpGet:
-              path: /ready
+              path: /live
               port: http
             periodSeconds: 10
             timeoutSeconds: 2
@@ -91,11 +102,11 @@ spec:
               path: /ready
               port: http
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 4
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /live
               port: http
             periodSeconds: 20
             timeoutSeconds: 2

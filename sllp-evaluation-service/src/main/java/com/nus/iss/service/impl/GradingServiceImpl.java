@@ -18,6 +18,7 @@ import com.nus.iss.model.GradingAttempt;
 import com.nus.iss.repository.GradingRepository;
 import com.nus.iss.service.AiUsageCostCalculator;
 import com.nus.iss.service.GradingService;
+import com.nus.iss.service.ModerationService;
 import com.nus.iss.service.RubricCalculator;
 import com.nus.iss.service.ValidationService;
 import com.nus.iss.tool.AnchorTools;
@@ -53,6 +54,7 @@ public class GradingServiceImpl implements GradingService {
     private final SllpUserClient sllpUserClient;
     private final SllpAdminClient sllpAdminClient;
     private final AnchorTools anchorTools;
+    private final ModerationService moderationService;
 
     public GradingServiceImpl(ChatClient.Builder chatClientBuilder,
                               ValidationService validationService,
@@ -67,7 +69,8 @@ public class GradingServiceImpl implements GradingService {
                               Resource gradingPromptTemplate,
                               SllpUserClient sllpUserClient,
                               SllpAdminClient sllpAdminClient,
-                              AnchorTools anchorTools) {
+                              AnchorTools anchorTools,
+                              ModerationService moderationService) {
         this.chatClient = chatClientBuilder.defaultSystem(systemPromptTemplate).build();
         this.validationService = validationService;
         this.rubricCalculator = rubricCalculator;
@@ -79,6 +82,7 @@ public class GradingServiceImpl implements GradingService {
         this.sllpUserClient = sllpUserClient;
         this.sllpAdminClient = sllpAdminClient;
         this.anchorTools = anchorTools;
+        this.moderationService = moderationService;
     }
 
     @Override
@@ -102,6 +106,7 @@ public class GradingServiceImpl implements GradingService {
             DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
             List<AdminRubricCriterionDTO> rubric = sllpAdminClient.getRubricCriteria(request.getLanguage(), difficultyLevel);
             validationService.validateRubric(rubric, request.getLanguage(), difficultyLevel);
+            moderationService.moderateAndRecord(request);
             log.info("Invoking AI grading requestId={} attempt={} criteriaCount={} evidenceCount={}", request.getRequestId(), attempt.getAttemptNumber(), rubric.size(), request.getEvidence().size());
             ResponseEntity<ChatResponse, AiGradingOutputDTO> response = chatClient.prompt()
                     .user(user -> user.text(gradingPromptTemplate)

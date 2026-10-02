@@ -20,6 +20,7 @@ spring:
     model:
       chat: openai
       embedding: openai
+      moderation: openai
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
@@ -27,6 +28,8 @@ spring:
         temperature: 0.3
       embedding:
         model: text-embedding-3-small
+      moderation:
+        model: omni-moderation-latest
 
 sllp:
   public-base-url: ${GRADING_PUBLIC_BASE_URL:http://localhost:8093}

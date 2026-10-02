@@ -8,8 +8,9 @@ Judge the composition at this grading standard when assigning every criterion sc
 Rubric:
 {rubric}
 
-Evidence collected by the evidence agent (advisory only):
+Evidence collected by the evidence agent (optional reference only; verify it against the original composition,
+and do not treat it as complete or authoritative):
 <evidence>{evidence}</evidence>
 
-Original composition:
+Original composition (the source of truth for all scores, rationales, and quoted excerpts):
 <composition>{content}</composition>

@@ -34,7 +34,9 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -118,9 +120,11 @@ public class GradingServiceImpl implements GradingService {
                             .param("evidence", formatEvidence(request))
                             .param("content", request.getContent()))
                     .tools(anchorTools)
+                    .toolContext(toolContext(request, attempt))
                     .call().responseEntity(AiGradingOutputDTO.class);
 
             AiGradingOutputDTO output = response.getEntity();
+            logAiOutput(request, attempt, output);
             validationService.validateAiOutput(output, request, rubric);
             GradingScoreResult scoring = rubricCalculator.calculate(output.getCriteria(), rubric);
             ChatResponse chatResponse = response.getResponse();
@@ -267,6 +271,28 @@ public class GradingServiceImpl implements GradingService {
         return IntStream.range(0, request.getEvidence().size())
                 .mapToObj(index -> "%d. %s".formatted(index + 1, request.getEvidence().get(index)))
                 .collect(Collectors.joining("\n"));
+    }
+
+    private static Map<String, Object> toolContext(GradingRequestDTO request, GradingAttempt attempt) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put(AnchorTools.REQUEST_ID_CONTEXT_KEY, request.getRequestId());
+        if (request.getCompositionId() != null) {
+            context.put(AnchorTools.COMPOSITION_ID_CONTEXT_KEY, request.getCompositionId());
+        }
+        context.put(AnchorTools.ATTEMPT_CONTEXT_KEY, attempt.getAttemptNumber());
+        return context;
+    }
+
+    private void logAiOutput(GradingRequestDTO request, GradingAttempt attempt, AiGradingOutputDTO output) {
+        try {
+            log.info("AI grading output received requestId={} compositionId={} attempt={} output={}",
+                    request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
+                    objectMapper.writeValueAsString(output));
+        } catch (Exception error) {
+            log.warn("Could not serialize AI grading output for logging requestId={} compositionId={} attempt={} category={}",
+                    request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
+                    error.getClass().getSimpleName());
+        }
     }
 
     private static LocalDateTime now() {

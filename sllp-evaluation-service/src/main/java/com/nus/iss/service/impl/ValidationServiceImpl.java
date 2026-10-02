@@ -16,13 +16,16 @@ import com.nus.iss.service.ValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -121,6 +124,8 @@ public class ValidationServiceImpl implements ValidationService {
     public void validateAiOutput(AiGradingOutputDTO output, GradingRequestDTO request, List<AdminRubricCriterionDTO> rubric) {
         if (output == null || output.getConfidence() == null || !Double.isFinite(output.getConfidence())
                 || output.getConfidence() < 0 || output.getConfidence() > 1 || output.getCriteria() == null) {
+            log.warn("AI output validation failed requestId={} reason=invalid_structured_result",
+                    request.getRequestId());
             throw new IllegalStateException("AI grading returned an invalid structured result");
         }
         Set<String> expected = rubric.stream().map(AdminRubricCriterionDTO::criterionName)
@@ -133,16 +138,29 @@ public class ValidationServiceImpl implements ValidationService {
                     || assessment.getBandScore() > SllpConstant.MAX_BAND_SCORE
                     || blank(assessment.getRationale())
                     || assessment.getEvidence() == null || assessment.getEvidence().isEmpty()) {
+                log.warn("AI output validation failed requestId={} reason=incomplete_criterion criterion={}",
+                        request.getRequestId(), assessment == null ? null : assessment.getCriterion());
                 throw new IllegalStateException("AI grading criteria are incomplete or invalid");
             }
-            for (EvidenceDTO evidence : assessment.getEvidence()) {
-                if (evidence == null || blank(evidence.getExcerpt()) || blank(evidence.getLocation())
-                        || !request.getContent().contains(evidence.getExcerpt())) {
-                    throw new IllegalStateException("AI grading evidence is not grounded in the composition");
-                }
+            List<EvidenceDTO> groundedEvidence = assessment.getEvidence().stream()
+                    .filter(evidence -> evidence != null && !blank(evidence.getExcerpt())
+                            && grounded(request.getContent(), evidence.getExcerpt()))
+                    .toList();
+            int discardedCount = assessment.getEvidence().size() - groundedEvidence.size();
+            if (groundedEvidence.isEmpty()) {
+                log.warn("AI output validation failed requestId={} reason=no_grounded_evidence criterion={} returnedCount={}",
+                        request.getRequestId(), assessment.getCriterion(), assessment.getEvidence().size());
+                throw new IllegalStateException("AI grading evidence is not grounded in the composition");
+            }
+            if (discardedCount > 0) {
+                log.warn("Discarded ungrounded AI evidence requestId={} criterion={} discardedCount={} groundedCount={}",
+                        request.getRequestId(), assessment.getCriterion(), discardedCount, groundedEvidence.size());
+                assessment.setEvidence(groundedEvidence);
             }
         }
         if (!actual.equals(expected)) {
+            log.warn("AI output validation failed requestId={} reason=rubric_coverage_mismatch expectedCount={} actualCount={}",
+                    request.getRequestId(), expected.size(), actual.size());
             throw new IllegalStateException("AI grading did not cover every rubric criterion exactly once");
         }
         log.info("AI structured output validated requestId={} criteriaCount={} confidence={}",
@@ -152,6 +170,22 @@ public class ValidationServiceImpl implements ValidationService {
     private String hash(String contextId, Object value) throws Exception {
         byte[] json = (contextId + "\u0000" + objectMapper.writeValueAsString(value)).getBytes(StandardCharsets.UTF_8);
         return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(json));
+    }
+
+    private static boolean grounded(String content, String excerpt) {
+        String normalizedExcerpt = normalizeText(excerpt);
+        return !normalizedExcerpt.isBlank() && normalizeText(content).contains(normalizedExcerpt);
+    }
+
+    private static String normalizeText(String value) {
+        if (value == null) return "";
+        String withoutBreakTags = value.replaceAll("(?i)<br\\s*/?>", " ");
+        String withoutHtmlTags = withoutBreakTags.replaceAll("(?s)</?[A-Za-z][^>]*>", " ");
+        String unescaped = HtmlUtils.htmlUnescape(withoutHtmlTags);
+        return Normalizer.normalize(unescaped, Normalizer.Form.NFKC)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[\\p{Z}\\s]+", " ")
+                .trim();
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }

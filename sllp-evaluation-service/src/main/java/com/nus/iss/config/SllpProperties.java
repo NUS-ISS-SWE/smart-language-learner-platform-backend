@@ -34,11 +34,11 @@ public class SllpProperties {
     @Data
     public static class AiUsage {
         private String provider = "OPENAI";
-        private String defaultModel = "gpt-5.6-luna";
-        private String pricingVersion = "openai-gpt-5.6-luna-2026-10";
-        private long inputPriceMicrosPerMillion = 200_000L;
-        private long cachedInputPriceMicrosPerMillion = 20_000L;
-        private long outputPriceMicrosPerMillion = 1_200_000L;
+        private String defaultModel = "gpt-6-luna";
+        private String pricingVersion = "openai-gpt-6-luna-2026-10";
+        private long inputPriceMicrosPerMillion = 100_000L;
+        private long cachedInputPriceMicrosPerMillion = 10_000L;
+        private long outputPriceMicrosPerMillion = 500_000L;
     }
 
     @Data

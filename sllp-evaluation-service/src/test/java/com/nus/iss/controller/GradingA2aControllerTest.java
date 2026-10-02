@@ -49,7 +49,10 @@ class GradingA2aControllerTest {
                 .andExpect(jsonPath("$.id").value("request-1"))
                 .andExpect(jsonPath("$.result.task.id").value("task-1"))
                 .andExpect(jsonPath("$.result.task.status.state").value("TASK_STATE_COMPLETED"))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.criteria[0].rubricCriterionId").value(7))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.criteria[0].criterion").value("TASK_IDEAS"))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.criteria[0].bandScore").value(4))
+                .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.criteria[0].score").value(80.0))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.usage.totalTokens").value(12))
                 .andExpect(jsonPath("$.result.task.artifacts[0].parts[0].data.usage.estimatedCostMicros").doesNotExist());
 
@@ -84,18 +87,20 @@ class GradingA2aControllerTest {
     }
 
     private static GradingResultDTO result() {
-        CriterionAssessmentDTO assessment = new CriterionAssessmentDTO("TASK_IDEAS", new BigDecimal("72.00"),
-                "The event is clear.", List.of(new EvidenceDTO("I went home.", "paragraph 1")));
+        CriterionAssessmentDTO assessment = CriterionAssessmentDTO.builder()
+                .rubricCriterionId(7L).criterion("TASK_IDEAS").bandScore(4)
+                .score(new BigDecimal("80.00")).rationale("The event is clear.")
+                .evidence(List.of(new EvidenceDTO("I went home.", "paragraph 1"))).build();
         AiUsage usage = new AiUsage(10, 2, 0, 12, 1L, "OPENAI", "test-model", "test-v1", 1, 1, 1);
         return GradingResultDTO.builder().taskId("task-1").artifactId("artifact-1")
-                .overallScore(new BigDecimal("72.00")).rubricScores(Map.of("TASK_IDEAS", new BigDecimal("72.00")))
-                .criteria(List.of(assessment)).confidence(0.9).rubricVersion("test-v1")
-                .modelVersion("test-model").promptVersion("grading-v3").usage(usage).build();
+                .overallScore(new BigDecimal("80.00")).rubricScores(Map.of("TASK_IDEAS", new BigDecimal("80.00")))
+                .criteria(List.of(assessment)).confidence(0.9)
+                .modelVersion("test-model").promptVersion("grading-v5").usage(usage).build();
     }
 
     private static String requestBody() {
         return """
-                {"jsonrpc":"2.0","id":"request-1","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"I went home.","language":"ENGLISH"},"evidence":{"criteria":[{"evidence":[{"excerpt":"I went home."}]}],"rubricSnapshot":{"version":"test-v1","criteria":[{"name":"TASK_IDEAS","weight":100,"guidance":"Develop ideas."}]}}}}]}}}
+                {"jsonrpc":"2.0","id":"request-1","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"I went home.","language":"ENGLISH"},"evidence":{"criteria":[{"evidence":[{"excerpt":"I went home."}]}]}}}]}}}
                 """;
     }
 }

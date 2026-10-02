@@ -25,7 +25,7 @@ spec:
         jmesPath:
           - path: "grading"
             objectAlias: "sllp.a2a-token"
-      - objectName: "sllp/database"
+      - objectName: "sllp/postgres"
         objectType: "secretsmanager"
         jmesPath:
           - path: "username"
@@ -43,6 +43,7 @@ data:
   SERVER_PORT: "8093"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
+  OPENAI_CHAT_MODEL: "gpt-6-luna"
   GRADING_PUBLIC_BASE_URL: "http://grading-agent:8093"
   GRADING_USER_SERVICE_URL: "http://user-service:8082"
   GRADING_ADMIN_SERVICE_URL: "http://admin-service:8086"

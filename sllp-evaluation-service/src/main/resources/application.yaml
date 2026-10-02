@@ -24,7 +24,7 @@ spring:
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
-        model: ${OPENAI_CHAT_MODEL:gpt-5.6-luna}
+        model: ${OPENAI_CHAT_MODEL:gpt-6-luna}
         reasoning-effort: none
       embedding:
         model: text-embedding-3-small
@@ -40,11 +40,11 @@ sllp:
     read-timeout: ${OPENAI_STATUS_READ_TIMEOUT:10s}
   ai-usage:
     provider: OPENAI
-    default-model: ${OPENAI_CHAT_MODEL:gpt-5.6-luna}
-    pricing-version: openai-gpt-5.6-luna-2026-10
-    input-price-micros-per-million: 200000
-    cached-input-price-micros-per-million: 20000
-    output-price-micros-per-million: 1200000
+    default-model: ${OPENAI_CHAT_MODEL:gpt-6-luna}
+    pricing-version: openai-gpt-6-luna-2026-10
+    input-price-micros-per-million: 100000
+    cached-input-price-micros-per-million: 10000
+    output-price-micros-per-million: 500000
   audit:
     in-progress-timeout: 2m
   services:

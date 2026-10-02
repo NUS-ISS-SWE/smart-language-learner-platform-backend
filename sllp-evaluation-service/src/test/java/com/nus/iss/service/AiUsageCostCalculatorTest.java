@@ -43,8 +43,8 @@ class AiUsageCostCalculatorTest {
         assertEquals(1_000_000L, usage.getPromptTokens());
         assertEquals(200_000L, usage.getCachedInputTokens());
         assertEquals(2_000_000L, usage.getTotalTokens());
-        assertEquals(735_000L, usage.getEstimatedCostMicros());
-        assertEquals("gpt-4o-mini", usage.getModel());
-        assertEquals("openai-gpt-4o-mini-2026-08", usage.getPricingVersion());
+        assertEquals(582_000L, usage.getEstimatedCostMicros());
+        assertEquals("gpt-6-luna", usage.getModel());
+        assertEquals("openai-gpt-6-luna-2026-10", usage.getPricingVersion());
     }
 }

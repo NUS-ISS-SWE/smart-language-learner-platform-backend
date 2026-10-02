@@ -52,6 +52,7 @@ locals {
       policy_name     = "${var.project_name}-evaluation-service-secrets"
       policy_sid      = "ReadEvaluationServiceSecrets"
       secret_arns = [
+        module.secrets.postgres_secret_arn,
         module.secrets.openai_secret_arn,
         module.secrets.agent_tokens_secret_arn
       ]

@@ -33,6 +33,7 @@ class OpenAiStatusClientTest {
                 {"summary":{"affected_components":[],"ongoing_incidents":[]}}
                 """);
 
+        client.initializeStatus();
         assertTrue(client.isOperational());
         server.verify();
     }
@@ -43,6 +44,7 @@ class OpenAiStatusClientTest {
                 {"summary":{"affected_components":[{"name":"Chat Completions"}],"ongoing_incidents":[]}}
                 """);
 
+        client.initializeStatus();
         assertFalse(client.isOperational());
         server.verify();
     }
@@ -53,6 +55,7 @@ class OpenAiStatusClientTest {
                 {"summary":{"affected_components":[],"ongoing_incidents":[{"name":"API errors"}]}}
                 """);
 
+        client.initializeStatus();
         assertFalse(client.isOperational());
         server.verify();
     }
@@ -63,6 +66,7 @@ class OpenAiStatusClientTest {
                 {"summary":{"affected_components":[]}}
                 """);
 
+        client.initializeStatus();
         assertFalse(client.isOperational());
         server.verify();
     }
@@ -73,7 +77,21 @@ class OpenAiStatusClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withServerError());
 
+        client.initializeStatus();
         assertFalse(client.isOperational());
+        server.verify();
+    }
+
+    @Test
+    void reusesStartupResultWithoutCallingStatusEndpointAgain() {
+        expectStatus("""
+                {"summary":{"affected_components":[],"ongoing_incidents":[]}}
+                """);
+
+        client.initializeStatus();
+
+        assertTrue(client.isOperational());
+        assertTrue(client.isOperational());
         server.verify();
     }
 

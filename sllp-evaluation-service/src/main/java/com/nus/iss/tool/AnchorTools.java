@@ -18,6 +18,7 @@ public class AnchorTools {
     public static final String REQUEST_ID_CONTEXT_KEY = "requestId";
     public static final String COMPOSITION_ID_CONTEXT_KEY = "compositionId";
     public static final String ATTEMPT_CONTEXT_KEY = "attempt";
+    public static final String TRACE_CONTEXT_KEY = "gradingToolTrace";
 
     private final AnchorService anchorService;
 
@@ -50,8 +51,15 @@ public class AnchorTools {
                 requestId, compositionId, attempt, language, difficultyLevel);
         try {
             List<AnchorPaperResponse> result = anchorService.getAnchorPapers(language, difficultyLevel);
-            log.info("AI tool call completed tool=getAnchorPapers requestId={} compositionId={} attempt={} resultCount={} durationMs={}",
-                    requestId, compositionId, attempt, result.size(), elapsedMillis(startedAt));
+            Object trace = toolContext.getContext().get(TRACE_CONTEXT_KEY);
+            if (trace instanceof GradingToolTrace gradingToolTrace) {
+                gradingToolTrace.recordAnchorPapers(result);
+            }
+            List<String> anchors = result.stream()
+                    .map(anchor -> "%s:%s:%s".formatted(anchor.anchorId(), anchor.title(), anchor.scores()))
+                    .toList();
+            log.info("AI tool call completed tool=getAnchorPapers requestId={} compositionId={} attempt={} resultCount={} anchors={} durationMs={}",
+                    requestId, compositionId, attempt, result.size(), anchors, elapsedMillis(startedAt));
             return result;
         } catch (RuntimeException error) {
             log.warn("AI tool call failed tool=getAnchorPapers requestId={} compositionId={} attempt={} category={} durationMs={}",

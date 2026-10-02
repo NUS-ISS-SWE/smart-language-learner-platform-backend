@@ -2,6 +2,7 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.adapter.SllpAdminClient;
 import com.nus.iss.adapter.SllpUserClient;
+import com.nus.iss.config.GradingBandPolicy;
 import com.nus.iss.config.SllpConstant;
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.AdminRubricCriterionDTO;
@@ -22,6 +23,7 @@ import com.nus.iss.service.ModerationService;
 import com.nus.iss.service.RubricCalculator;
 import com.nus.iss.service.ValidationService;
 import com.nus.iss.tool.AnchorTools;
+import com.nus.iss.tool.GradingToolTrace;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.ResponseEntity;
@@ -109,7 +111,11 @@ public class GradingServiceImpl implements GradingService {
             List<AdminRubricCriterionDTO> rubric = sllpAdminClient.getRubricCriteria(request.getLanguage(), difficultyLevel);
             validationService.validateRubric(rubric, request.getLanguage(), difficultyLevel);
             moderationService.moderateAndRecord(request);
-            log.info("Invoking AI grading requestId={} attempt={} criteriaCount={} evidenceCount={}", request.getRequestId(), attempt.getAttemptNumber(), rubric.size(), request.getEvidence().size());
+            GradingToolTrace toolTrace = new GradingToolTrace();
+            logGradingContext(request, attempt, difficultyLevel, rubric);
+            log.info("Invoking AI grading requestId={} attempt={} difficultyLevel={} criteriaCount={} evidenceCount={}",
+                    request.getRequestId(), attempt.getAttemptNumber(), difficultyLevel,
+                    rubric.size(), request.getEvidence().size());
             ResponseEntity<ChatResponse, AiGradingOutputDTO> response = chatClient.prompt()
                     .user(user -> user.text(gradingPromptTemplate)
                             .param("title", request.getTitle())
@@ -117,14 +123,15 @@ public class GradingServiceImpl implements GradingService {
                             .param("difficultyLevel", difficultyLevel.name())
                             .param("difficultyStandard", difficultyLevel.getGradingStandard())
                             .param("rubric", formatRubric(rubric))
+                            .param("bandDescriptors", GradingBandPolicy.descriptors(difficultyLevel, rubric))
                             .param("evidence", formatEvidence(request))
                             .param("content", request.getContent()))
                     .tools(anchorTools)
-                    .toolContext(toolContext(request, attempt))
+                    .toolContext(toolContext(request, attempt, toolTrace))
                     .call().responseEntity(AiGradingOutputDTO.class);
 
             AiGradingOutputDTO output = response.getEntity();
-            logAiOutput(request, attempt, output);
+            logAiDiagnostics(request, attempt, difficultyLevel, rubric, toolTrace, output);
             validationService.validateAiOutput(output, request, rubric);
             GradingScoreResult scoring = rubricCalculator.calculate(output.getCriteria(), rubric);
             ChatResponse chatResponse = response.getResponse();
@@ -273,26 +280,76 @@ public class GradingServiceImpl implements GradingService {
                 .collect(Collectors.joining("\n"));
     }
 
-    private static Map<String, Object> toolContext(GradingRequestDTO request, GradingAttempt attempt) {
+    private static Map<String, Object> toolContext(GradingRequestDTO request, GradingAttempt attempt,
+                                                   GradingToolTrace toolTrace) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put(AnchorTools.REQUEST_ID_CONTEXT_KEY, request.getRequestId());
         if (request.getCompositionId() != null) {
             context.put(AnchorTools.COMPOSITION_ID_CONTEXT_KEY, request.getCompositionId());
         }
         context.put(AnchorTools.ATTEMPT_CONTEXT_KEY, attempt.getAttemptNumber());
+        context.put(AnchorTools.TRACE_CONTEXT_KEY, toolTrace);
         return context;
     }
 
-    private void logAiOutput(GradingRequestDTO request, GradingAttempt attempt, AiGradingOutputDTO output) {
+    private void logGradingContext(GradingRequestDTO request, GradingAttempt attempt,
+                                   DifficultyLevel difficultyLevel,
+                                   List<AdminRubricCriterionDTO> rubric) {
         try {
-            log.info("AI grading output received requestId={} compositionId={} attempt={} output={}",
+            log.info("AI grading context resolved requestId={} compositionId={} attempt={} difficultyLevel={} gradingStandard={} rubric={}",
                     request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
-                    objectMapper.writeValueAsString(output));
+                    difficultyLevel, difficultyLevel.getGradingStandard(),
+                    objectMapper.writeValueAsString(rubricDiagnostics(rubric)));
         } catch (Exception error) {
-            log.warn("Could not serialize AI grading output for logging requestId={} compositionId={} attempt={} category={}",
+            log.warn("Could not serialize AI grading context for logging requestId={} compositionId={} attempt={} category={}",
                     request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
                     error.getClass().getSimpleName());
         }
+    }
+
+    private void logAiDiagnostics(GradingRequestDTO request, GradingAttempt attempt,
+                                  DifficultyLevel difficultyLevel,
+                                  List<AdminRubricCriterionDTO> rubric,
+                                  GradingToolTrace toolTrace,
+                                  AiGradingOutputDTO output) {
+        try {
+            Map<String, Object> diagnostics = new LinkedHashMap<>();
+            diagnostics.put("difficultyLevel", difficultyLevel);
+            diagnostics.put("gradingStandard", difficultyLevel.getGradingStandard());
+            diagnostics.put("rubric", rubricDiagnostics(rubric));
+            diagnostics.put("anchorToolCalled", toolTrace.wasAnchorToolCalled());
+            diagnostics.put("anchors", toolTrace.getAnchorPapers().stream()
+                    .map(GradingServiceImpl::anchorDiagnostics)
+                    .toList());
+            diagnostics.put("output", output);
+            log.info("AI grading diagnostics requestId={} compositionId={} attempt={} details={}",
+                    request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
+                    objectMapper.writeValueAsString(diagnostics));
+        } catch (Exception error) {
+            log.warn("Could not serialize AI grading diagnostics for logging requestId={} compositionId={} attempt={} category={}",
+                    request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
+                    error.getClass().getSimpleName());
+        }
+    }
+
+    private static List<Map<String, Object>> rubricDiagnostics(List<AdminRubricCriterionDTO> rubric) {
+        return rubric.stream().map(criterion -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", criterion.id());
+            item.put("criterion", criterion.criterionName());
+            item.put("description", criterion.criterionDescription());
+            item.put("weightPercentage", criterion.weightPercentage());
+            return item;
+        }).toList();
+    }
+
+    private static Map<String, Object> anchorDiagnostics(com.nus.iss.dto.AnchorPaperResponse anchor) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("anchorId", anchor.anchorId());
+        item.put("title", anchor.title());
+        item.put("difficultyLevel", anchor.difficultyLevel());
+        item.put("scores", anchor.scores());
+        return item;
     }
 
     private static LocalDateTime now() {

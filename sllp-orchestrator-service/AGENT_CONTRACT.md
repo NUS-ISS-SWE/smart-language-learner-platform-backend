@@ -6,7 +6,7 @@ Transient network failures and HTTP 5xx responses are retried twice with exponen
 
 ## Agent Cards
 
-Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL.
+Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator.
 
 ```json
 {
@@ -14,7 +14,11 @@ Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. T
   "url": "https://grading-agent.example/a2a",
   "protocolVersion": "1.0",
   "skills": [{"id": "composition-grading", "name": "Composition grading"}],
-  "sllp": {"contractVersion": "2.0"}
+  "sllp": {
+    "contractVersion": "2.0",
+    "inputSchemaUrl": "https://grading-agent.example/.well-known/sllp-contracts/composition-grading-v2-input.json",
+    "outputSchemaUrl": "https://grading-agent.example/.well-known/sllp-contracts/composition-grading-v2-output.json"
+  }
 }
 ```
 
@@ -81,6 +85,7 @@ The following is a complete, representative `SendMessage` response from a gradin
         "parts": [{"mediaType": "application/json", "data": {
           "overallScore": 78,
           "rubricScores": {"TASK_IDEAS": 78, "EXPRESSION_DESCRIPTION_VOICE": 76},
+          "rubricVersion": "admin-rubric-<content-hash>",
           "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific details support the central idea.", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
           "confidence": 0.87,
           "modelVersion": "grading-model",
@@ -128,7 +133,7 @@ The following is a complete, representative `SendMessage` response from a gradin
 }
 ```
 
-The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. A re-grade uses `attempt: 2`.
+The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. Grading, Review, and Suggestions additionally receive the immutable `rubricSnapshot` returned by Evidence. A re-grade uses `attempt: 2`.
 
 The Evidence request uses the shared request artifact only. It returns this artifact, which the orchestrator persists verbatim and supplies to Grading and Review:
 
@@ -151,7 +156,6 @@ The Evidence request uses the shared request artifact only. It returns this arti
   "overallScore": 75,
   "rubricScores": {"TASK_IDEAS": 78, "ORGANISATION_COHESION": 72, "GRAMMAR_SENTENCE_CONTROL": 74},
   "rubricVersion": "admin-rubric-<content-hash>",
-  "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
   "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific explanation", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
   "confidence": 0.87,
   "modelVersion": "model-name",
@@ -160,7 +164,7 @@ The Evidence request uses the shared request artifact only. It returns this arti
 }
 ```
 
-`overallScore`, `rubricScores`, each criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Scores are 0-100; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Grading and Suggestions must use it rather than refetching Admin. Grading must cover every criterion exactly once and its overall score must equal the snapshot-weighted criterion scores. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
+`overallScore`, `rubricScores`, `rubricVersion`, each criterion's 1-5 `bandScore`, 0-100 criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Criterion score must equal `bandScore × 20`; the overall score must equal the snapshot-weighted criterion scores; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Evidence obtains it once, the orchestrator persists and distributes it, and Grading, Review, and Suggestions must use it rather than refetching Admin. Grading must echo the exact snapshot version and cover every snapshot criterion exactly once. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
 
 ### Provider usage and cost snapshot
 

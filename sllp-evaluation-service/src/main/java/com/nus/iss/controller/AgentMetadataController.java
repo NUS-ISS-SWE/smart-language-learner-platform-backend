@@ -28,7 +28,41 @@ public class AgentMetadataController {
                 "url", properties.getPublicBaseUrl() + "/a2a",
                 "protocolVersion", "1.0",
                 "skills", List.of(Map.of("id", "composition-grading", "name", "Composition grading")),
-                "sllp", Map.of("contractVersion", "2.0"));
+                "sllp", Map.of(
+                        "contractVersion", "2.0",
+                        "inputSchemaUrl", properties.getPublicBaseUrl()
+                                + "/.well-known/sllp-contracts/composition-grading-v2-input.json",
+                        "outputSchemaUrl", properties.getPublicBaseUrl()
+                                + "/.well-known/sllp-contracts/composition-grading-v2-output.json"));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/composition-grading-v2-input.json")
+    public Map<String, Object> inputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "SLLP composition-grading v2 input artifact",
+                "type", "object",
+                "required", List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "rubricSnapshot"),
+                "properties", Map.of(
+                        "composition", Map.of("type", "object", "required", List.of("userId", "title", "content", "language")),
+                        "evidence", Map.of("type", "object"),
+                        "rubricSnapshot", Map.of("type", "object", "required", List.of("version", "criteria"))));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/composition-grading-v2-output.json")
+    public Map<String, Object> outputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "SLLP composition-grading v2 output artifact",
+                "type", "object",
+                "required", List.of("overallScore", "rubricScores", "rubricVersion", "criteria", "confidence", "usage"),
+                "properties", Map.of(
+                        "overallScore", Map.of("type", "number", "minimum", 0, "maximum", 100),
+                        "rubricScores", Map.of("type", "object"),
+                        "rubricVersion", Map.of("type", "string", "minLength", 1),
+                        "criteria", Map.of("type", "array", "minItems", 1),
+                        "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1),
+                        "usage", Map.of("type", "object")));
     }
 
     @GetMapping({"/health", "/ready"})

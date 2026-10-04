@@ -3,13 +3,12 @@ package com.nus.iss.service.impl;
 import com.nus.iss.config.SllpConstant;
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.A2aRequestDTO;
-import com.nus.iss.dto.AdminRubricCriterionDTO;
 import com.nus.iss.dto.AiGradingOutputDTO;
 import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.dto.EvidenceDTO;
 import com.nus.iss.dto.GradingRequestDTO;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.Language;
-import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.exception.A2aInvalidRequestException;
 import com.nus.iss.exception.A2aUnauthorizedException;
 import com.nus.iss.service.ValidationService;
@@ -61,7 +60,8 @@ public class ValidationServiceImpl implements ValidationService {
                     : request.getParams().getMessage().getParts().stream()
                     .filter(item -> item != null && SllpConstant.JSON_MEDIA_TYPE.equals(item.getMediaType()) && item.getData() != null)
                     .findFirst().orElse(null);
-            if (part == null || part.getData().getComposition() == null || part.getData().getEvidence() == null) {
+            if (part == null || part.getData().getComposition() == null || part.getData().getEvidence() == null
+                    || part.getData().getRubricSnapshot() == null) {
                 throw invalid(requestId, "missing JSON grading data");
             }
             A2aRequestDTO.Composition composition = part.getData().getComposition();
@@ -81,11 +81,20 @@ public class ValidationServiceImpl implements ValidationService {
                     .flatMap(item -> item.getEvidence().stream())
                     .filter(item -> item != null && !blank(item.getExcerpt()))
                     .map(A2aRequestDTO.EvidenceItem::getExcerpt).toList();
+            A2aRequestDTO.RubricSnapshot snapshot = part.getData().getRubricSnapshot();
+            if (blank(snapshot.getVersion()) || snapshot.getCriteria() == null) {
+                throw invalid(requestId, "invalid rubric snapshot");
+            }
+            List<WorkflowRubricCriterionDTO> rubric = snapshot.getCriteria().stream()
+                    .filter(item -> item != null)
+                    .map(item -> new WorkflowRubricCriterionDTO(item.getName(), item.getWeight(), item.getGuidance()))
+                    .toList();
+            validateRubric(rubric);
             GradingRequestDTO result = GradingRequestDTO.builder().requestId(requestId)
                     .contextId(request.getParams().getMessage().getContextId())
                     .compositionId(composition.getCompositionId()).userId(composition.getUserId())
                     .title(composition.getTitle().trim()).content(composition.getContent())
-                    .language(language).evidence(evidence)
+                    .language(language).rubricVersion(snapshot.getVersion()).rubric(rubric).evidence(evidence)
                     .requestHash(hash(request.getParams().getMessage().getContextId(), part.getData())).build();
             log.info("A2A request normalization completed requestId={} contextId={} evidenceCount={}",
                     result.getRequestId(), result.getContextId(), evidence.size());
@@ -98,37 +107,34 @@ public class ValidationServiceImpl implements ValidationService {
     }
 
     @Override
-    public void validateRubric(List<AdminRubricCriterionDTO> rubric, Language language, DifficultyLevel difficultyLevel) {
+    public void validateRubric(List<WorkflowRubricCriterionDTO> rubric) {
         if (rubric == null || rubric.isEmpty()) {
-            throw new IllegalStateException("Admin returned no rubric criteria");
+            throw new IllegalStateException("workflow rubric snapshot has no criteria");
         }
         Set<String> names = new HashSet<>();
-        Set<Long> ids = new HashSet<>();
         BigDecimal total = BigDecimal.ZERO;
-        for (AdminRubricCriterionDTO criterion : rubric) {
-            if (criterion == null || criterion.id() == null || criterion.id() < 1
-                    || criterion.language() != language || criterion.difficultyLevel() != difficultyLevel
-                    || blank(criterion.criterionName()) || blank(criterion.criterionDescription())
-                    || criterion.weightPercentage() == null || criterion.weightPercentage().signum() <= 0
-                    || !names.add(criterion.criterionName()) || !ids.add(criterion.id())) {
-                throw new IllegalStateException("Admin returned an invalid rubric");
+        for (WorkflowRubricCriterionDTO criterion : rubric) {
+            if (criterion == null || blank(criterion.name()) || blank(criterion.guidance())
+                    || criterion.weight() == null || criterion.weight().signum() <= 0
+                    || !names.add(criterion.name())) {
+                throw new IllegalStateException("workflow rubric snapshot is invalid");
             }
-            total = total.add(criterion.weightPercentage());
+            total = total.add(criterion.weight());
         }
         if (total.compareTo(BigDecimal.valueOf(100)) != 0) {
-            throw new IllegalStateException("Admin rubric weights must total 100");
+            throw new IllegalStateException("workflow rubric snapshot weights must total 100");
         }
     }
 
     @Override
-    public void validateAiOutput(AiGradingOutputDTO output, GradingRequestDTO request, List<AdminRubricCriterionDTO> rubric) {
+    public void validateAiOutput(AiGradingOutputDTO output, GradingRequestDTO request, List<WorkflowRubricCriterionDTO> rubric) {
         if (output == null || output.getConfidence() == null || !Double.isFinite(output.getConfidence())
                 || output.getConfidence() < 0 || output.getConfidence() > 1 || output.getCriteria() == null) {
             log.warn("AI output validation failed requestId={} reason=invalid_structured_result",
                     request.getRequestId());
             throw new IllegalStateException("AI grading returned an invalid structured result");
         }
-        Set<String> expected = rubric.stream().map(AdminRubricCriterionDTO::criterionName)
+        Set<String> expected = rubric.stream().map(WorkflowRubricCriterionDTO::name)
                 .collect(java.util.stream.Collectors.toSet());
         Set<String> actual = new HashSet<>();
         for (AiCriterionAssessmentDTO assessment : output.getCriteria()) {

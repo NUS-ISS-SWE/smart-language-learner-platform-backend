@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents (user_id);
 -- Dev seed: password for all seeded users is password123
 INSERT INTO app_user (username, email, password, status, preferred_language, difficulty_level, role, ai_token_balance, ai_token_used)
 VALUES
-  ('admin', 'admin@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'ADVANCED', 'ADMIN', 10000, 0),
+  ('admin', 'admin@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'ADMIN', 10000, 0),
   ('testuser', 'testuser@sllp.dev', '$2a$10$CABw8I/D6tzwn6nyr5U5zuZGYDCYKEc4dfqQ0A6p6QJ2KD/rwokBS', 'ACTIVE', 'ENGLISH', 'BEGINNER', 'USER_FREE_TRIAL', 5000, 0)
 ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password;
 

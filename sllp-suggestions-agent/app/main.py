@@ -15,7 +15,7 @@ from app.config import Settings
 from app.framework import AdminRubricFrameworkProvider
 from app.generator import OpenAIChatGenerator
 from app.metrics import A2A_DURATION, A2A_REQUESTS, record_result
-from app.models import SuggestionRequest
+from app.models import SuggestionRequest, SuggestionResponse
 from app.security import bearer_token_matches
 from app.service import SuggestionService, SuggestionServiceError
 from app.tools import LearnerProfileTool
@@ -101,8 +101,20 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
             "url": f"{settings.public_base_url}/a2a",
             "protocolVersion": "1.0",
             "skills": [{"id": "writing-suggestions", "name": "Writing suggestions"}],
-            "sllp": {"contractVersion": "2.0"},
+            "sllp": {
+                "contractVersion": "2.0",
+                "inputSchemaUrl": f"{settings.public_base_url}/.well-known/sllp-contracts/writing-suggestions-v2-input.json",
+                "outputSchemaUrl": f"{settings.public_base_url}/.well-known/sllp-contracts/writing-suggestions-v2-output.json",
+            },
         }
+
+    @app.get("/.well-known/sllp-contracts/writing-suggestions-v2-input.json")
+    def suggestion_input_schema() -> dict[str, Any]:
+        return SuggestionRequest.model_json_schema(by_alias=True)
+
+    @app.get("/.well-known/sllp-contracts/writing-suggestions-v2-output.json")
+    def suggestion_output_schema() -> dict[str, Any]:
+        return SuggestionResponse.model_json_schema(by_alias=True)
 
     @app.get("/health")
     def health() -> dict[str, str]:

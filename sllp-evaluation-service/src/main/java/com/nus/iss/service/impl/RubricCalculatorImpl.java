@@ -1,9 +1,9 @@
 package com.nus.iss.service.impl;
 
-import com.nus.iss.dto.AdminRubricCriterionDTO;
 import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.dto.CriterionAssessmentDTO;
 import com.nus.iss.dto.GradingScoreResult;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.service.RubricCalculator;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -23,19 +23,19 @@ public class RubricCalculatorImpl implements RubricCalculator {
 
     @Override
     public GradingScoreResult calculate(List<AiCriterionAssessmentDTO> assessments,
-                                        List<AdminRubricCriterionDTO> rubric) {
+                                        List<WorkflowRubricCriterionDTO> rubric) {
         Map<String, AiCriterionAssessmentDTO> byName = assessments.stream()
                 .collect(Collectors.toMap(AiCriterionAssessmentDTO::getCriterion, Function.identity()));
         List<CriterionAssessmentDTO> scoredCriteria = rubric.stream()
-                .map(criterion -> scored(criterion, byName.get(criterion.criterionName())))
+                .map(criterion -> scored(criterion, byName.get(criterion.name())))
                 .toList();
         Map<String, BigDecimal> scores = new LinkedHashMap<>();
         scoredCriteria.forEach(item -> scores.put(item.getCriterion(), item.getScore()));
         Map<String, CriterionAssessmentDTO> scoredByName = scoredCriteria.stream()
                 .collect(Collectors.toMap(CriterionAssessmentDTO::getCriterion, Function.identity()));
         BigDecimal overall = rubric.stream()
-                .map(criterion -> scoredByName.get(criterion.criterionName()).getScore()
-                        .multiply(criterion.weightPercentage()).movePointLeft(2))
+                .map(criterion -> scoredByName.get(criterion.name()).getScore()
+                        .multiply(criterion.weight()).movePointLeft(2))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
         log.info("Deterministic rubric score calculated criteriaCount={} overallScore={}",
@@ -43,14 +43,13 @@ public class RubricCalculatorImpl implements RubricCalculator {
         return new GradingScoreResult(overall, scores, scoredCriteria);
     }
 
-    private static CriterionAssessmentDTO scored(AdminRubricCriterionDTO rubric,
+    private static CriterionAssessmentDTO scored(WorkflowRubricCriterionDTO rubric,
                                                  AiCriterionAssessmentDTO assessment) {
         BigDecimal normalizedScore = BigDecimal.valueOf(assessment.getBandScore())
                 .multiply(BAND_PERCENT_MULTIPLIER)
                 .setScale(2, RoundingMode.HALF_UP);
         return CriterionAssessmentDTO.builder()
-                .rubricCriterionId(rubric.id())
-                .criterion(rubric.criterionName())
+                .criterion(rubric.name())
                 .bandScore(assessment.getBandScore())
                 .score(normalizedScore)
                 .rationale(assessment.getRationale())

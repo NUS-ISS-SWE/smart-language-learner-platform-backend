@@ -1,6 +1,6 @@
 package com.nus.iss.config;
 
-import com.nus.iss.dto.AdminRubricCriterionDTO;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.DifficultyLevel;
 
 import java.util.List;
@@ -39,17 +39,17 @@ public final class GradingBandPolicy {
     }
 
     public static String descriptors(DifficultyLevel difficultyLevel,
-                                     List<AdminRubricCriterionDTO> rubric) {
+                                     List<WorkflowRubricCriterionDTO> rubric) {
         Map<String, String> expectations = EXPECTATIONS.get(difficultyLevel);
         return rubric.stream()
                 .map(criterion -> describeCriterion(criterion, expectations))
                 .collect(Collectors.joining("\n\n"));
     }
 
-    private static String describeCriterion(AdminRubricCriterionDTO criterion,
+    private static String describeCriterion(WorkflowRubricCriterionDTO criterion,
                                             Map<String, String> expectations) {
         String expectation = expectations.getOrDefault(
-                criterion.criterionName(), criterion.criterionDescription());
+                criterion.name(), criterion.guidance());
         return """
                 %s:
                 - Band 1: Shows little or no evidence of %s; major weaknesses dominate.
@@ -57,7 +57,7 @@ public final class GradingBandPolicy {
                 - Band 3: Generally demonstrates %s, although noticeable weaknesses or inconsistencies remain.
                 - Band 4: Demonstrates %s consistently, with only occasional minor weaknesses.
                 - Band 5: Demonstrates %s exceptionally and consistently throughout, with almost no meaningful weaknesses.
-                """.formatted(criterion.criterionName(), expectation, expectation, expectation,
+                """.formatted(criterion.name(), expectation, expectation, expectation,
                 expectation, expectation).strip();
     }
 }

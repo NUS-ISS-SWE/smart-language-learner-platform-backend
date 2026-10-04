@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from contextvars import ContextVar
+from math import isclose
 from typing import Any, Literal, TypedDict
 from uuid import UUID
 
@@ -222,6 +223,9 @@ class OrchestrationWorkflow:
         try:
             payload = state["submission"].request_payload(workflow_id, attempt)
             payload["evidence"] = state["evidence"]
+            # Evidence obtains the rubric once; the persisted workflow snapshot is
+            # authoritative for every downstream assessment decision.
+            payload["rubricSnapshot"] = state["evidence"]["rubricSnapshot"]
             grading, invocation = self._invoke_agent(
                 "grade",
                 "grading",
@@ -233,6 +237,14 @@ class OrchestrationWorkflow:
             )
         except AgentCallError as error:
             return {"error": f"grading failed: {redact_for_trace(error)}", "grading_passes": attempt}
+        snapshot_error = self._grading_snapshot_error(grading, state["evidence"])
+        if snapshot_error:
+            record_agent_contract_rejection("grading", snapshot_error)
+            return {
+                "error": "grading response did not match the workflow rubric snapshot",
+                "grading": grading,
+                "grading_passes": attempt,
+            }
         if grading["confidence"] < self.settings.minimum_confidence:
             if self._can_reassess(attempt):
                 self._request_reassessment(
@@ -267,6 +279,44 @@ class OrchestrationWorkflow:
         return {"grading": grading, "review": {}, "grading_passes": attempt, "reassessment_reason": None}
 
     @staticmethod
+    def _grading_snapshot_error(grading: dict[str, Any], evidence: dict[str, Any]) -> str | None:
+        """Reject a grading artifact that was produced against a different rubric."""
+        snapshot = evidence.get("rubricSnapshot")
+        if not isinstance(snapshot, dict):
+            return "missing_rubric_snapshot"
+        version = snapshot.get("version")
+        criteria = snapshot.get("criteria")
+        if not isinstance(version, str) or not isinstance(criteria, list):
+            return "invalid_rubric_snapshot"
+        expected = {item.get("name") for item in criteria if isinstance(item, dict)}
+        actual_criteria = {
+            item.get("criterion") for item in grading.get("criteria", []) if isinstance(item, dict)
+        }
+        score_names = set(grading.get("rubricScores", {}))
+        if grading.get("rubricVersion") != version:
+            return "rubric_version_mismatch"
+        if not expected or actual_criteria != expected or score_names != expected:
+            return "rubric_criteria_mismatch"
+        weights = {item["name"]: item.get("weight") for item in criteria if isinstance(item, dict) and "name" in item}
+        scores = {item["criterion"]: item for item in grading["criteria"]}
+        try:
+            expected_overall = 0.0
+            for criterion in expected:
+                score = float(scores[criterion]["score"])
+                band_score = int(scores[criterion]["bandScore"])
+                weight = float(weights[criterion])
+                if not isclose(score, band_score * 20.0, abs_tol=0.01):
+                    return "rubric_score_scale_mismatch"
+                if not isclose(float(grading["rubricScores"][criterion]), score, abs_tol=0.01):
+                    return "rubric_score_mismatch"
+                expected_overall += score * weight / 100.0
+            if not isclose(float(grading["overallScore"]), expected_overall, abs_tol=0.01):
+                return "overall_score_mismatch"
+        except (KeyError, TypeError, ValueError):
+            return "invalid_rubric_score"
+        return None
+
+    @staticmethod
     def _after_grade(state: GraphState) -> Literal["evidence", "review", "fail"]:
         if state.get("error"):
             return "fail"
@@ -277,7 +327,11 @@ class OrchestrationWorkflow:
         if state.get("review"):
             return {"review": state["review"]}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
-        payload.update({"evidence": state["evidence"], "grading": state["grading"]})
+        payload.update({
+            "evidence": state["evidence"],
+            "grading": state["grading"],
+            "rubricSnapshot": state["evidence"]["rubricSnapshot"],
+        })
         try:
             review, invocation = self._invoke_agent(
                 "review", "review", payload, ReviewResponse, workflow_id, state["grading_passes"], state["submission"]

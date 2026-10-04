@@ -35,9 +35,10 @@ def settings() -> Settings:
 
 
 VALID_GRADING = {
-    "overallScore": 70,
-    "rubricScores": {"Description": 70},
-    "criteria": [{"criterion": "Description", "score": 70, "rationale": "Clear setting", "evidence": [{"excerpt": "at the beach"}]}],
+    "overallScore": 80,
+    "rubricScores": {"Description": 80},
+    "rubricVersion": "test-rubric-v1",
+    "criteria": [{"criterion": "Description", "bandScore": 4, "score": 80, "rationale": "Clear setting", "evidence": [{"excerpt": "at the beach"}]}],
     "confidence": 0.8,
 }
 
@@ -73,7 +74,7 @@ def test_retries_transient_agent_failure_then_returns_valid_contract():
     client = AgentClient(settings(), FakeRegistry(), httpx.Client(transport=httpx.MockTransport(handler)), sleeper=lambda _: None)
     result = client.grade({"workflowId": "workflow-123"}, GradingResponse)
 
-    assert result.response.overall_score == 70
+    assert result.response.overall_score == 80
     assert result.task_id == "task-123"
     assert result.context_id == "workflow-123"
     assert calls == 2

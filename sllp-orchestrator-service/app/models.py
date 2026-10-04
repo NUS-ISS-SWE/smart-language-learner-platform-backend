@@ -239,7 +239,12 @@ class EvidenceResponse(BaseModel):
 
 
 class CriterionAssessment(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
     criterion: str = Field(min_length=1)
+    band_score: int = Field(
+        ge=1, le=5, validation_alias=AliasChoices("bandScore", "band_score"), serialization_alias="bandScore"
+    )
     score: float = Field(ge=0, le=100)
     rationale: str = Field(min_length=1)
     evidence: list[Evidence] = Field(min_length=1)
@@ -254,6 +259,7 @@ class GradingResponse(BaseModel):
     rubric_scores: dict[str, float] = Field(
         default_factory=dict, validation_alias=AliasChoices("rubricScores", "rubric_scores")
     )
+    rubric_version: str = Field(min_length=1, validation_alias=AliasChoices("rubricVersion", "rubric_version"))
     criteria: list[CriterionAssessment] = Field(min_length=1)
     confidence: float = Field(ge=0, le=1)
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))

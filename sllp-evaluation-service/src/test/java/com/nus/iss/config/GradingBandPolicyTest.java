@@ -1,8 +1,7 @@
 package com.nus.iss.config;
 
-import com.nus.iss.dto.AdminRubricCriterionDTO;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.DifficultyLevel;
-import com.nus.iss.enums.Language;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -47,12 +46,10 @@ class GradingBandPolicyTest {
         );
     }
 
-    private static List<AdminRubricCriterionDTO> rubric(DifficultyLevel difficulty) {
+    private static List<WorkflowRubricCriterionDTO> rubric(DifficultyLevel difficulty) {
         return java.util.stream.IntStream.range(0, CRITERIA.size())
-                .mapToObj(index -> new AdminRubricCriterionDTO(
-                        (long) index + 1, Language.ENGLISH, difficulty, CRITERIA.get(index),
-                        "Admin description", new BigDecimal("16.67"),
-                        "SYSTEM", "SYSTEM", null, null))
+                .mapToObj(index -> new WorkflowRubricCriterionDTO(
+                        CRITERIA.get(index), new BigDecimal("16.67"), "Criterion guidance"))
                 .toList();
     }
 }

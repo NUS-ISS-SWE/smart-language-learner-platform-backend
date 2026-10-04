@@ -2,12 +2,11 @@ package com.nus.iss.service.impl;
 
 import com.nus.iss.config.SllpProperties;
 import com.nus.iss.dto.A2aRequestDTO;
-import com.nus.iss.dto.AdminRubricCriterionDTO;
 import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.dto.AiGradingOutputDTO;
 import com.nus.iss.dto.EvidenceDTO;
 import com.nus.iss.dto.GradingRequestDTO;
-import com.nus.iss.enums.DifficultyLevel;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.Language;
 import com.nus.iss.exception.A2aInvalidRequestException;
 import com.nus.iss.exception.A2aUnauthorizedException;
@@ -32,15 +31,16 @@ class ValidationServiceImplTest {
     private final ValidationServiceImpl validation = new ValidationServiceImpl(new SllpProperties(), objectMapper);
 
     @Test
-    void extractsTypedA2aRequestWithoutRubricSnapshot() throws Exception {
+    void extractsTypedA2aRequestWithRubricSnapshot() throws Exception {
         A2aRequestDTO input = objectMapper.readValue("""
-                {"jsonrpc":"2.0","id":"request-1","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"compositionId":9,"userId":7,"title":"A day","content":"I went home.","language":"ENGLISH"},"evidence":{"criteria":[{"evidence":[{"excerpt":"I went home."}]}]}}}]}}}
+                {"jsonrpc":"2.0","id":"request-1","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"compositionId":9,"userId":7,"title":"A day","content":"I went home.","language":"ENGLISH"},"evidence":{"criteria":[{"evidence":[{"excerpt":"I went home."}]}]},"rubricSnapshot":{"version":"rubric-v1","criteria":[{"name":"TASK_IDEAS","weight":100,"guidance":"Develop ideas."}]}}}]}}}
                 """, A2aRequestDTO.class);
 
         GradingRequestDTO result = validation.validateAndExtract(input);
 
         assertEquals(9L, result.getCompositionId());
         assertEquals(List.of("I went home."), result.getEvidence());
+        assertEquals("rubric-v1", result.getRubricVersion());
     }
 
     @Test
@@ -95,7 +95,7 @@ class ValidationServiceImplTest {
     @Test
     void wrapsUnexpectedNormalizationFailures() throws Exception {
         A2aRequestDTO input = objectMapper.readValue("""
-                {"jsonrpc":"2.0","id":"request-3","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"Text","language":"ENGLISH"},"evidence":{"criteria":[]}}}]}}}
+                {"jsonrpc":"2.0","id":"request-3","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"Text","language":"ENGLISH"},"evidence":{"criteria":[]},"rubricSnapshot":{"version":"rubric-v1","criteria":[{"name":"TASK_IDEAS","weight":100,"guidance":"Develop ideas."}]}}}]}}}
                 """, A2aRequestDTO.class);
         ObjectMapper failingMapper = mock(ObjectMapper.class);
         when(failingMapper.writeValueAsString(any())).thenThrow(new RuntimeException("serialization failed"));
@@ -108,9 +108,8 @@ class ValidationServiceImplTest {
     }
 
     @Test
-    void acceptsValidAdminRubricAndCompleteGroundedOutput() {
-        assertDoesNotThrow(() -> validation.validateRubric(
-                rubric(), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+    void acceptsValidWorkflowRubricAndCompleteGroundedOutput() {
+        assertDoesNotThrow(() -> validation.validateRubric(rubric()));
         assertDoesNotThrow(() -> validation.validateAiOutput(
                 output("I went home.", 3), request(), rubric()));
     }
@@ -118,20 +117,18 @@ class ValidationServiceImplTest {
     @Test
     void rejectsEmptyInvalidDuplicateAndUnbalancedRubrics() {
         assertThrows(IllegalStateException.class,
-                () -> validation.validateRubric(null, Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+                () -> validation.validateRubric(null));
         assertThrows(IllegalStateException.class,
-                () -> validation.validateRubric(List.of(), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+                () -> validation.validateRubric(List.of()));
         assertThrows(IllegalStateException.class,
-                () -> validation.validateRubric(java.util.Collections.singletonList(null),
-                        Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+                () -> validation.validateRubric(java.util.Collections.singletonList(null)));
 
-        AdminRubricCriterionDTO half = new AdminRubricCriterionDTO(7L, Language.ENGLISH,
-                DifficultyLevel.INTERMEDIATE, "TASK_IDEAS", "Develop ideas.", new BigDecimal("50"),
-                "SYSTEM", "SYSTEM", null, null);
+        WorkflowRubricCriterionDTO half = new WorkflowRubricCriterionDTO(
+                "TASK_IDEAS", new BigDecimal("50"), "Develop ideas.");
         assertThrows(IllegalStateException.class,
-                () -> validation.validateRubric(List.of(half), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+                () -> validation.validateRubric(List.of(half)));
         assertThrows(IllegalStateException.class,
-                () -> validation.validateRubric(List.of(half, half), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+                () -> validation.validateRubric(List.of(half, half)));
     }
 
     @Test
@@ -210,10 +207,9 @@ class ValidationServiceImplTest {
                 .evidence(List.of()).requestHash("hash").build();
     }
 
-    private static List<AdminRubricCriterionDTO> rubric() {
-        return List.of(new AdminRubricCriterionDTO(7L, Language.ENGLISH, DifficultyLevel.INTERMEDIATE,
-                "TASK_IDEAS", "Develop ideas.", new BigDecimal("100"),
-                "SYSTEM", "SYSTEM", null, null));
+    private static List<WorkflowRubricCriterionDTO> rubric() {
+        return List.of(new WorkflowRubricCriterionDTO(
+                "TASK_IDEAS", new BigDecimal("100"), "Develop ideas."));
     }
 
     private static void assertTrueUuid(String value) {

@@ -21,6 +21,7 @@ public class GradingResultDTO {
     private String artifactId;
     private BigDecimal overallScore;
     private Map<String, BigDecimal> rubricScores;
+    private String rubricVersion;
     private List<CriterionAssessmentDTO> criteria;
     private double confidence;
     private String modelVersion;

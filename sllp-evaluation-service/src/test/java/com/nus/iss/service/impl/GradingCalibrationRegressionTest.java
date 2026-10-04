@@ -1,9 +1,8 @@
 package com.nus.iss.service.impl;
 
-import com.nus.iss.dto.AdminRubricCriterionDTO;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.enums.DifficultyLevel;
-import com.nus.iss.enums.Language;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -49,11 +48,10 @@ class GradingCalibrationRegressionTest {
         );
     }
 
-    private static List<AdminRubricCriterionDTO> rubric(DifficultyLevel difficulty) {
+    private static List<WorkflowRubricCriterionDTO> rubric(DifficultyLevel difficulty) {
         return IntStream.range(0, CRITERIA.size())
-                .mapToObj(index -> new AdminRubricCriterionDTO(
-                        (long) index + 1, Language.ENGLISH, difficulty, CRITERIA.get(index),
-                        "Benchmark criterion", WEIGHTS.get(index), "SYSTEM", "SYSTEM", null, null))
+                .mapToObj(index -> new WorkflowRubricCriterionDTO(
+                        CRITERIA.get(index), WEIGHTS.get(index), "Benchmark criterion"))
                 .toList();
     }
 

@@ -20,6 +20,8 @@ public class GradingRequestDTO {
     private String title;
     private String content;
     private Language language;
+    private String rubricVersion;
+    private List<WorkflowRubricCriterionDTO> rubric;
     private List<String> evidence;
     private String requestHash;
 }

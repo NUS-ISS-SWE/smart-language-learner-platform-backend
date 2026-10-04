@@ -1,9 +1,7 @@
 package com.nus.iss.service.impl;
 
-import com.nus.iss.adapter.SllpAdminClient;
 import com.nus.iss.adapter.SllpUserClient;
 import com.nus.iss.config.SllpProperties;
-import com.nus.iss.dto.AdminRubricCriterionDTO;
 import com.nus.iss.dto.AiCriterionAssessmentDTO;
 import com.nus.iss.dto.AiGradingOutputDTO;
 import com.nus.iss.dto.AiUsage;
@@ -11,6 +9,7 @@ import com.nus.iss.dto.CriterionAssessmentDTO;
 import com.nus.iss.dto.GradingRequestDTO;
 import com.nus.iss.dto.GradingResultDTO;
 import com.nus.iss.dto.GradingScoreResult;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.enums.Language;
@@ -79,7 +78,7 @@ class GradingServiceImplTest {
                 new SllpProperties(), objectMapper,
                 new ClassPathResource("promptTemplates/systemPromptTemplate.st"),
                 new ClassPathResource("promptTemplates/gradingPromptTemplate.st"),
-                mock(SllpUserClient.class), mock(SllpAdminClient.class), mock(AnchorTools.class),
+                mock(SllpUserClient.class), mock(AnchorTools.class),
                 moderationService);
 
         GradingResultDTO result = service.grade(GradingRequestDTO.builder()
@@ -128,16 +127,12 @@ class GradingServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         SllpUserClient userClient = mock(SllpUserClient.class);
         when(userClient.getDifficultyLevel(7L)).thenReturn(DifficultyLevel.INTERMEDIATE);
-        SllpAdminClient adminClient = mock(SllpAdminClient.class);
-        List<AdminRubricCriterionDTO> rubric = List.of(new AdminRubricCriterionDTO(
-                7L, Language.ENGLISH, DifficultyLevel.INTERMEDIATE, "TASK_IDEAS",
-                "Develop ideas.", new BigDecimal("100"), "SYSTEM", "SYSTEM", null, null));
-        when(adminClient.getRubricCriteria(Language.ENGLISH, DifficultyLevel.INTERMEDIATE))
-                .thenReturn(rubric);
+        List<WorkflowRubricCriterionDTO> rubric = List.of(new WorkflowRubricCriterionDTO(
+                "TASK_IDEAS", new BigDecimal("100"), "Develop ideas."));
         ValidationService validationService = mock(ValidationService.class);
         RubricCalculator rubricCalculator = mock(RubricCalculator.class);
         CriterionAssessmentDTO scoredCriterion = CriterionAssessmentDTO.builder()
-                .rubricCriterionId(7L).criterion("TASK_IDEAS").bandScore(4)
+                .criterion("TASK_IDEAS").bandScore(4)
                 .score(new BigDecimal("80.00")).rationale("Clear idea.").evidence(List.of()).build();
         when(rubricCalculator.calculate(any(), eq(rubric))).thenReturn(new GradingScoreResult(
                 new BigDecimal("80.00"), Map.of("TASK_IDEAS", new BigDecimal("80.00")),
@@ -151,7 +146,7 @@ class GradingServiceImplTest {
                 rubricCalculator, usageCalculator, repository, new SllpProperties(), new ObjectMapper(),
                 new ClassPathResource("promptTemplates/systemPromptTemplate.st"),
                 new ClassPathResource("promptTemplates/gradingPromptTemplate.st"), userClient,
-                adminClient, anchorTools, moderationService);
+                anchorTools, moderationService);
         org.mockito.ArgumentCaptor<Resource> systemPromptCaptor =
                 org.mockito.ArgumentCaptor.forClass(Resource.class);
         verify(builder).defaultSystem(systemPromptCaptor.capture());
@@ -186,10 +181,9 @@ class GradingServiceImplTest {
         GradingResultDTO result = service.grade(GradingRequestDTO.builder()
                 .requestId("request-2").contextId("workflow-1").requestHash("hash-2")
                 .userId(7L).title("A day").content("I went home.").language(Language.ENGLISH)
-                .evidence(List.of("I went home.")).build());
+                .rubricVersion("rubric-v1").rubric(rubric).evidence(List.of("I went home.")).build());
 
         verify(userClient).getDifficultyLevel(7L);
-        verify(adminClient).getRubricCriteria(Language.ENGLISH, DifficultyLevel.INTERMEDIATE);
         org.mockito.InOrder moderationBeforeGrading = org.mockito.Mockito.inOrder(moderationService, chatClient);
         moderationBeforeGrading.verify(moderationService).moderateAndRecord(any(GradingRequestDTO.class));
         moderationBeforeGrading.verify(chatClient).prompt();

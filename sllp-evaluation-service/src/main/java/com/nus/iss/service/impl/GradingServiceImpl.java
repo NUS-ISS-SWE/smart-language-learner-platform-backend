@@ -1,16 +1,15 @@
 package com.nus.iss.service.impl;
 
-import com.nus.iss.adapter.SllpAdminClient;
 import com.nus.iss.adapter.SllpUserClient;
 import com.nus.iss.config.GradingBandPolicy;
 import com.nus.iss.config.SllpConstant;
 import com.nus.iss.config.SllpProperties;
-import com.nus.iss.dto.AdminRubricCriterionDTO;
 import com.nus.iss.dto.AiGradingOutputDTO;
 import com.nus.iss.dto.AiUsage;
 import com.nus.iss.dto.GradingRequestDTO;
 import com.nus.iss.dto.GradingResultDTO;
 import com.nus.iss.dto.GradingScoreResult;
+import com.nus.iss.dto.WorkflowRubricCriterionDTO;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.exception.A2aExecutionException;
@@ -56,7 +55,6 @@ public class GradingServiceImpl implements GradingService {
     private final ObjectMapper objectMapper;
     private final Resource gradingPromptTemplate;
     private final SllpUserClient sllpUserClient;
-    private final SllpAdminClient sllpAdminClient;
     private final AnchorTools anchorTools;
     private final ModerationService moderationService;
 
@@ -72,7 +70,6 @@ public class GradingServiceImpl implements GradingService {
                               @Value("classpath:/promptTemplates/gradingPromptTemplate.st")
                               Resource gradingPromptTemplate,
                               SllpUserClient sllpUserClient,
-                              SllpAdminClient sllpAdminClient,
                               AnchorTools anchorTools,
                               ModerationService moderationService) {
         this.chatClient = chatClientBuilder.defaultSystem(systemPromptTemplate).build();
@@ -84,7 +81,6 @@ public class GradingServiceImpl implements GradingService {
         this.objectMapper = objectMapper;
         this.gradingPromptTemplate = gradingPromptTemplate;
         this.sllpUserClient = sllpUserClient;
-        this.sllpAdminClient = sllpAdminClient;
         this.anchorTools = anchorTools;
         this.moderationService = moderationService;
     }
@@ -108,8 +104,8 @@ public class GradingServiceImpl implements GradingService {
         }
         try {
             DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
-            List<AdminRubricCriterionDTO> rubric = sllpAdminClient.getRubricCriteria(request.getLanguage(), difficultyLevel);
-            validationService.validateRubric(rubric, request.getLanguage(), difficultyLevel);
+            List<WorkflowRubricCriterionDTO> rubric = request.getRubric();
+            validationService.validateRubric(rubric);
             moderationService.moderateAndRecord(request);
             GradingToolTrace toolTrace = new GradingToolTrace();
             logGradingContext(request, attempt, difficultyLevel, rubric);
@@ -144,6 +140,7 @@ public class GradingServiceImpl implements GradingService {
                     .taskId(attempt.getTaskId()).artifactId(attempt.getArtifactId())
                     .overallScore(scoring.overallScore())
                     .rubricScores(scoring.rubricScores())
+                    .rubricVersion(request.getRubricVersion())
                     .criteria(scoring.criteria()).confidence(output.getConfidence())
                     .modelVersion(usage.getModel()).promptVersion(SllpConstant.PROMPT_VERSION)
                     .usage(usage).build();
@@ -266,10 +263,10 @@ public class GradingServiceImpl implements GradingService {
         return attempt.getReceivedAt().plus(properties.getAudit().getInProgressTimeout()).isBefore(now());
     }
 
-    private static String formatRubric(List<AdminRubricCriterionDTO> rubric) {
+    private static String formatRubric(List<WorkflowRubricCriterionDTO> rubric) {
         return rubric.stream()
                 .map(item -> "- %s (%s%%): %s".formatted(
-                        item.criterionName(), item.weightPercentage(), item.criterionDescription()))
+                        item.name(), item.weight(), item.guidance()))
                 .collect(Collectors.joining("\n"));
     }
 
@@ -294,7 +291,7 @@ public class GradingServiceImpl implements GradingService {
 
     private void logGradingContext(GradingRequestDTO request, GradingAttempt attempt,
                                    DifficultyLevel difficultyLevel,
-                                   List<AdminRubricCriterionDTO> rubric) {
+                                   List<WorkflowRubricCriterionDTO> rubric) {
         try {
             log.info("AI grading context resolved requestId={} compositionId={} attempt={} difficultyLevel={} gradingStandard={} rubric={}",
                     request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
@@ -309,7 +306,7 @@ public class GradingServiceImpl implements GradingService {
 
     private void logAiDiagnostics(GradingRequestDTO request, GradingAttempt attempt,
                                   DifficultyLevel difficultyLevel,
-                                  List<AdminRubricCriterionDTO> rubric,
+                                  List<WorkflowRubricCriterionDTO> rubric,
                                   GradingToolTrace toolTrace,
                                   AiGradingOutputDTO output) {
         try {
@@ -332,13 +329,12 @@ public class GradingServiceImpl implements GradingService {
         }
     }
 
-    private static List<Map<String, Object>> rubricDiagnostics(List<AdminRubricCriterionDTO> rubric) {
+    private static List<Map<String, Object>> rubricDiagnostics(List<WorkflowRubricCriterionDTO> rubric) {
         return rubric.stream().map(criterion -> {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", criterion.id());
-            item.put("criterion", criterion.criterionName());
-            item.put("description", criterion.criterionDescription());
-            item.put("weightPercentage", criterion.weightPercentage());
+            item.put("criterion", criterion.name());
+            item.put("description", criterion.guidance());
+            item.put("weightPercentage", criterion.weight());
             return item;
         }).toList();
     }

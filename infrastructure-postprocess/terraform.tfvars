@@ -1,0 +1,5 @@
+aws_region        = "ap-southeast-1"
+domain_name       = "nusmtechswe.com"
+eks_cluster_name  = "sllp-eks"
+ingress_namespace = "sllp"
+ingress_name      = "sllp"

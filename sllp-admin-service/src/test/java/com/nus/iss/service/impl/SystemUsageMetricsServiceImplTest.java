@@ -97,4 +97,13 @@ class SystemUsageMetricsServiceImplTest {
         verify(userRepository).getUserSummary(42L, start, endExclusive);
         verify(userRepository).getUserDailyActivity(42L, start, endExclusive);
     }
+
+    @Test
+    void rejectsNonPositiveUserIdBeforeRepositoryCalls() {
+        SystemUsageMetricsServiceImpl service = new SystemUsageMetricsServiceImpl(
+                systemRepository, agentWorkflowRepository, userRepository);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.getUserMetrics(0L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2)));
+    }
 }

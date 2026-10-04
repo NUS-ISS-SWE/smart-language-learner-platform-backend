@@ -10,6 +10,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+
+import jakarta.persistence.EntityNotFoundException;
 
 import java.util.List;
 
@@ -73,5 +76,42 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR.value(), problemDetail.getStatus());
         assertEquals("Internal Server Error", problemDetail.getTitle());
         assertEquals("An unexpected error occurred.", problemDetail.getDetail());
+    }
+
+    @Test
+    void handleNotFoundExceptionReturnsSanitizedProblemDetail() {
+        ProblemDetail problemDetail = exceptionHandler.handleNotFoundException(
+                new java.util.NoSuchElementException("sensitive detail"));
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), problemDetail.getStatus());
+        assertEquals("User Not Found", problemDetail.getTitle());
+        assertEquals("RESOURCE_NOT_FOUND", problemDetail.getProperties().get("code"));
+    }
+
+    @Test
+    void handleEntityNotFoundExceptionReturnsNotFoundProblemDetail() {
+        ProblemDetail problemDetail = exceptionHandler.handleEntityNotFoundException(
+                new EntityNotFoundException("sensitive detail"));
+
+        assertEquals(HttpStatus.NOT_FOUND.value(), problemDetail.getStatus());
+        assertEquals("Not Found", problemDetail.getTitle());
+    }
+
+    @Test
+    void handleIllegalArgumentExceptionReturnsBadRequestProblemDetail() {
+        ProblemDetail problemDetail = exceptionHandler.handleIllegalArgumentException(
+                new IllegalArgumentException("sensitive detail"));
+
+        assertEquals(HttpStatus.BAD_REQUEST.value(), problemDetail.getStatus());
+        assertEquals("INVALID_REQUEST", problemDetail.getProperties().get("code"));
+    }
+
+    @Test
+    void handleUnsupportedMethodIncludesMethodName() {
+        ProblemDetail problemDetail = exceptionHandler.handleMethodNotSupportedException(
+                new HttpRequestMethodNotSupportedException("TRACE"));
+
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED.value(), problemDetail.getStatus());
+        assertEquals("HTTP method 'TRACE' is not supported for this endpoint.", problemDetail.getDetail());
     }
 }

@@ -3,6 +3,16 @@ output "eks_cluster_name" {
   value       = module.eks.cluster_name
 }
 
+output "cloudwatch_application_log_group_name" {
+  description = "CloudWatch log group containing logs from workloads in the sllp namespace"
+  value       = module.observability.application_log_group_name
+}
+
+output "cloudwatch_logs_dashboard_name" {
+  description = "CloudWatch dashboard for SLLP application logs"
+  value       = module.observability.dashboard_name
+}
+
 output "acm_certificate_arn" {
   description = "ACM certificate ARN"
   value       = module.acm.certificate_arn

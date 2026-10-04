@@ -47,8 +47,13 @@ metadata:
   name: sllp-suggestions-agent
   namespace: sllp
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-suggestions-agent
@@ -60,6 +65,21 @@ spec:
       serviceAccountName: sllp-suggestions-agent
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-suggestions-agent
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-suggestions-agent
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -148,3 +168,14 @@ spec:
       port: 8091
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-suggestions-agent
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-suggestions-agent

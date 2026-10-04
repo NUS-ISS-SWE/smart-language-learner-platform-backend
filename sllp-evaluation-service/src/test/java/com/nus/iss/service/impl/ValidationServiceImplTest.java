@@ -9,6 +9,8 @@ import com.nus.iss.dto.EvidenceDTO;
 import com.nus.iss.dto.GradingRequestDTO;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
+import com.nus.iss.exception.A2aInvalidRequestException;
+import com.nus.iss.exception.A2aUnauthorizedException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,6 +22,10 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ValidationServiceImplTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -38,11 +44,113 @@ class ValidationServiceImplTest {
     }
 
     @Test
+    void validatesBearerTokenWithoutExternalAuthentication() {
+        SllpProperties properties = new SllpProperties();
+        properties.setA2aToken("expected-token");
+        ValidationServiceImpl secured = new ValidationServiceImpl(properties, objectMapper);
+
+        assertDoesNotThrow(() -> secured.validateAuthorization("Bearer expected-token"));
+        assertThrows(A2aUnauthorizedException.class, () -> secured.validateAuthorization(null));
+        assertThrows(A2aUnauthorizedException.class, () -> secured.validateAuthorization("expected-token"));
+        assertThrows(A2aUnauthorizedException.class, () -> secured.validateAuthorization("Bearer wrong-token"));
+    }
+
+    @Test
+    void rejectsAuthorizationWhenConfiguredTokenIsMissingOrBlank() {
+        SllpProperties missing = new SllpProperties();
+        SllpProperties blank = new SllpProperties();
+        blank.setA2aToken(" ");
+
+        assertThrows(A2aUnauthorizedException.class,
+                () -> new ValidationServiceImpl(missing, objectMapper).validateAuthorization("Bearer token"));
+        assertThrows(A2aUnauthorizedException.class,
+                () -> new ValidationServiceImpl(blank, objectMapper).validateAuthorization("Bearer token"));
+    }
+
+    @Test
+    void rejectsNullAndIncompleteA2aRequestsWithSafeRequestIds() {
+        A2aInvalidRequestException nullRequest = assertThrows(A2aInvalidRequestException.class,
+                () -> validation.validateAndExtract(null));
+        A2aRequestDTO incomplete = A2aRequestDTO.builder().id("request-2").jsonrpc("1.0").build();
+        A2aInvalidRequestException invalid = assertThrows(A2aInvalidRequestException.class,
+                () -> validation.validateAndExtract(incomplete));
+
+        assertNotNull(nullRequest.getRequestId());
+        assertEquals("request-2", invalid.getRequestId());
+    }
+
+    @Test
+    void rejectsUnsupportedLanguageAndGeneratesIdWhenInputIdIsBlank() throws Exception {
+        A2aRequestDTO input = objectMapper.readValue("""
+                {"jsonrpc":"2.0","id":" ","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"Text","language":"KLINGON"},"evidence":{"criteria":[]}}}]}}}
+                """, A2aRequestDTO.class);
+
+        A2aInvalidRequestException error = assertThrows(A2aInvalidRequestException.class,
+                () -> validation.validateAndExtract(input));
+
+        assertNotNull(error.getRequestId());
+        assertTrueUuid(error.getRequestId());
+    }
+
+    @Test
+    void wrapsUnexpectedNormalizationFailures() throws Exception {
+        A2aRequestDTO input = objectMapper.readValue("""
+                {"jsonrpc":"2.0","id":"request-3","method":"SendMessage","params":{"message":{"contextId":"workflow-1","parts":[{"mediaType":"application/json","data":{"composition":{"userId":7,"title":"A day","content":"Text","language":"ENGLISH"},"evidence":{"criteria":[]}}}]}}}
+                """, A2aRequestDTO.class);
+        ObjectMapper failingMapper = mock(ObjectMapper.class);
+        when(failingMapper.writeValueAsString(any())).thenThrow(new RuntimeException("serialization failed"));
+
+        A2aInvalidRequestException error = assertThrows(A2aInvalidRequestException.class,
+                () -> new ValidationServiceImpl(new SllpProperties(), failingMapper).validateAndExtract(input));
+
+        assertEquals("request-3", error.getRequestId());
+        assertNotNull(error.getCause());
+    }
+
+    @Test
     void acceptsValidAdminRubricAndCompleteGroundedOutput() {
         assertDoesNotThrow(() -> validation.validateRubric(
                 rubric(), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
         assertDoesNotThrow(() -> validation.validateAiOutput(
                 output("I went home.", 3), request(), rubric()));
+    }
+
+    @Test
+    void rejectsEmptyInvalidDuplicateAndUnbalancedRubrics() {
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateRubric(null, Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateRubric(List.of(), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateRubric(java.util.Collections.singletonList(null),
+                        Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+
+        AdminRubricCriterionDTO half = new AdminRubricCriterionDTO(7L, Language.ENGLISH,
+                DifficultyLevel.INTERMEDIATE, "TASK_IDEAS", "Develop ideas.", new BigDecimal("50"),
+                "SYSTEM", "SYSTEM", null, null);
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateRubric(List.of(half), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateRubric(List.of(half, half), Language.ENGLISH, DifficultyLevel.INTERMEDIATE));
+    }
+
+    @Test
+    void rejectsMalformedAiEnvelopeAndRubricCoverageMismatch() {
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateAiOutput(null, request(), rubric()));
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateAiOutput(AiGradingOutputDTO.builder().confidence(Double.NaN).build(),
+                        request(), rubric()));
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateAiOutput(AiGradingOutputDTO.builder().confidence(1.1).criteria(List.of()).build(),
+                        request(), rubric()));
+
+        AiGradingOutputDTO wrongCriterion = AiGradingOutputDTO.builder().confidence(0.5).criteria(List.of(
+                AiCriterionAssessmentDTO.builder().criterion("LANGUAGE_USE").bandScore(3)
+                        .rationale("Grounded rationale").evidence(List.of(
+                                new EvidenceDTO("I went home.", null))).build())).build();
+        assertThrows(IllegalStateException.class,
+                () -> validation.validateAiOutput(wrongCriterion, request(), rubric()));
     }
 
     @Test
@@ -106,5 +214,9 @@ class ValidationServiceImplTest {
         return List.of(new AdminRubricCriterionDTO(7L, Language.ENGLISH, DifficultyLevel.INTERMEDIATE,
                 "TASK_IDEAS", "Develop ideas.", new BigDecimal("100"),
                 "SYSTEM", "SYSTEM", null, null));
+    }
+
+    private static void assertTrueUuid(String value) {
+        assertDoesNotThrow(() -> java.util.UUID.fromString(value));
     }
 }

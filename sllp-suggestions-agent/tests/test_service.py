@@ -194,6 +194,8 @@ class SuggestionServiceTest(unittest.TestCase):
 
         with TestClient(create_app(service, settings)) as client:
             card = client.get("/.well-known/agent-card.json")
+            input_schema = client.get("/.well-known/sllp-contracts/writing-suggestions-v2-input.json")
+            output_schema = client.get("/.well-known/sllp-contracts/writing-suggestions-v2-output.json")
             response = client.post("/a2a", json=body, headers={"Authorization": "Bearer test-token"})
             invalid = client.post("/a2a", json={**body, "method": "unsupported"}, headers={"Authorization": "Bearer test-token"}).json()
             self.assertEqual("request-1", invalid["id"])
@@ -202,6 +204,8 @@ class SuggestionServiceTest(unittest.TestCase):
         self.assertEqual(200, card.status_code)
         self.assertEqual("2.0", card.json()["sllp"]["contractVersion"])
         self.assertEqual("writing-suggestions", card.json()["skills"][0]["id"])
+        self.assertEqual("https://json-schema.org/draft/2020-12/schema", input_schema.json()["$schema"])
+        self.assertEqual("https://json-schema.org/draft/2020-12/schema", output_schema.json()["$schema"])
         self.assertEqual("TASK_STATE_COMPLETED", response.json()["result"]["task"]["status"]["state"])
         artifact = response.json()["result"]["task"]["artifacts"][0]["parts"][0]["data"]
         self.assertEqual("AVAILABLE", artifact["suggestionStatus"])

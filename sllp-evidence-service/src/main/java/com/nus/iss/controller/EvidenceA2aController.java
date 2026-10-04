@@ -45,7 +45,36 @@ public class EvidenceA2aController {
     public Map<String, Object> card() {
         return Map.of("name", "SLLP Evidence Agent", "url", properties.getPublicBaseUrl() + "/a2a", "protocolVersion", "1.0",
                 "skills", List.of(Map.of("id", "evidence-collection", "name", "Evidence collection")),
-                "sllp", Map.of("contractVersion", "2.0"));
+                "sllp", Map.of(
+                        "contractVersion", "2.0",
+                        "inputSchemaUrl", properties.getPublicBaseUrl() + "/.well-known/sllp-contracts/evidence-collection-v2-input.json",
+                        "outputSchemaUrl", properties.getPublicBaseUrl() + "/.well-known/sllp-contracts/evidence-collection-v2-output.json"));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/evidence-collection-v2-input.json")
+    public Map<String, Object> inputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "Evidence collection input",
+                "type", "object",
+                "required", List.of("schemaVersion", "workflowId", "attempt", "composition"),
+                "properties", Map.of("composition", Map.of(
+                        "type", "object",
+                        "required", List.of("compositionId", "userId", "title", "content", "language"))));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/evidence-collection-v2-output.json")
+    public Map<String, Object> outputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "Evidence collection output",
+                "type", "object",
+                "required", List.of("criteria", "rubricVersion", "rubricSnapshot", "usage"),
+                "properties", Map.of(
+                        "criteria", Map.of("type", "array", "minItems", 1),
+                        "rubricVersion", Map.of("type", "string", "minLength", 1),
+                        "rubricSnapshot", Map.of("type", "object", "required", List.of("version", "criteria")),
+                        "usage", Map.of("type", "object")));
     }
 
     @GetMapping({"/health", "/ready"})

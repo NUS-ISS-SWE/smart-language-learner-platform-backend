@@ -26,9 +26,57 @@ import java.util.UUID;
 public class ReviewA2aController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ReviewA2aController.class);
 
-    private final ReviewAgentService service; private final SllpProperties properties; private final ObjectMapper mapper;
-    public ReviewA2aController(ReviewAgentService service, SllpProperties properties, ObjectMapper mapper) { this.service = service; this.properties = properties; this.mapper = mapper; }
-    @GetMapping("/.well-known/agent-card.json") public Map<String,Object> card() { return Map.of("name", "SLLP Review Agent", "url", properties.getPublicBaseUrl() + "/a2a", "protocolVersion", "1.0", "skills", List.of(Map.of("id", "assessment-review", "name", "Assessment review")), "sllp", Map.of("contractVersion", "2.0")); }
+    private final ReviewAgentService service;
+    private final SllpProperties properties;
+    private final ObjectMapper mapper;
+
+    public ReviewA2aController(ReviewAgentService service, SllpProperties properties, ObjectMapper mapper) {
+        this.service = service;
+        this.properties = properties;
+        this.mapper = mapper;
+    }
+
+    @GetMapping("/.well-known/agent-card.json")
+    public Map<String, Object> card() {
+        String baseUrl = properties.getPublicBaseUrl();
+        return Map.of(
+                "name", "SLLP Review Agent",
+                "url", baseUrl + "/a2a",
+                "protocolVersion", "1.0",
+                "skills", List.of(Map.of("id", "assessment-review", "name", "Assessment review")),
+                "sllp", Map.of(
+                        "contractVersion", "2.0",
+                        "inputSchemaUrl", baseUrl + "/.well-known/sllp-contracts/assessment-review-v2-input.json",
+                        "outputSchemaUrl", baseUrl + "/.well-known/sllp-contracts/assessment-review-v2-output.json"));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/assessment-review-v2-input.json")
+    public Map<String, Object> inputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "Assessment review input",
+                "type", "object",
+                "required", List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "grading", "rubricSnapshot"),
+                "properties", Map.of(
+                        "composition", Map.of("type", "object"),
+                        "evidence", Map.of("type", "object"),
+                        "grading", Map.of("type", "object"),
+                        "rubricSnapshot", Map.of("type", "object")));
+    }
+
+    @GetMapping("/.well-known/sllp-contracts/assessment-review-v2-output.json")
+    public Map<String, Object> outputSchema() {
+        return Map.of(
+                "$schema", "https://json-schema.org/draft/2020-12/schema",
+                "title", "Assessment review output",
+                "type", "object",
+                "required", List.of("decision", "confidence", "findings", "usage"),
+                "properties", Map.of(
+                        "decision", Map.of("type", "string", "enum", List.of("APPROVE", "REGRADE", "REJECT")),
+                        "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1),
+                        "findings", Map.of("type", "array"),
+                        "usage", Map.of("type", "object")));
+    }
     @GetMapping({"/health", "/ready"}) public Map<String,String> health() { return Map.of("status", "ready"); }
     @PostMapping("/a2a") public ResponseEntity<Map<String,Object>> invoke(@RequestHeader(value="Authorization", required=false) String auth, @RequestBody Map<String,Object> body) {
         if (!authorized(auth)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

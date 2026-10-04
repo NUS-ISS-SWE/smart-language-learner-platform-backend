@@ -6,7 +6,7 @@ Transient network failures and HTTP 5xx responses are retried twice with exponen
 
 ## Agent Cards
 
-Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator.
+Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; discovery fetches both URLs from that same origin and requires a draft 2020-12 object schema. Additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator.
 
 ```json
 {

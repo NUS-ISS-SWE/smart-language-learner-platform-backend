@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.config import Settings
 
 LOGGER = logging.getLogger(__name__)
+JSON_SCHEMA_DRAFT_2020 = "https://json-schema.org/draft/2020-12/schema"
 
 
 class AgentDiscoveryError(RuntimeError):
@@ -54,6 +55,8 @@ class VerifiedAgentCard:
     service_url: str
     skill: str
     contract_version: str
+    input_schema_url: str
+    output_schema_url: str
     verified_at_monotonic: float
 
     def trace_details(self) -> dict[str, str]:
@@ -64,6 +67,8 @@ class VerifiedAgentCard:
             "agentServiceUrl": self.service_url,
             "skill": self.skill,
             "contractVersion": self.contract_version,
+            "inputSchemaUrl": self.input_schema_url,
+            "outputSchemaUrl": self.output_schema_url,
         }
 
 
@@ -139,6 +144,8 @@ class AgentRegistry:
             raise AgentDiscoveryError(f"{peer.key} agent card does not support SLLP contract v2.0")
         if self._origin(card.url) != self._origin(peer.card_url):
             raise AgentDiscoveryError(f"{peer.key} agent card endpoint differs from the allowlisted card origin")
+        input_schema_url = self._verify_schema(peer, extension, "inputSchemaUrl")
+        output_schema_url = self._verify_schema(peer, extension, "outputSchemaUrl")
         return VerifiedAgentCard(
             key=peer.key,
             name=card.name,
@@ -146,8 +153,27 @@ class AgentRegistry:
             service_url=card.url,
             skill=peer.required_skill,
             contract_version="2.0",
+            input_schema_url=input_schema_url,
+            output_schema_url=output_schema_url,
             verified_at_monotonic=verified_at,
         )
+
+    def _verify_schema(self, peer: PeerAgent, extension: dict[str, Any], field: str) -> str:
+        schema_url = extension.get(field)
+        if not isinstance(schema_url, str) or not schema_url:
+            raise AgentDiscoveryError(f"{peer.key} agent card does not publish {field}")
+        if self._origin(schema_url) != self._origin(peer.card_url):
+            raise AgentDiscoveryError(f"{peer.key} {field} differs from the allowlisted card origin")
+        response = self.client.get(schema_url)
+        response.raise_for_status()
+        schema = response.json()
+        if (
+            not isinstance(schema, dict)
+            or schema.get("$schema") != JSON_SCHEMA_DRAFT_2020
+            or schema.get("type") != "object"
+        ):
+            raise AgentDiscoveryError(f"{peer.key} {field} is not a JSON Schema draft 2020-12 object")
+        return schema_url
 
     @staticmethod
     def _origin(url: str) -> tuple[str, str, int | None]:

@@ -54,6 +54,14 @@ def _extract_request(body: dict[str, Any]) -> tuple[Any, str, dict[str, Any]]:
     raise ValueError("A2A request must contain one application/json data part")
 
 
+def _draft_2020_schema(model: type[Any]) -> dict[str, Any]:
+    """Publish Pydantic's generated contract with an explicit JSON Schema dialect."""
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        **model.model_json_schema(by_alias=True),
+    }
+
+
 async def _read_bounded_body(request: Request, limit: int) -> bytes:
     """Reject an oversized request while streaming, before buffering it in memory."""
     declared = request.headers.get("content-length")
@@ -110,11 +118,11 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
 
     @app.get("/.well-known/sllp-contracts/writing-suggestions-v2-input.json")
     def suggestion_input_schema() -> dict[str, Any]:
-        return SuggestionRequest.model_json_schema(by_alias=True)
+        return _draft_2020_schema(SuggestionRequest)
 
     @app.get("/.well-known/sllp-contracts/writing-suggestions-v2-output.json")
     def suggestion_output_schema() -> dict[str, Any]:
-        return SuggestionResponse.model_json_schema(by_alias=True)
+        return _draft_2020_schema(SuggestionResponse)
 
     @app.get("/health")
     def health() -> dict[str, str]:

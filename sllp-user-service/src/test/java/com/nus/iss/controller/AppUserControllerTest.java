@@ -2,6 +2,7 @@ package com.nus.iss.controller;
 
 import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
+import com.nus.iss.dto.ResetPasswordConfirmDTO;
 import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.service.AppUserService;
@@ -86,6 +87,19 @@ class AppUserControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertNull(response.getBody());
         verify(appUserService).forgotPassword("ming@example.com");
+    }
+
+    @Test
+    void confirmForgotPasswordReturnsNewAccessToken() {
+        AppUserController controller = new AppUserController(appUserService);
+        ResetPasswordConfirmDTO request = new ResetPasswordConfirmDTO("reset-token", "new-password");
+        JwtAccessTokenDTO token = JwtAccessTokenDTO.builder().accessToken("jwt-token").role("USER_PAID").build();
+        when(appUserService.confirmForgotPassword("reset-token", "new-password")).thenReturn(token);
+
+        ResponseEntity<JwtAccessTokenDTO> response = controller.confirmForgotPassword(request);
+
+        assertSame(token, response.getBody());
+        verify(appUserService).confirmForgotPassword("reset-token", "new-password");
     }
 
     @Test

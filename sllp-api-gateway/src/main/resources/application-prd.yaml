@@ -3,4 +3,5 @@ sllp:
   user-service: http://user-service:8082
   composition-service: http://composition-service:8083
   document-service: http://document-service:8089
+  subscription-service: http://subscription-service:8084
   admin-service: http://admin-service:8086

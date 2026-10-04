@@ -1,0 +1,177 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-product-guide-service
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-product-guide-service-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/postgres"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "username"
+            objectAlias: "spring.datasource.username"
+          - path: "password"
+            objectAlias: "spring.datasource.password"
+      - objectName: "sllp/openai"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "apiKey"
+            objectAlias: "spring.ai.openai.api-key"
+      - objectName: "sllp/audit-ingest"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "secret"
+            objectAlias: "sllp.audit.ingest-secret"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-product-guide-service-config
+  namespace: sllp
+data:
+  SPRING_PROFILES_ACTIVE: "prd"
+  SERVER_PORT: "8087"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
+  SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
+  OPENAI_CHAT_MODEL: "gpt-4o-mini"
+  OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+  AUDIT_INGEST_URL: "http://admin-service:8086/internal/audit-events"
+  TZ: "UTC"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllp-product-guide-service
+  namespace: sllp
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: sllp-product-guide-service
+  template:
+    metadata:
+      labels:
+        app: sllp-product-guide-service
+    spec:
+      serviceAccountName: sllp-product-guide-service
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-product-guide-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-product-guide-service
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sllp-product-guide-service
+          image: 961125mingwei/sllp-product-guide-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8087
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: sllp-product-guide-service-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-product-guide-service-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-guide-service
+  namespace: sllp
+spec:
+  selector:
+    app: sllp-product-guide-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8087
+      targetPort: http
+  type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-product-guide-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-product-guide-service

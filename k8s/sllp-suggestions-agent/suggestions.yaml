@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-suggestions-agent
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-suggestions-agent-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/openai"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "apiKey"
+            objectAlias: "openai-api-key"
+      - objectName: "sllp/agent-tokens"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "suggestion"
+            objectAlias: "suggestion-agent-token"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-suggestions-agent-config
+  namespace: sllp
+data:
+  SUGGESTIONS_PUBLIC_BASE_URL: "http://suggestions-agent:8091"
+  SUGGESTIONS_USER_SERVICE_URL: "http://user-service:8082"
+  SUGGESTIONS_ADMIN_SERVICE_URL: "http://admin-service:8086"
+  SUGGESTIONS_OPENAI_MODEL: "gpt-4o-mini"
+  SUGGESTIONS_OPENAI_TEMPERATURE: "0.2"
+  SUGGESTIONS_HTTP_TIMEOUT_SECONDS: "20"
+  PYTHONDONTWRITEBYTECODE: "1"
+  TZ: "UTC"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllp-suggestions-agent
+  namespace: sllp
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: sllp-suggestions-agent
+  template:
+    metadata:
+      labels:
+        app: sllp-suggestions-agent
+    spec:
+      serviceAccountName: sllp-suggestions-agent
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-suggestions-agent
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-suggestions-agent
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sllp-suggestions-agent
+          image: 961125mingwei/sllp-suggestions-agent:latest
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              SUGGESTIONS_OPENAI_API_KEY="$(cat /mnt/secrets-store/openai-api-key)"
+              SUGGESTION_AGENT_TOKEN="$(cat /mnt/secrets-store/suggestion-agent-token)"
+              test -n "$SUGGESTIONS_OPENAI_API_KEY"
+              test -n "$SUGGESTION_AGENT_TOKEN"
+              export SUGGESTIONS_OPENAI_API_KEY SUGGESTION_AGENT_TOKEN
+              exec uvicorn app.main:app --host 0.0.0.0 --port 8091
+          ports:
+            - name: http
+              containerPort: 8091
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: sllp-suggestions-agent-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-suggestions-agent-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: suggestions-agent
+  namespace: sllp
+spec:
+  selector:
+    app: sllp-suggestions-agent
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8091
+      targetPort: http
+  type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-suggestions-agent
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-suggestions-agent

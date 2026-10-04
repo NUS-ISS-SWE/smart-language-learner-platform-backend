@@ -1,0 +1,125 @@
+{
+    "compositionId": 3,
+    "plan": [
+        "Identify strengths in task ideas and organization.",
+        "Look for weaknesses in grammar and mechanics.",
+        "Evaluate vocabulary usage and expression."
+    ],
+    "criteria": [
+        {
+            "criterion": "TASK_IDEAS",
+            "evidence": [
+                {
+                    "excerpt": "Last summer, my family and I drove up to the mountains.",
+                    "polarity": "STRENGTH",
+                    "note": "This excerpt clearly introduces the main idea of the trip.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "In the evening, we watched the sunset from a viewpoint near our cabin.",
+                    "polarity": "STRENGTH",
+                    "note": "This provides a relevant detail that adds to the overall idea of the trip.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        },
+        {
+            "criterion": "ORGANISATION_COHESION",
+            "evidence": [
+                {
+                    "excerpt": "We spent the afternoon hiking along a narrow trail through the forest.",
+                    "polarity": "STRENGTH",
+                    "note": "This sentence logically follows the introduction and maintains a clear sequence.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "In the evening, we watched the sunset from a viewpoint near our cabin.",
+                    "polarity": "STRENGTH",
+                    "note": "This provides a clear ending to the day's activities.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        },
+        {
+            "criterion": "GRAMMAR_SENTENCE_CONTROL",
+            "evidence": [
+                {
+                    "excerpt": "We spent the afternoon hiking along a narrow trail through the forest.",
+                    "polarity": "STRENGTH",
+                    "note": "The sentence is complete and understandable.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "Last summer, my family and I drove up to the mountains.",
+                    "polarity": "STRENGTH",
+                    "note": "This sentence is also grammatically correct and clear.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        },
+        {
+            "criterion": "VOCABULARY_WORD_CHOICE",
+            "evidence": [
+                {
+                    "excerpt": "We spent the afternoon hiking along a narrow trail through the forest.",
+                    "polarity": "STRENGTH",
+                    "note": "The vocabulary used is appropriate and descriptive for the context.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "In the evening, we watched the sunset from a viewpoint near our cabin.",
+                    "polarity": "STRENGTH",
+                    "note": "The choice of words effectively conveys the scene.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        },
+        {
+            "criterion": "MECHANICS",
+            "evidence": [
+                {
+                    "excerpt": "Last summer, my family and I drove up to the mountains.",
+                    "polarity": "WEAKNESS",
+                    "note": "There are no significant mechanics issues, but minor errors could be present.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "We spent the afternoon hiking along a narrow trail through the forest.",
+                    "polarity": "WEAKNESS",
+                    "note": "The sentence is clear, but punctuation could be checked for accuracy.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        },
+        {
+            "criterion": "EXPRESSION_DESCRIPTION_VOICE",
+            "evidence": [
+                {
+                    "excerpt": "In the evening, we watched the sunset from a viewpoint near our cabin.",
+                    "polarity": "STRENGTH",
+                    "note": "This adds a descriptive detail that enhances the imagery of the composition.",
+                    "verifiedOnFirstPass": true
+                },
+                {
+                    "excerpt": "We spent the afternoon hiking along a narrow trail through the forest.",
+                    "polarity": "STRENGTH",
+                    "note": "The description of the trail adds interest to the narrative.",
+                    "verifiedOnFirstPass": true
+                }
+            ]
+        }
+    ],
+    "usage": {
+        "promptTokens": 2707,
+        "completionTokens": 827,
+        "cachedInputTokens": 0,
+        "totalTokens": 3534,
+        "estimatedCostMicros": 902,
+        "provider": "OPENAI",
+        "model": "gpt-4o-mini-2024-07-18",
+        "pricingVersion": "openai-gpt-4o-mini-2026-08",
+        "inputPriceMicrosPerMillion": 150000,
+        "cachedInputPriceMicrosPerMillion": 75000,
+        "outputPriceMicrosPerMillion": 600000
+    }
+}

@@ -35,5 +35,3 @@ COPY --from=builder /build/sllp-composition-service/target/sllp-composition-serv
 EXPOSE 8083
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
-
-ENTRYPOINT ["java", "-jar", "app.jar"]

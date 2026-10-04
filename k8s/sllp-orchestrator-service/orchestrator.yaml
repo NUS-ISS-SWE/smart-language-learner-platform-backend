@@ -1,0 +1,262 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-orchestrator-service
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-orchestrator-service-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/postgres"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "username"
+            objectAlias: "database-username"
+          - path: "password"
+            objectAlias: "database-password"
+      - objectName: "sllp/audit-ingest"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "secret"
+            objectAlias: "audit-ingest-secret"
+      - objectName: "sllp/agent-tokens"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "evidence"
+            objectAlias: "evidence-agent-token"
+          - path: "grading"
+            objectAlias: "grading-agent-token"
+          - path: "review"
+            objectAlias: "review-agent-token"
+          - path: "suggestion"
+            objectAlias: "suggestion-agent-token"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-orchestrator-service-config
+  namespace: sllp
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  KAFKA_GROUP_ID: "sllp-orchestrator-group"
+  KAFKA_GRADING_REQUESTED_TOPIC: "SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC"
+  KAFKA_GRADING_COMPLETED_TOPIC: "SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC"
+  KAFKA_GRADING_PROGRESS_TOPIC: "SLLP_COMPOSITION_GRADING_PROGRESS_TOPIC"
+  KAFKA_ENABLED: "true"
+  AGENT_PROVIDER: "a2a"
+  AGENT_CARD_DISCOVERY_ENABLED: "true"
+  AGENT_CARD_REFRESH_SECONDS: "300"
+  AGENT_CARD_MAX_STALE_SECONDS: "3600"
+  EVIDENCE_AGENT_CARD_URL: "http://evidence-agent:8092/.well-known/agent-card.json"
+  GRADING_AGENT_CARD_URL: "http://grading-agent:8093/.well-known/agent-card.json"
+  REVIEW_AGENT_CARD_URL: "http://review-agent:8094/.well-known/agent-card.json"
+  SUGGESTION_AGENT_CARD_URL: "http://suggestions-agent:8091/.well-known/agent-card.json"
+  AGENT_HTTP_TIMEOUT_SECONDS: "60"
+  MAX_AGENT_RETRIES: "2"
+  MAX_REGRADES: "1"
+  MINIMUM_CONFIDENCE: "0.60"
+  MAX_COMPOSITION_CHARACTERS: "20000"
+  WORKFLOW_POLL_INTERVAL_SECONDS: "0.5"
+  OUTBOX_POLL_INTERVAL_SECONDS: "0.25"
+  WORKER_LEASE_SECONDS: "60"
+  OUTBOX_LEASE_SECONDS: "30"
+  WORKER_HEARTBEAT_SECONDS: "15"
+  DATABASE_POOL_SIZE: "1"
+  DATABASE_MAX_OVERFLOW: "1"
+  AUDIT_INGEST_URL: "http://admin-service:8086/internal/audit-events"
+  PYTHONDONTWRITEBYTECODE: "1"
+  TZ: "UTC"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllp-orchestrator-service
+  namespace: sllp
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: sllp-orchestrator-service
+  template:
+    metadata:
+      labels:
+        app: sllp-orchestrator-service
+    spec:
+      serviceAccountName: sllp-orchestrator-service
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-orchestrator-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-orchestrator-service
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 45
+      initContainers:
+        - name: wait-for-data-services
+          image: 961125mingwei/sllp-orchestrator-service:latest
+          imagePullPolicy: Always
+          command:
+            - python
+            - -c
+          args:
+            - |
+              import socket
+              import time
+
+              for host, port in (("postgres-db", 5432), ("kafka-service", 9092)):
+                  while True:
+                      try:
+                          with socket.create_connection((host, port), timeout=3):
+                              break
+                      except OSError:
+                          time.sleep(2)
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      containers:
+        - name: sllp-orchestrator-service
+          image: 961125mingwei/sllp-orchestrator-service:latest
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              DATABASE_USERNAME="$(cat /mnt/secrets-store/database-username)"
+              DATABASE_PASSWORD="$(cat /mnt/secrets-store/database-password)"
+              AUDIT_INGEST_SECRET="$(cat /mnt/secrets-store/audit-ingest-secret)"
+              EVIDENCE_AGENT_TOKEN="$(cat /mnt/secrets-store/evidence-agent-token)"
+              GRADING_AGENT_TOKEN="$(cat /mnt/secrets-store/grading-agent-token)"
+              REVIEW_AGENT_TOKEN="$(cat /mnt/secrets-store/review-agent-token)"
+              SUGGESTION_AGENT_TOKEN="$(cat /mnt/secrets-store/suggestion-agent-token)"
+              test -n "$DATABASE_USERNAME"
+              test -n "$DATABASE_PASSWORD"
+              test -n "$AUDIT_INGEST_SECRET"
+              test -n "$EVIDENCE_AGENT_TOKEN"
+              test -n "$GRADING_AGENT_TOKEN"
+              test -n "$REVIEW_AGENT_TOKEN"
+              test -n "$SUGGESTION_AGENT_TOKEN"
+              export DATABASE_USERNAME DATABASE_PASSWORD
+              ORCHESTRATOR_DATABASE_URL="$(python -c 'import os; from urllib.parse import quote; print("postgresql+psycopg://{}:{}@postgres-db:5432/sllp_main_db".format(quote(os.environ["DATABASE_USERNAME"], safe=""), quote(os.environ["DATABASE_PASSWORD"], safe="")))')"
+              unset DATABASE_USERNAME DATABASE_PASSWORD
+              export ORCHESTRATOR_DATABASE_URL AUDIT_INGEST_SECRET EVIDENCE_AGENT_TOKEN GRADING_AGENT_TOKEN REVIEW_AGENT_TOKEN SUGGESTION_AGENT_TOKEN
+              exec uvicorn app.main:app --host 0.0.0.0 --port 8090
+          ports:
+            - name: http
+              containerPort: 8090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: sllp-orchestrator-service-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-orchestrator-service-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-service
+  namespace: sllp
+spec:
+  selector:
+    app: sllp-orchestrator-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8090
+      targetPort: http
+  type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-orchestrator-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-orchestrator-service

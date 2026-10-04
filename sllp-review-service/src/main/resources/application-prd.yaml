@@ -1,0 +1,5 @@
+sllp:
+  public-base-url: ${REVIEW_PUBLIC_BASE_URL:http://review-agent:8094}
+  a2a-token: ${REVIEW_AGENT_TOKEN:}
+  user-service-url: ${REVIEW_USER_SERVICE_URL:http://user-service:8082}
+  admin-service-url: ${REVIEW_ADMIN_SERVICE_URL:http://admin-service:8086}

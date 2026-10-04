@@ -28,6 +28,18 @@ class AuditSignatureVerifierTest {
         assertThrows(SecurityException.class, () -> new AuditSignatureVerifier(new AuditProperties(SECRET)).verify(timestamp, signature(timestamp, body), "{\"service\":\"other\"}"));
     }
 
+    @Test
+    void rejectsDisabledExpiredAndMalformedSignatures() {
+        assertThrows(SecurityException.class,
+                () -> new AuditSignatureVerifier(new AuditProperties(null)).verify("1", "signature", "{}"));
+        assertThrows(SecurityException.class,
+                () -> new AuditSignatureVerifier(new AuditProperties(" ")).verify("1", "signature", "{}"));
+        assertThrows(SecurityException.class,
+                () -> new AuditSignatureVerifier(new AuditProperties(SECRET)).verify("not-a-number", "signature", "{}"));
+        assertThrows(SecurityException.class,
+                () -> new AuditSignatureVerifier(new AuditProperties(SECRET)).verify("1", "signature", "{}"));
+    }
+
     private static String signature(String timestamp, String body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

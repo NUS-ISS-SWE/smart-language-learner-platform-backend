@@ -1,0 +1,9 @@
+sllp:
+  audit:
+    ingest-url: ${AUDIT_INGEST_URL:http://admin-service:8086/internal/audit-events}
+  public-base-url: ${EVIDENCE_PUBLIC_BASE_URL:http://evidence-agent:8092}
+  a2a-token: ${EVIDENCE_AGENT_TOKEN:}
+  services:
+    composition-service-url: http://composition-service:8083
+    admin-service-url: http://admin-service:8086
+    user-service-url: http://user-service:8082

@@ -4,38 +4,49 @@ server:
 spring:
   application:
     name: sllp-evaluation-service
+  datasource:
+    url: jdbc:h2:mem:evaluationdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: sa
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
   ai:
     model:
       chat: openai
       embedding: openai
+      moderation: openai
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
-        model: gpt-4o-mini
-        temperature: 0.3
+        model: ${OPENAI_CHAT_MODEL:gpt-6-luna}
+        reasoning-effort: none
       embedding:
         model: text-embedding-3-small
+      moderation:
+        model: omni-moderation-latest
 
 sllp:
   public-base-url: ${GRADING_PUBLIC_BASE_URL:http://localhost:8093}
   a2a-token: ${GRADING_AGENT_TOKEN:}
+  health:
+    open-ai-status-url: ${OPENAI_STATUS_URL:https://status.openai.com/proxy/status.openai.com}
+    connect-timeout: ${OPENAI_STATUS_CONNECT_TIMEOUT:10s}
+    read-timeout: ${OPENAI_STATUS_READ_TIMEOUT:10s}
   ai-usage:
     provider: OPENAI
-    default-model: gpt-4o-mini
-    pricing-version: openai-gpt-4o-mini-2026-08
-    input-price-micros-per-million: 150000
-    cached-input-price-micros-per-million: 75000
-    output-price-micros-per-million: 600000
+    default-model: ${OPENAI_CHAT_MODEL:gpt-6-luna}
+    pricing-version: openai-gpt-6-luna-2026-10
+    input-price-micros-per-million: 100000
+    cached-input-price-micros-per-million: 10000
+    output-price-micros-per-million: 500000
+  audit:
+    in-progress-timeout: 2m
   services:
-    user-service-url: http://localhost:8082
-    admin-service-url: http://localhost:8086
-  kafka:
-    bootstrap-servers: localhost:29092
-    group-id: sllp-evaluation-group
-    auto-offset-reset: earliest
-    topics:
-      composition-grading-requested: SLLP_COMPOSITION_GRADING_REQUESTED_TOPIC
-      composition-grading-completed: SLLP_COMPOSITION_GRADING_COMPLETED_TOPIC
-    retry-backoff-ms: 1000
-    request-timeout-ms: 30000
-    default-api-timeout-ms: 60000
+    user-service-url: ${GRADING_USER_SERVICE_URL:http://localhost:8082}
+    admin-service-url: ${GRADING_ADMIN_SERVICE_URL:http://localhost:8086}

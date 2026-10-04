@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sllp-review-service
+  namespace: sllp
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: sllp-review-service-secrets
+  namespace: sllp
+spec:
+  provider: aws
+  parameters:
+    region: ap-southeast-1
+    usePodIdentity: "true"
+    objects: |
+      - objectName: "sllp/openai"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "apiKey"
+            objectAlias: "spring.ai.openai.api-key"
+      - objectName: "sllp/agent-tokens"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "review"
+            objectAlias: "sllp.a2a-token"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sllp-review-service-config
+  namespace: sllp
+data:
+  SPRING_PROFILES_ACTIVE: "prd"
+  SERVER_PORT: "8094"
+  SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
+  REVIEW_PUBLIC_BASE_URL: "http://review-agent:8094"
+  REVIEW_OPENAI_MODEL: "gpt-4o-mini"
+  REVIEW_AUTO_APPROVE: "true"
+  REVIEW_USER_SERVICE_URL: "http://user-service:8082"
+  REVIEW_ADMIN_SERVICE_URL: "http://admin-service:8086"
+  TZ: "UTC"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllp-review-service
+  namespace: sllp
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: sllp-review-service
+  template:
+    metadata:
+      labels:
+        app: sllp-review-service
+    spec:
+      serviceAccountName: sllp-review-service
+      nodeSelector:
+        eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-review-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-review-service
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: sllp-review-service
+          image: 961125mingwei/sllp-review-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8094
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: sllp-review-service-config
+          volumeMounts:
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: sllp-review-service-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-agent
+  namespace: sllp
+spec:
+  selector:
+    app: sllp-review-service
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8094
+      targetPort: http
+  type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-review-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-review-service

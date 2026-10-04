@@ -1,4 +1,15 @@
 services:
+  frontend-service:
+    image: 961125mingwei/sllp-frontend-service:latest
+    container_name: frontend-service
+    ports:
+      - "3000:3000"
+    networks:
+      - sllp-network
+    depends_on:
+      api-gateway:
+        condition: service_started
+
   postgres-db:
     image: pgvector/pgvector:pg18
     container_name: postgres-db

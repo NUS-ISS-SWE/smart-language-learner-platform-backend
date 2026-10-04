@@ -4,6 +4,7 @@ HELP.md
 .env.*
 !.env.example
 !.env.*.example
+.secret/
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -48,3 +49,10 @@ __pycache__/
 .venv/
 .test-deps/
 .codex-test-deps/
+
+### Terraform ###
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log

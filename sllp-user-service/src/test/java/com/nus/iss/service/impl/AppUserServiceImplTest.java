@@ -5,6 +5,9 @@ import com.nus.iss.dto.AppUserDTO;
 import com.nus.iss.dto.JwtAccessTokenDTO;
 import com.nus.iss.dto.UserProfileDTO;
 import com.nus.iss.entity.AppUser;
+import com.nus.iss.entity.PricingPlanFeatureRef;
+import com.nus.iss.entity.PricingPlanRef;
+import com.nus.iss.entity.UserSubscription;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.PreferredLanguage;
 import com.nus.iss.enums.Role;
@@ -24,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -36,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -174,6 +179,92 @@ class AppUserServiceImplTest {
     }
 
     @Test
+    void registerUser_whenFreeTrialIsExplicitDoesNotLookUpPricingPlan() {
+        AppUserDTO request = AppUserDTO.builder()
+                .username("ming")
+                .email("ming@example.com")
+                .password("password123")
+                .planType("FREE_TRIAL")
+                .build();
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AppUserDTO response = appUserService.registerUser(request);
+
+        assertEquals(Role.USER_FREE_TRIAL, response.getRole());
+        verifyNoInteractions(pricingPlanRepository);
+    }
+
+    @Test
+    void registerUser_whenPaidPlanExistsCreatesSubscriptionSnapshot() {
+        PricingPlanRef plan = paidPlan(30);
+        AppUserDTO request = AppUserDTO.builder()
+                .username("ming")
+                .email("ming@example.com")
+                .password("password123")
+                .planType("BASIC_MONTHLY")
+                .build();
+        when(pricingPlanRepository.findByCodeAndActiveTrue("BASIC_MONTHLY")).thenReturn(Optional.of(plan));
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AppUserDTO response = appUserService.registerUser(request);
+
+        ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
+        verify(appUserRepository, times(2)).save(captor.capture());
+        AppUser savedUser = captor.getAllValues().getLast();
+        UserSubscription subscription = savedUser.getSubscriptions().getFirst();
+        assertEquals(Role.USER_BASIC, response.getRole());
+        assertEquals(10L, subscription.getPricingPlanId());
+        assertEquals("BASIC_MONTHLY", subscription.getPlanCodeSnapshot());
+        assertEquals("Basic", subscription.getPlanNameSnapshot());
+        assertEquals(999L, subscription.getPriceMinorSnapshot());
+        assertEquals("SGD", subscription.getCurrencySnapshot());
+        assertEquals("ACTIVE", subscription.getStatus());
+        assertEquals(30, subscription.getDurationDays());
+        assertEquals(subscription.getStartDate().plusDays(30), subscription.getEndDate());
+        assertEquals("[\"Grammar \\\"Pro\\\"\",\"Path\\\\Guide\"]", subscription.getFeaturesSnapshot());
+    }
+
+    @Test
+    void registerUser_whenPlanHasNoDurationCreatesOpenEndedSubscription() {
+        PricingPlanRef plan = paidPlan(null);
+        AppUserDTO request = AppUserDTO.builder()
+                .username("ming")
+                .email("ming@example.com")
+                .password("password123")
+                .planType("BASIC_MONTHLY")
+                .build();
+        when(pricingPlanRepository.findByCodeAndActiveTrue("BASIC_MONTHLY")).thenReturn(Optional.of(plan));
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-password");
+        when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        appUserService.registerUser(request);
+
+        ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
+        verify(appUserRepository, times(2)).save(captor.capture());
+        assertNull(captor.getValue().getSubscriptions().getFirst().getEndDate());
+    }
+
+    @Test
+    void registerUser_whenPaidPlanIsUnavailableRejectsRequestBeforeEncodingPassword() {
+        AppUserDTO request = AppUserDTO.builder()
+                .username("ming")
+                .email("ming@example.com")
+                .password("password123")
+                .planType("RETIRED_PLAN")
+                .build();
+        when(pricingPlanRepository.findByCodeAndActiveTrue("RETIRED_PLAN")).thenReturn(Optional.empty());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> appUserService.registerUser(request));
+
+        assertEquals("Selected pricing plan is not available", error.getMessage());
+        verifyNoInteractions(passwordEncoder, notificationService);
+        verify(appUserRepository, never()).save(any());
+    }
+
+    @Test
     void login_whenCredentialsAreValidReturnsJwtAccessToken() {
         AppUser user = activeUser();
         when(appUserRepository.findByUsername("ming")).thenReturn(Optional.of(user));
@@ -239,6 +330,41 @@ class AppUserServiceImplTest {
     }
 
     @Test
+    void confirmForgotPassword_whenTokenIsValidSavesPasswordAndReturnsToken() {
+        AppUser user = activeUser();
+        String token = activationToken("ming@example.com");
+        when(appUserRepository.findByEmail("ming@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("new-password")).thenReturn("encoded-new-password");
+        when(jwtConfig.generateToken("ming", 1L, "USER_FREE_TRIAL")).thenReturn("jwt-token");
+
+        JwtAccessTokenDTO result = appUserService.confirmForgotPassword(token, "new-password");
+
+        assertEquals("encoded-new-password", user.getPassword());
+        assertEquals("jwt-token", result.getAccessToken());
+        assertEquals("USER_FREE_TRIAL", result.getRole());
+        verify(appUserRepository).save(user);
+    }
+
+    @Test
+    void confirmForgotPassword_whenTokenIsMalformedThrowsBadCredentials() {
+        assertThrows(BadCredentialsException.class,
+                () -> appUserService.confirmForgotPassword("not-base64-token", "new-password"));
+
+        verify(appUserRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void confirmForgotPassword_whenEmailIsUnknownThrowsBadCredentials() {
+        String token = activationToken("missing@example.com");
+        when(appUserRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+
+        assertThrows(BadCredentialsException.class,
+                () -> appUserService.confirmForgotPassword(token, "new-password"));
+
+        verifyNoInteractions(passwordEncoder, jwtConfig);
+    }
+
+    @Test
     void getUserProfile_whenUserExistsReturnsOnlyInternalProfileFields() {
         AppUser user = activeUser();
         user.setDifficultyLevel(DifficultyLevel.ADVANCED);
@@ -256,6 +382,13 @@ class AppUserServiceImplTest {
         when(appUserRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(NoSuchElementException.class, () -> appUserService.getUserProfile(99L));
+    }
+
+    @Test
+    void getUserProfile_whenIdIsNullOrNonPositiveRejectsBeforeRepositoryCall() {
+        assertThrows(IllegalArgumentException.class, () -> appUserService.getUserProfile(null));
+        assertThrows(IllegalArgumentException.class, () -> appUserService.getUserProfile(0L));
+        verifyNoInteractions(appUserRepository);
     }
 
     @Test
@@ -367,5 +500,24 @@ class AppUserServiceImplTest {
 
     private static String activationToken(String email) {
         return Base64.getEncoder().encodeToString(email.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static PricingPlanRef paidPlan(Integer durationDays) {
+        PricingPlanRef plan = new PricingPlanRef();
+        plan.setId(10L);
+        plan.setCode("BASIC_MONTHLY");
+        plan.setDisplayName("Basic");
+        plan.setPriceMinor(999L);
+        plan.setCurrency("SGD");
+        plan.setDurationDays(durationDays);
+        plan.setAccessRole("USER_BASIC");
+        plan.setActive(true);
+
+        PricingPlanFeatureRef quoted = new PricingPlanFeatureRef();
+        quoted.setFeatureText("Grammar \"Pro\"");
+        PricingPlanFeatureRef slashed = new PricingPlanFeatureRef();
+        slashed.setFeatureText("Path\\Guide");
+        plan.setFeatures(List.of(quoted, slashed));
+        return plan;
     }
 }

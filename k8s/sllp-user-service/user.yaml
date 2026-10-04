@@ -68,6 +68,11 @@ metadata:
 spec:
   replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-user-service
@@ -79,6 +84,21 @@ spec:
       serviceAccountName: sllp-user-service
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-user-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-user-service
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -153,3 +173,49 @@ spec:
       port: 8082
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-user-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-user-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sllp-user-service
+  namespace: sllp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sllp-user-service
+  minReplicas: 2
+  maxReplicas: 4
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      selectPolicy: Max
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      selectPolicy: Max
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+  metrics:
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: 256Mi

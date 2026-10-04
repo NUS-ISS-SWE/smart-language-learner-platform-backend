@@ -4,8 +4,13 @@ metadata:
   name: sllp-frontend
   namespace: sllp
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-frontend
@@ -16,6 +21,21 @@ spec:
     spec:
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-frontend
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-frontend
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -81,3 +101,14 @@ spec:
       port: 3000
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-frontend
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-frontend

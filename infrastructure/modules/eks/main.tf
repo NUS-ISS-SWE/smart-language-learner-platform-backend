@@ -61,3 +61,22 @@ resource "aws_eks_addon" "secrets_store_csi_driver_provider" {
     Name = "${var.project_name}-secrets-store-csi-driver-provider"
   }
 }
+
+data "aws_eks_addon_version" "metrics_server" {
+  addon_name         = "metrics-server"
+  kubernetes_version = aws_eks_cluster.main.version
+  most_recent        = true
+}
+
+resource "aws_eks_addon" "metrics_server" {
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "metrics-server"
+  addon_version = data.aws_eks_addon_version.metrics_server.version
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = {
+    Name = "${var.project_name}-metrics-server"
+  }
+}

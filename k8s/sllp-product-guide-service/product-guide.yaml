@@ -54,8 +54,13 @@ metadata:
   name: sllp-product-guide-service
   namespace: sllp
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-product-guide-service
@@ -67,6 +72,21 @@ spec:
       serviceAccountName: sllp-product-guide-service
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-product-guide-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-product-guide-service
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -144,3 +164,14 @@ spec:
       port: 8087
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-product-guide-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-product-guide-service

@@ -20,4 +20,15 @@ class AuditRedactionTest {
         assertThrows(IllegalArgumentException.class, () -> AuditRedaction.assertSafe(mapper.readTree("{\"password\":\"never-log\"}")));
         assertThrows(IllegalArgumentException.class, () -> AuditRedaction.assertSafe(mapper.readTree("{\"content\":\"learner work\"}")));
     }
+
+    @Test
+    void handlesNullsArraysAndNormalizedForbiddenNames() throws Exception {
+        assertDoesNotThrow(() -> AuditRedaction.assertSafe(null));
+        assertDoesNotThrow(() -> AuditRedaction.assertSafe(mapper.readTree("null")));
+        assertDoesNotThrow(() -> AuditRedaction.assertSafe(mapper.readTree("[{\"status\":\"OK\"}]")));
+        assertThrows(IllegalArgumentException.class,
+                () -> AuditRedaction.assertSafe(mapper.readTree("[{\"payment-reference\":\"hidden\"}]")));
+        assertThrows(IllegalArgumentException.class,
+                () -> AuditRedaction.assertSafe(mapper.readTree("{\"s3_key\":\"hidden\"}")));
+    }
 }

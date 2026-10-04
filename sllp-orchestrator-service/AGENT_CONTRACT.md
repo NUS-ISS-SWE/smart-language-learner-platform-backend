@@ -181,7 +181,7 @@ The orchestrator stores one idempotent event for each successful agent call, key
 }
 ```
 
-`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator starts one fresh evidence, grading, and review pass when the grading confidence or review confidence is below its configured threshold, or when Review returns `REGRADE`. A rejection or a further questionable result after that bounded reassessment returns only the safe retry message to the student.
+`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator starts one fresh evidence, grading, and review pass when the grading confidence or review confidence is below its configured threshold, or when Review returns `REGRADE` or `REJECT`. A further questionable result after that bounded reassessment returns only the safe retry message to the student.
 
 ## Suggestion response artifact
 
@@ -195,4 +195,4 @@ The orchestrator stores one idempotent event for each successful agent call, key
 }
 ```
 
-`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence. Every `AVAILABLE` suggestion must include a non-empty `exampleRevision`: a safe, one- or two-sentence local illustration grounded in the cited evidence that preserves the writer's meaning. `AVAILABLE` results contain one to three actionable suggestions. `NO_PRIORITY_IMPROVEMENT` has an empty suggestions array when all evidenced rubric criteria score 100. `TEMPORARILY_UNAVAILABLE` has an empty suggestions array when the peer cannot produce a valid result; the approved assessment still completes. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.
+`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence and its excerpt must appear in the submitted composition. Every `AVAILABLE` suggestion must include a non-empty `exampleRevision`: a safe, one- or two-sentence local illustration of that cited excerpt that preserves the writer's meaning and is not merely a copy of the excerpt. `AVAILABLE` results contain one to three actionable suggestions. `NO_PRIORITY_IMPROVEMENT` has an empty suggestions array when all evidenced rubric criteria score 100. `TEMPORARILY_UNAVAILABLE` has an empty suggestions array when the peer cannot produce a valid result; the approved assessment still completes. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.

@@ -101,7 +101,10 @@ class FakeAgents:
             {
                 "overallScore": 72,
                 "rubricScores": {"Description": 72, "Emotion": 70},
-                "criteria": [{"criterion": "Description", "score": 72, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]}],
+                "criteria": [
+                    {"criterion": "Description", "score": 72, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]},
+                    {"criterion": "Emotion", "score": 70, "rationale": "No feeling is stated", "evidence": [{"excerpt": "blue sea"}]},
+                ],
                 "confidence": 0.9,
                 "usage": usage(),
             }
@@ -238,9 +241,12 @@ def test_rejected_review_returns_safe_retry_notice_without_score():
     record = workflow_record()
     repository.add(record)
 
-    failed = OrchestrationWorkflow(settings(), repository, FakeAgents(["REJECT"])).run(record)
+    agents = FakeAgents(["REJECT", "REJECT"])
+    failed = OrchestrationWorkflow(settings(), repository, agents).run(record)
 
     assert failed.status is WorkflowStatus.FAILED
+    assert agents.grade_calls == 2
+    assert agents.evidence_calls == 2
     assert failed.completion_event["success"] is False
     assert failed.completion_event["score"] is None
     assert failed.completion_event["failureReason"] == SAFE_FAILURE_MESSAGE

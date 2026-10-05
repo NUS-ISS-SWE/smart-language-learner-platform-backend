@@ -102,9 +102,8 @@ public class CompositionCommandService {
     public CompositionResponse requestGrading(Long userId, Long compositionId) {
         Composition composition = compositionAccessService.requireOwned(userId, compositionId);
         requireActive(composition);
-        if (composition.getCompositionStatus() != CompositionStatus.DRAFT
-                && composition.getCompositionStatus() != CompositionStatus.ASSESSMENT_FAILED) {
-            throw new InvalidCompositionRequestException("Only draft or failed-assessment compositions can be submitted for review");
+        if (composition.getCompositionStatus() != CompositionStatus.DRAFT) {
+            throw new InvalidCompositionRequestException("Only draft compositions can be submitted for review");
         }
         UUID requestId = UUID.randomUUID();
         assessmentQuotaClient.reserve(userId, requestId);

@@ -59,7 +59,16 @@ public class ReviewA2aController {
                 "required", List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "grading", "rubricSnapshot"),
                 "properties", Map.of(
                         "composition", Map.of("type", "object"),
-                        "evidence", Map.of("type", "object"),
+                        "evidence", Map.of("type", "object", "required", List.of("criteria"),
+                                "properties", Map.of("criteria", Map.of("type", "array", "minItems", 1,
+                                        "items", Map.of("type", "object", "required", List.of("criterion", "evidence"),
+                                                "properties", Map.of("evidence", Map.of("type", "array", "minItems", 1,
+                                                        "items", Map.of("type", "object", "required", List.of("excerpt", "location", "polarity", "note"),
+                                                                "properties", Map.of(
+                                                                        "excerpt", Map.of("type", "string", "minLength", 1),
+                                                                        "location", Map.of("type", "string", "minLength", 1),
+                                                                        "polarity", Map.of("type", "string", "enum", List.of("STRENGTH", "WEAKNESS")),
+                                                                        "note", Map.of("type", "string", "minLength", 1))))))))),
                         "grading", Map.of("type", "object"),
                         "rubricSnapshot", Map.of("type", "object")));
     }

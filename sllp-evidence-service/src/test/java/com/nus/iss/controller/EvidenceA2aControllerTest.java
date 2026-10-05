@@ -49,7 +49,7 @@ class EvidenceA2aControllerTest {
         when(service.collect(argThat(request -> request.compositionId().equals(12L)
                 && request.userId().equals(7L) && request.language().name().equals("ENGLISH")), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new EvidenceCollectionResult(12L, List.of("Read the composition."), List.of(
-                        new CriterionEvidence("TASK_IDEAS", List.of(new EvidenceItem("I went home.", EvidencePolarity.STRENGTH,
+                        new CriterionEvidence("TASK_IDEAS", List.of(new EvidenceItem("I went home.", "paragraph 1, characters 1-12", EvidencePolarity.STRENGTH,
                                 "The event is clear.", true)))), List.of(new RubricCriterionDTO(1L, Language.ENGLISH,
                         DifficultyLevel.BEGINNER, "TASK_IDEAS", "Develop clear ideas.", new BigDecimal("100"),
                         "test", "test", null, null)), usage()));

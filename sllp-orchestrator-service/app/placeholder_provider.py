@@ -72,7 +72,7 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
             "plan": ["Development-only evidence placeholder."],
             "rubricVersion": "placeholder-v1",
             "rubricSnapshot": {"version": "placeholder-v1", "criteria": [{"name": "Development placeholder", "weight": 100, "guidance": "Development-only rubric."}]},
-            "criteria": [{"criterion": "Development placeholder", "evidence": [{"excerpt": "Submitted composition", "polarity": "STRENGTH", "note": "Development-only evidence.", "verifiedOnFirstPass": True}]}],
+            "criteria": [{"criterion": "Development placeholder", "evidence": [{"excerpt": "Submitted composition", "location": "development mode", "polarity": "STRENGTH", "note": "Development-only evidence.", "verifiedOnFirstPass": True}]}],
             **metadata,
         }
     if agent == "review":

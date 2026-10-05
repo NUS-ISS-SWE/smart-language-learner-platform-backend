@@ -12,8 +12,8 @@ import com.nus.iss.exception.UpstreamServiceException;
  *   <li>composition/admin/user-service unreachable -&gt; {@link UpstreamServiceException}, 502.
  *       There's nothing to fall back to — evidence collection cannot proceed without them.</li>
  *   <li>the model call itself fails, or returns no usable result -&gt; {@link EvidenceGenerationException}, 500.</li>
- *   <li>reflection's retry is exhausted -&gt; NOT a failure. The result is still returned, with the
- *       affected items flagged {@code verifiedOnFirstPass = false} rather than dropped.</li>
+ *   <li>unverifiable excerpts are excluded before publication. The workflow fails only if no
+ *       verified excerpt remains for an Admin-rubric criterion.</li>
  * </ul>
  */
 public final class FallbackPolicy {

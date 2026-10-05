@@ -164,6 +164,7 @@ class Evidence(BaseModel):
 
 
 class EvidenceFinding(Evidence):
+    location: str = Field(min_length=1)
     polarity: Literal["STRENGTH", "WEAKNESS"]
     note: str = Field(min_length=1)
     verified_on_first_pass: bool = Field(

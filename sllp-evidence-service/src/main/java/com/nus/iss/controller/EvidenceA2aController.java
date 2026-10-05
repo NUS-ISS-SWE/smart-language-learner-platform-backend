@@ -71,7 +71,19 @@ public class EvidenceA2aController {
                 "type", "object",
                 "required", List.of("criteria", "rubricVersion", "rubricSnapshot", "usage"),
                 "properties", Map.of(
-                        "criteria", Map.of("type", "array", "minItems", 1),
+                        "criteria", Map.of("type", "array", "minItems", 1,
+                                "items", Map.of("type", "object", "required", List.of("criterion", "evidence"),
+                                        "properties", Map.of(
+                                                "criterion", Map.of("type", "string", "minLength", 1),
+                                                "evidence", Map.of("type", "array", "minItems", 1,
+                                                        "items", Map.of("type", "object",
+                                                                "required", List.of("excerpt", "location", "polarity", "note", "verifiedOnFirstPass"),
+                                                                "properties", Map.of(
+                                                                        "excerpt", Map.of("type", "string", "minLength", 1),
+                                                                        "location", Map.of("type", "string", "minLength", 1),
+                                                                        "polarity", Map.of("type", "string", "enum", List.of("STRENGTH", "WEAKNESS")),
+                                                                        "note", Map.of("type", "string", "minLength", 1),
+                                                                        "verifiedOnFirstPass", Map.of("type", "boolean"))))))),
                         "rubricVersion", Map.of("type", "string", "minLength", 1),
                         "rubricSnapshot", Map.of("type", "object", "required", List.of("version", "criteria")),
                         "usage", Map.of("type", "object")));
@@ -171,7 +183,8 @@ public class EvidenceA2aController {
     }
 
     private Map<String, Object> evidence(EvidenceItem item) {
-        return Map.of("excerpt", item.excerpt(), "polarity", item.polarity().name(), "note", item.note(), "verifiedOnFirstPass", item.verifiedOnFirstPass());
+        return Map.of("excerpt", item.excerpt(), "location", item.location(), "polarity", item.polarity().name(),
+                "note", item.note(), "verifiedOnFirstPass", item.verifiedOnFirstPass());
     }
 
     private static Map<String, Object> usage(AiUsage usage) {

@@ -135,14 +135,14 @@ The following is a complete, representative `SendMessage` response from a gradin
 
 The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. Grading, Review, and Suggestions additionally receive the immutable `rubricSnapshot` returned by Evidence. A re-grade uses `attempt: 2`.
 
-The Evidence request uses the shared request artifact only. It returns this artifact, which the orchestrator persists verbatim and supplies to Grading and Review:
+The Evidence request uses the shared request artifact only. Evidence verifies every excerpt against the immutable submitted composition, assigns a deterministic paragraph and character location, and returns this canonical artifact. The orchestrator validates and persists that artifact before supplying it to Grading and Review:
 
 ```json
 {
   "plan": ["Check each rubric criterion against the composition."],
   "rubricVersion": "admin-rubric-<content-hash>",
   "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
-  "criteria": [{"criterion": "TASK_IDEAS", "evidence": [{"excerpt": "The waves sparkled", "polarity": "STRENGTH", "note": "Specific detail", "verifiedOnFirstPass": true}]}],
+  "criteria": [{"criterion": "TASK_IDEAS", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2, characters 45-63", "polarity": "STRENGTH", "note": "Specific detail", "verifiedOnFirstPass": true}]}],
   "modelVersion": "model-name",
   "promptVersion": "evidence-v2",
   "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 240, "cachedInputTokens": 0, "completionTokens": 81, "totalTokens": 321, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
@@ -164,7 +164,7 @@ The Evidence request uses the shared request artifact only. It returns this arti
 }
 ```
 
-`overallScore`, `rubricScores`, `rubricVersion`, each criterion's 1-5 `bandScore`, 0-100 criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Criterion score must equal `bandScore × 20`; the overall score must equal the snapshot-weighted criterion scores; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Evidence obtains it once, the orchestrator persists and distributes it, and Grading, Review, and Suggestions must use it rather than refetching Admin. Grading must echo the exact snapshot version and cover every snapshot criterion exactly once. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
+`overallScore`, `rubricScores`, `rubricVersion`, each criterion's 1-5 `bandScore`, 0-100 criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Criterion score must equal `bandScore × 20`; the overall score must equal the snapshot-weighted criterion scores; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Evidence obtains it once, verifies every returned excerpt against the submitted composition, assigns a non-empty deterministic location, and the orchestrator persists and distributes it. Grading, Review, and Suggestions must use that snapshot rather than refetching Admin. The orchestrator rejects a peer artifact that violates the evidence traceability contract. Grading must echo the exact snapshot version and cover every snapshot criterion exactly once. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
 
 ### Provider usage and cost snapshot
 

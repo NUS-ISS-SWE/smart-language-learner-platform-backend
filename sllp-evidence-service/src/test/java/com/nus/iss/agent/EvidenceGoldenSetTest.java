@@ -92,15 +92,10 @@ class EvidenceGoldenSetTest {
         for (CriterionEvidence criterion : result.criteria()) {
             assertFalse(criterion.evidence().isEmpty(), "expected at least one excerpt for " + criterion.criterion());
             for (EvidenceItem item : criterion.evidence()) {
-                // verifiedOnFirstPass=true is a hard guarantee (ReflectionStep already checked
-                // it against the source text) — hold the test to that same bar. false means the
-                // agent itself couldn't fully verify it after a retry (e.g. the model normalized
-                // punctuation on a near-exact excerpt); that's the documented, expected shape of
-                // "best effort", not a bug to assert away here.
-                if (item.verifiedOnFirstPass()) {
-                    assertTrue(content.contains(item.excerpt().trim()),
-                            "excerpt for " + criterion.criterion() + " was marked verified but isn't verbatim: " + item.excerpt());
-                }
+                assertTrue(content.contains(item.excerpt().trim()),
+                        "excerpt for " + criterion.criterion() + " isn't verbatim: " + item.excerpt());
+                assertFalse(item.location().isBlank(),
+                        "excerpt for " + criterion.criterion() + " is missing its source location");
             }
         }
     }

@@ -37,7 +37,7 @@ public final class ReviewScoringPolicy {
                 throw new IllegalStateException("invalid review findings");
             }
         }
-        ReviewModelResponse normalized = normalizeNonBlockingActionability(result);
+        ReviewModelResponse normalized = normalizeNonBlockingWarnings(result);
         int qualityScore = calculateQualityScore(normalized.checks());
         ReviewModelResponse canonical = new ReviewModelResponse(
                 normalized.decision(), normalized.confidence(), qualityScore, normalized.checks(), normalized.findings());
@@ -61,22 +61,18 @@ public final class ReviewScoringPolicy {
     }
 
     /**
-     * Suggestions provides the learner-facing next step after a sound assessment. A missing
-     * example in grading feedback is therefore informative, but must not discard an otherwise
-     * grounded score or trigger a duplicate grading pass.
+     * WARN is advisory: it can improve feedback, but cannot discard an otherwise sound learner
+     * assessment or start a duplicate grading pass. Reassessment requires a concrete failed audit
+     * check, which makes that expensive path both explainable and bounded.
      */
-    private static ReviewModelResponse normalizeNonBlockingActionability(ReviewModelResponse result) {
-        boolean actionabilityConcern = result.checks().stream().anyMatch(check ->
-                "ACTIONABILITY".equals(check.name()) && !"PASS".equals(check.status()));
-        boolean onlyActionabilityConcern = result.checks().stream().allMatch(check ->
-                "ACTIONABILITY".equals(check.name()) || "PASS".equals(check.status()));
-        if (!actionabilityConcern || !onlyActionabilityConcern) return result;
+    private static ReviewModelResponse normalizeNonBlockingWarnings(ReviewModelResponse result) {
         List<ReviewModelResponse.ReviewCheck> checks = result.checks().stream()
                 .map(check -> "ACTIONABILITY".equals(check.name()) && "FAIL".equals(check.status())
                         ? new ReviewModelResponse.ReviewCheck(check.name(), "WARN", check.rationale())
                         : check)
                 .toList();
-        String decision = "APPROVE".equals(result.decision()) ? result.decision() : "APPROVE";
+        boolean hasFailure = checks.stream().anyMatch(check -> "FAIL".equals(check.status()));
+        String decision = "REGRADE".equals(result.decision()) && !hasFailure ? "APPROVE" : result.decision();
         return new ReviewModelResponse(decision, result.confidence(), result.qualityScore(), checks, result.findings());
     }
 
@@ -87,12 +83,11 @@ public final class ReviewScoringPolicy {
      */
     private static void validateDecisionConsistency(ReviewModelResponse result) {
         boolean hasFailure = result.checks().stream().anyMatch(check -> "FAIL".equals(check.status()));
-        boolean hasConcern = result.checks().stream().anyMatch(check -> !"PASS".equals(check.status()));
         if ("APPROVE".equals(result.decision()) && (hasFailure || result.qualityScore() < 70)) {
             throw new IllegalStateException("an approved review cannot have failed checks or a low quality score");
         }
-        if (("REGRADE".equals(result.decision()) || "REJECT".equals(result.decision())) && !hasConcern) {
-            throw new IllegalStateException("a non-approval requires at least one review concern");
+        if (("REGRADE".equals(result.decision()) || "REJECT".equals(result.decision())) && !hasFailure) {
+            throw new IllegalStateException("a non-approval requires at least one failed audit check");
         }
         if ("REJECT".equals(result.decision()) && !hasFailure) {
             throw new IllegalStateException("a rejected review requires at least one failed check");

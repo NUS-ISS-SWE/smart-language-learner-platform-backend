@@ -20,6 +20,28 @@ def validate_submission(submission: WorkflowSubmission, settings: Settings) -> s
     return None
 
 
+def validate_evidence_traceability(evidence: dict[str, Any], composition: str) -> str | None:
+    """Defence-in-depth validation for Evidence's already-canonical source citations."""
+    criteria = evidence.get("criteria")
+    if not isinstance(criteria, list):
+        return "invalid_evidence_criteria"
+    for criterion in criteria:
+        if not isinstance(criterion, dict) or not isinstance(criterion.get("evidence"), list):
+            return "invalid_evidence_criteria"
+        for finding in criterion["evidence"]:
+            if not isinstance(finding, dict):
+                return "invalid_evidence_finding"
+            excerpt = finding.get("excerpt")
+            location = finding.get("location")
+            if not isinstance(excerpt, str) or not excerpt.strip():
+                return "invalid_evidence_excerpt"
+            if not isinstance(location, str) or not location.strip():
+                return "missing_evidence_location"
+            if excerpt.strip() not in composition:
+                return "evidence_excerpt_missing_from_composition"
+    return None
+
+
 def validate_grading_snapshot(grading: dict[str, Any], evidence: dict[str, Any]) -> str | None:
     """Ensure the grading artifact uses the immutable rubric captured by Evidence."""
     snapshot = evidence.get("rubricSnapshot")

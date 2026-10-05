@@ -27,7 +27,7 @@ public class CompositionCompletionService {
     private static final Map<String, String> STUDENT_SAFE_PROGRESS_MESSAGES = Map.of(
             "EVIDENCING", "Gathering supporting passages from your composition…",
             "GRADING", "Assessing your composition…",
-            "REGRADING", "Refining your assessment…",
+            "REGRADING", "Double-checking your assessment for accuracy…",
             "REVIEWING", "Checking the assessment for accuracy…",
             "SUGGESTING", "Creating personalised improvement suggestions…");
 
@@ -78,7 +78,10 @@ public class CompositionCompletionService {
                 event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
             return;
         }
-        composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.ASSESSMENT_FAILED);
+        // A verification failure leaves the learner's work editable and retryable.  Keep this
+        // within the long-standing persisted lifecycle rather than introducing a new database
+        // state for an exceptional, terminal workflow result.
+        composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
         composition.setSuggestionStatus(event.isSuccess() ? event.getSuggestionStatus() : null);
         composition.setSuggestions(event.isSuccess() && event.getSuggestions() != null ? event.getSuggestions() : List.of());

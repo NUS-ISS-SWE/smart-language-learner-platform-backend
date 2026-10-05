@@ -87,6 +87,7 @@ class FakeAgents:
         self.evidence_calls = 0
         self.grade_calls = 0
         self.suggest_calls = 0
+        self.review_payloads: list[dict] = []
 
     @staticmethod
     def _invocation(response):
@@ -116,11 +117,12 @@ class FakeAgents:
         return self._invocation(EvidenceResponse.model_validate({
             "plan": ["Find rubric evidence."], "rubricVersion": "test-rubric-v1",
             "rubricSnapshot": {"version": "test-rubric-v1", "criteria": [{"name": "Description", "weight": 60, "guidance": "Use clear details."}, {"name": "Emotion", "weight": 40, "guidance": "Explain feelings."}]},
-            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "polarity": "STRENGTH", "note": "specific detail", "verifiedOnFirstPass": True}]}],
+            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "location": "paragraph 1, characters 11-18", "polarity": "STRENGTH", "note": "specific detail", "verifiedOnFirstPass": True}]}],
             "usage": usage(),
         }))
 
     def review(self, payload, parser):
+        self.review_payloads.append(payload)
         return self._invocation(ReviewResponse.model_validate({"decision": self.reviews.pop(0), "confidence": 0.9, "findings": [], "usage": usage()}))
 
     def suggest(self, payload, parser):
@@ -141,7 +143,7 @@ class FailingGradeAgents:
         return AgentInvocation(EvidenceResponse.model_validate({
             "rubricVersion": "test-rubric-v1",
             "rubricSnapshot": {"version": "test-rubric-v1", "criteria": [{"name": "Description", "weight": 100, "guidance": "Use clear details."}]},
-            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "polarity": "STRENGTH", "note": "detail", "verifiedOnFirstPass": True}]}],
+            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "location": "paragraph 1, characters 11-18", "polarity": "STRENGTH", "note": "detail", "verifiedOnFirstPass": True}]}],
             "usage": usage(),
         }), (AgentAttempt(1, "SUCCEEDED", 0),), "fake-evidence", payload["workflowId"], "fake")
 
@@ -190,6 +192,18 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     assert {event["request_id"] for event in repository.agent_usage_events} == {
         UUID("9b6efdf7-9ed7-4dcc-b1e5-d617b9c644a0")
     }
+
+
+def test_review_receives_deterministic_locations_for_verified_evidence():
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+    agents = FakeAgents(["APPROVE"])
+
+    OrchestrationWorkflow(settings(), repository, agents).run(record)
+
+    evidence = agents.review_payloads[0]["evidence"]["criteria"][0]["evidence"][0]
+    assert evidence["location"] == "paragraph 1, characters 11-18"
 
 
 def test_suggestion_failure_preserves_the_approved_assessment():

@@ -46,10 +46,10 @@ class ReviewScoringPolicyTest {
     }
 
     @Test
-    void rejectsARegradeThatClaimsEveryCheckPassed() {
-        ReviewModelResponse invalid = new ReviewModelResponse("REGRADE", 0.9, 90,
+    void normalizesARegradeWithNoFailedChecksToApproval() {
+        ReviewModelResponse review = new ReviewModelResponse("REGRADE", 0.9, 90,
                 List.of(check("GROUNDING"), check("RUBRIC_COVERAGE"), check("EVIDENCE_TRACEABILITY"), check("ACTIONABILITY")), List.of());
-        assertThrows(IllegalStateException.class, () -> ReviewScoringPolicy.validate(invalid));
+        assertEquals("APPROVE", ReviewScoringPolicy.validate(review).decision());
     }
 
     @Test
@@ -58,6 +58,21 @@ class ReviewScoringPolicyTest {
                 List.of(check("GROUNDING"), check("RUBRIC_COVERAGE"), check("EVIDENCE_TRACEABILITY"),
                         new ReviewModelResponse.ReviewCheck("ACTIONABILITY", "WARN", "A concrete example is needed.")),
                 List.of(new ReviewModelResponse.Finding("ACTIONABILITY", "Suggestions should provide an example.")));
+
+        ReviewModelResponse canonical = ReviewScoringPolicy.canonicalize(review);
+
+        assertEquals("APPROVE", canonical.decision());
+        assertEquals(90, canonical.qualityScore());
+    }
+
+    @Test
+    void approvesARegradeWithOnlyAdvisoryWarnings() {
+        ReviewModelResponse review = new ReviewModelResponse("REGRADE", 0.9, 90,
+                List.of(check("GROUNDING"), check("RUBRIC_COVERAGE"),
+                        new ReviewModelResponse.ReviewCheck("EVIDENCE_TRACEABILITY", "WARN",
+                                "The rationale could cite the excerpt more directly."),
+                        check("ACTIONABILITY")),
+                List.of(new ReviewModelResponse.Finding("TASK_IDEAS", "Use a more explicit explanation.")));
 
         ReviewModelResponse canonical = ReviewScoringPolicy.canonicalize(review);
 

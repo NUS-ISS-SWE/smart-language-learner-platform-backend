@@ -36,7 +36,7 @@ from app.repository import WorkflowRepository
 from app.security import redact_for_trace
 from app.workflow_progress import ProgressEvent, progress_event
 from app.workflow_telemetry import agent_attempt_entries, response_metadata
-from app.workflow_validation import validate_grading_snapshot, validate_submission
+from app.workflow_validation import validate_evidence_traceability, validate_grading_snapshot, validate_submission
 
 LOGGER = logging.getLogger(__name__)
 ProgressReporter = Callable[[ProgressEvent], None]
@@ -192,6 +192,10 @@ class OrchestrationWorkflow:
             )
         except AgentCallError as error:
             return {"error": f"evidence collection failed: {redact_for_trace(error)}"}
+        traceability_error = validate_evidence_traceability(evidence, state["submission"].composition.content)
+        if traceability_error:
+            record_agent_contract_rejection("evidence", traceability_error)
+            return {"error": "evidence response was not traceable to the submitted composition"}
         next_status = WorkflowStatus.REGRADING if attempt > 1 else WorkflowStatus.GRADING
         self._update(
             workflow_id,

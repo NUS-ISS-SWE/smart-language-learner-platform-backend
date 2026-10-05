@@ -52,6 +52,19 @@ class ReviewScoringPolicyTest {
         assertThrows(IllegalStateException.class, () -> ReviewScoringPolicy.validate(invalid));
     }
 
+    @Test
+    void approvesAnOtherwiseSoundAssessmentWhenOnlyActionabilityNeedsSuggestions() {
+        ReviewModelResponse review = new ReviewModelResponse("REGRADE", 0.9, 90,
+                List.of(check("GROUNDING"), check("RUBRIC_COVERAGE"), check("EVIDENCE_TRACEABILITY"),
+                        new ReviewModelResponse.ReviewCheck("ACTIONABILITY", "WARN", "A concrete example is needed.")),
+                List.of(new ReviewModelResponse.Finding("ACTIONABILITY", "Suggestions should provide an example.")));
+
+        ReviewModelResponse canonical = ReviewScoringPolicy.canonicalize(review);
+
+        assertEquals("APPROVE", canonical.decision());
+        assertEquals(90, canonical.qualityScore());
+    }
+
     private static ReviewModelResponse reviewWithChecks(List<ReviewModelResponse.ReviewCheck> checks) {
         return new ReviewModelResponse("APPROVE", 0.9, 92, checks,
                 List.of(new ReviewModelResponse.Finding("Organisation", "The rationale does not cite the composition.")));

@@ -37,9 +37,10 @@ public final class ReviewScoringPolicy {
                 throw new IllegalStateException("invalid review findings");
             }
         }
-        int qualityScore = calculateQualityScore(result.checks());
+        ReviewModelResponse normalized = normalizeNonBlockingActionability(result);
+        int qualityScore = calculateQualityScore(normalized.checks());
         ReviewModelResponse canonical = new ReviewModelResponse(
-                result.decision(), result.confidence(), qualityScore, result.checks(), result.findings());
+                normalized.decision(), normalized.confidence(), qualityScore, normalized.checks(), normalized.findings());
         validateDecisionConsistency(canonical);
         return canonical;
     }
@@ -57,6 +58,26 @@ public final class ReviewScoringPolicy {
             case "FAIL" -> 0;
             default -> throw new IllegalStateException("invalid review check status");
         }).sum();
+    }
+
+    /**
+     * Suggestions provides the learner-facing next step after a sound assessment. A missing
+     * example in grading feedback is therefore informative, but must not discard an otherwise
+     * grounded score or trigger a duplicate grading pass.
+     */
+    private static ReviewModelResponse normalizeNonBlockingActionability(ReviewModelResponse result) {
+        boolean actionabilityConcern = result.checks().stream().anyMatch(check ->
+                "ACTIONABILITY".equals(check.name()) && !"PASS".equals(check.status()));
+        boolean onlyActionabilityConcern = result.checks().stream().allMatch(check ->
+                "ACTIONABILITY".equals(check.name()) || "PASS".equals(check.status()));
+        if (!actionabilityConcern || !onlyActionabilityConcern) return result;
+        List<ReviewModelResponse.ReviewCheck> checks = result.checks().stream()
+                .map(check -> "ACTIONABILITY".equals(check.name()) && "FAIL".equals(check.status())
+                        ? new ReviewModelResponse.ReviewCheck(check.name(), "WARN", check.rationale())
+                        : check)
+                .toList();
+        String decision = "APPROVE".equals(result.decision()) ? result.decision() : "APPROVE";
+        return new ReviewModelResponse(decision, result.confidence(), result.qualityScore(), checks, result.findings());
     }
 
     /**

@@ -229,13 +229,15 @@ def test_review_can_request_exactly_one_regrade_before_approval():
     record = workflow_record()
     repository.add(record)
     agents = FakeAgents(["REGRADE", "APPROVE"])
+    events: list[dict] = []
 
-    completed = OrchestrationWorkflow(settings(), repository, agents).run(record)
+    completed = OrchestrationWorkflow(settings(), repository, agents, progress_reporter=events.append).run(record)
 
     assert completed.status is WorkflowStatus.COMPLETED
     assert agents.grade_calls == 2
     assert agents.evidence_calls == 2
     assert completed.grading_passes == 2
+    assert [event["stage"] for event in events].count("REGRADING") >= 2
 
 
 def test_rejected_review_returns_safe_retry_notice_without_score():

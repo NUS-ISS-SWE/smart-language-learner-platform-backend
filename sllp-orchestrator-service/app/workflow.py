@@ -171,14 +171,15 @@ class OrchestrationWorkflow:
     def _evidence(self, state: GraphState) -> GraphState:
         workflow_id = state["workflow_id"]
         attempt = state["grading_passes"] + 1
+        progress_status = WorkflowStatus.REGRADING if attempt > 1 else WorkflowStatus.EVIDENCING
         self._update(
             workflow_id,
             status=WorkflowStatus.EVIDENCING,
             log_step="EVIDENCE_STARTED",
             attempt=attempt,
-            outbox=self._progress_outbox(state, WorkflowStatus.EVIDENCING, attempt),
+            outbox=self._progress_outbox(state, progress_status, attempt),
         )
-        self._report_progress(state, WorkflowStatus.EVIDENCING)
+        self._report_progress(state, progress_status)
         try:
             evidence, invocation = self._invoke_agent(
                 "evidence",

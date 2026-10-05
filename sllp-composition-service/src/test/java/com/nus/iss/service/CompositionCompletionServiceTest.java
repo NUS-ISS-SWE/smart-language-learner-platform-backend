@@ -114,7 +114,7 @@ class CompositionCompletionServiceTest {
     }
 
     @Test
-    void completeGradingReturnsFailedCompositionToDraft() {
+    void completeGradingMarksFailedAssessmentForSafeRetry() {
         Composition composition = composition();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));
@@ -123,7 +123,7 @@ class CompositionCompletionServiceTest {
         completionService.completeGrading(CompositionGradingCompletedEvent.builder()
                 .requestId(REQUEST_ID).compositionId(10L).userId(1L).success(false).failureReason("Evaluator unavailable").build());
 
-        assertEquals(CompositionStatus.DRAFT, composition.getCompositionStatus());
+        assertEquals(CompositionStatus.ASSESSMENT_FAILED, composition.getCompositionStatus());
         assertEquals("Evaluator unavailable", composition.getSystemFeedback());
         assertNotNull(composition.getUpdatedAt());
         verify(evaluationRepository).insertIfAbsent(anyLong(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());

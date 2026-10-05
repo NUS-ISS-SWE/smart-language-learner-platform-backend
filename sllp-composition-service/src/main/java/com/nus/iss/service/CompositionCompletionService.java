@@ -78,7 +78,7 @@ public class CompositionCompletionService {
                 event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
             return;
         }
-        composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
+        composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.ASSESSMENT_FAILED);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
         composition.setSuggestionStatus(event.isSuccess() ? event.getSuggestionStatus() : null);
         composition.setSuggestions(event.isSuccess() && event.getSuggestions() != null ? event.getSuggestions() : List.of());

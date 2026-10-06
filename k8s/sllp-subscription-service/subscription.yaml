@@ -27,6 +27,11 @@ spec:
         jmesPath:
           - path: "secret"
             objectAlias: "sllp.audit.ingest-secret"
+      - objectName: "sllp/internal-service"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "token"
+            objectAlias: "sllp.internal-service-token"
       - objectName: "sllp/stripe"
         objectType: "secretsmanager"
         jmesPath:

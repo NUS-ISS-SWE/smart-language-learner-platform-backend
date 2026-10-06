@@ -3,6 +3,7 @@ package com.nus.iss.exception;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.NoSuchElementException;
 
@@ -20,6 +21,18 @@ class GlobalExceptionHandlerTest {
         assertEquals("Internal Server Error", problemDetail.getTitle());
         assertEquals("An unexpected error occurred", problemDetail.getDetail());
         assertEquals("INTERNAL_ERROR", problemDetail.getProperties().get("code"));
+    }
+
+    @Test
+    void handleResponseStatusExceptionPreservesServiceUnavailable() {
+        ProblemDetail problemDetail = exceptionHandler.handleResponseStatusException(
+                new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                        "assessment quota service is unavailable"));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE.value(), problemDetail.getStatus());
+        assertEquals("Service Unavailable", problemDetail.getTitle());
+        assertEquals("assessment quota service is unavailable", problemDetail.getDetail());
+        assertEquals("UPSTREAM_SERVICE_UNAVAILABLE", problemDetail.getProperties().get("code"));
     }
 
     @Test

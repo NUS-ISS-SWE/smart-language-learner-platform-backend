@@ -27,6 +27,11 @@ spec:
         jmesPath:
           - path: "secret"
             objectAlias: "sllp.audit.ingest-secret"
+      - objectName: "sllp/internal-service"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "token"
+            objectAlias: "sllp.internal-service-token"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -39,6 +44,7 @@ data:
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-db:5432/sllp_main_db"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
   SLLP_KAFKA_BOOTSTRAP_SERVERS: "kafka-service:9092"
+  SUBSCRIPTION_SERVICE_URL: "http://subscription-service:8084"
   AUDIT_INGEST_URL: "http://admin-service:8086/internal/audit-events"
   TZ: "UTC"
 ---

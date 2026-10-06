@@ -38,6 +38,16 @@ resource "aws_secretsmanager_secret" "audit_ingest" {
   }
 }
 
+resource "aws_secretsmanager_secret" "internal_service" {
+  name        = "${var.project_name}/internal-service"
+  description = "Shared authentication token for internal SLLP service calls"
+
+  recovery_window_in_days = 0
+  tags = {
+    Name = "${var.project_name}-internal-service-secret"
+  }
+}
+
 resource "aws_secretsmanager_secret" "mail" {
   name        = "${var.project_name}/mail"
   description = "SMTP credentials for SLLP email delivery"

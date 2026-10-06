@@ -36,6 +36,7 @@ data:
   SERVER_PORT: "8080"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
   SLLP_SUBSCRIPTION_SERVICE: "http://subscription-service:8084"
+  LEARNING_SERVICE_URL: "http://learning-service:8095"
   TZ: "UTC"
 ---
 apiVersion: apps/v1

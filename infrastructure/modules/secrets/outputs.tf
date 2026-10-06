@@ -18,6 +18,11 @@ output "audit_ingest_secret_arn" {
   value       = aws_secretsmanager_secret.audit_ingest.arn
 }
 
+output "internal_service_secret_arn" {
+  description = "ARN of the internal service authentication secret"
+  value       = aws_secretsmanager_secret.internal_service.arn
+}
+
 output "mail_secret_arn" {
   description = "ARN of the SMTP credentials secret"
   value       = aws_secretsmanager_secret.mail.arn

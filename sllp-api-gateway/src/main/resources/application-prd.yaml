@@ -5,3 +5,4 @@ sllp:
   document-service: http://document-service:8089
   subscription-service: http://subscription-service:8084
   admin-service: http://admin-service:8086
+  learning-service: ${LEARNING_SERVICE_URL:http://learning-service:8095}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from app.models import LearnerProfile
+from app.metrics import record_upstream
 
 
 class ToolUnavailable(RuntimeError):
@@ -20,6 +21,9 @@ class LearnerProfileTool:
         try:
             response = self.client.get(f"{self.base_url}/api/v1/auth/profile/{user_id}")
             response.raise_for_status()
-            return LearnerProfile.model_validate(response.json())
+            profile = LearnerProfile.model_validate(response.json())
+            record_upstream("learner_profile", True)
+            return profile
         except (httpx.HTTPError, ValueError) as error:
+            record_upstream("learner_profile", False)
             raise ToolUnavailable("learner profile is unavailable") from error

@@ -33,6 +33,7 @@ sllp:
   document-service: http://localhost:8089
   subscription-service: http://localhost:8084
   admin-service: http://localhost:8086
+  learning-service: ${LEARNING_SERVICE_URL:http://localhost:8095}
   audit:
     ingest-secret: ${AUDIT_INGEST_SECRET:}
   security:

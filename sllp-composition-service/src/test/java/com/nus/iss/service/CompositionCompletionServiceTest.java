@@ -114,7 +114,7 @@ class CompositionCompletionServiceTest {
     }
 
     @Test
-    void completeGradingReturnsFailedCompositionToDraft() {
+    void completeGradingReturnsFailedAssessmentToDraftForSafeRetry() {
         Composition composition = composition();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         when(compositionRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(composition));

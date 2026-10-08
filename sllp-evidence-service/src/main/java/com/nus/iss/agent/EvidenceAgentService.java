@@ -17,6 +17,7 @@ import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -90,9 +91,11 @@ public class EvidenceAgentService {
             """;
 
     private static final String RETRY_PROMPT = """
-            Some excerpts you returned in the previous attempt were not found verbatim in the
-            original composition:
-            {invalidExcerpts}
+            The previous result could not be safely published because it did not provide
+            verified evidence for every rubric criterion.
+
+            Validation details:
+            {validationIssue}
 
             Re-read the composition below and produce a corrected, complete result with the same
             plan and criteria structure. Every excerpt must be copied exactly as it appears in
@@ -156,46 +159,72 @@ public class EvidenceAgentService {
 
         List<String> invalidExcerpts = ReflectionStep.findInvalidExcerpts(response, request.content());
         boolean verifiedOnFirstPass = invalidExcerpts.isEmpty();
+        EvidenceCollectionResult verifiedResult = buildVerifiedResult(
+                request.compositionId(), response, toolContext.requireRubric(), usage,
+                verifiedOnFirstPass, request.content());
+        if (verifiedResult != null) return verifiedResult;
 
-        if (!verifiedOnFirstPass) {
-            log.warn("requestId={} compositionId={} action=reflection_retry invalidCount={}",
-                    requestId, request.compositionId(), invalidExcerpts.size());
-            try {
-                ResponseEntity<ChatResponse, EvidenceAgentResponse> retryAttempt = chatClient.prompt()
-                        .user(userSpec -> userSpec.text(RETRY_PROMPT)
-                                .param("invalidExcerpts", String.join("\n", invalidExcerpts))
-                                .param("difficulty", toolContext.requireDifficultyLevel().name())
-                                .param("rubric", formatRubric(toolContext.requireRubric()))
-                                .param("title", request.title())
-                                .param("content", request.content()))
-                        .call()
-                        .responseEntity(EvidenceAgentResponse.class);
+        log.warn("requestId={} compositionId={} action=reflection_retry invalidCount={}",
+                requestId, request.compositionId(), invalidExcerpts.size());
+        try {
+            ResponseEntity<ChatResponse, EvidenceAgentResponse> retryAttempt = chatClient.prompt()
+                    .user(userSpec -> userSpec.text(RETRY_PROMPT)
+                            .param("validationIssue", validationIssue(invalidExcerpts))
+                            .param("difficulty", toolContext.requireDifficultyLevel().name())
+                            .param("rubric", formatRubric(toolContext.requireRubric()))
+                            .param("title", request.title())
+                            .param("content", request.content()))
+                    .call()
+                    .responseEntity(EvidenceAgentResponse.class);
 
-                EvidenceAgentResponse retryResponse = retryAttempt.getEntity();
-                if (retryResponse != null && retryResponse.criteria() != null && !retryResponse.criteria().isEmpty()) {
-                    response = retryResponse;
-                    usage = merge(usage, usageFrom(retryAttempt.getResponse()));
-                }
-            } catch (RuntimeException ex) {
-                log.warn("requestId={} compositionId={} action=reflection_retry_failed reason={}",
-                        requestId, request.compositionId(), ex.getMessage());
+            EvidenceAgentResponse retryResponse = retryAttempt.getEntity();
+            if (retryResponse != null && retryResponse.criteria() != null && !retryResponse.criteria().isEmpty()) {
+                response = retryResponse;
+                usage = merge(usage, usageFrom(retryAttempt.getResponse()));
             }
+        } catch (RuntimeException ex) {
+            log.warn("requestId={} compositionId={} action=reflection_retry_failed reason={}",
+                    requestId, request.compositionId(), ex.getMessage());
         }
 
-        return buildResult(request.compositionId(), response, toolContext.requireRubric(), usage, verifiedOnFirstPass);
+        verifiedResult = buildVerifiedResult(request.compositionId(), response, toolContext.requireRubric(), usage,
+                false, request.content());
+        if (verifiedResult != null) return verifiedResult;
+        throw FallbackPolicy.agentFailed("no verified evidence remained for every rubric criterion", null);
     }
 
-    private static EvidenceCollectionResult buildResult(Long compositionId, EvidenceAgentResponse response,
-                                                          List<RubricCriterionDTO> rubric,
-                                                          AiUsage usage, boolean verifiedOnFirstPass) {
-        List<CriterionEvidence> criteria = response.criteria().stream()
-                .map(finding -> new CriterionEvidence(
-                        finding.criterion(),
-                        finding.evidence() == null ? List.of() : finding.evidence().stream()
-                                .map(item -> new EvidenceItem(item.excerpt(), item.polarity(), item.note(), verifiedOnFirstPass))
-                                .toList()))
-                .toList();
+    /**
+     * Canonicalise model output at its source. Unverifiable snippets are excluded, but a valid
+     * assessment continues whenever every Admin-rubric criterion retains at least one verified
+     * excerpt. Downstream agents therefore receive only source-backed evidence and locations.
+     */
+    private static EvidenceCollectionResult buildVerifiedResult(Long compositionId, EvidenceAgentResponse response,
+                                                                  List<RubricCriterionDTO> rubric,
+                                                                  AiUsage usage, boolean verifiedOnFirstPass,
+                                                                  String content) {
+        List<CriterionEvidence> criteria = new ArrayList<>();
+        for (RubricCriterionDTO rubricCriterion : rubric) {
+            List<EvidenceItem> verifiedEvidence = new ArrayList<>();
+            for (EvidenceAgentResponse.CriterionFinding finding : response.criteria()) {
+                if (!rubricCriterion.criterionName().equals(finding.criterion()) || finding.evidence() == null) continue;
+                for (EvidenceAgentResponse.ExcerptFinding item : finding.evidence()) {
+                    String location = ReflectionStep.sourceLocation(content, item.excerpt());
+                    if (location != null) {
+                        verifiedEvidence.add(new EvidenceItem(item.excerpt(), location, item.polarity(), item.note(), verifiedOnFirstPass));
+                    }
+                }
+            }
+            if (verifiedEvidence.isEmpty()) return null;
+            criteria.add(new CriterionEvidence(rubricCriterion.criterionName(), verifiedEvidence));
+        }
         return new EvidenceCollectionResult(compositionId, PlanningStep.normalize(response.plan()), criteria, rubric, usage);
+    }
+
+    private static String validationIssue(List<String> invalidExcerpts) {
+        return invalidExcerpts.isEmpty()
+                ? "At least one required rubric criterion had no verified excerpt."
+                : "These excerpts were not found verbatim in the composition:\n"
+                        + String.join("\n", invalidExcerpts);
     }
 
     private static String formatRubric(List<RubricCriterionDTO> rubric) {

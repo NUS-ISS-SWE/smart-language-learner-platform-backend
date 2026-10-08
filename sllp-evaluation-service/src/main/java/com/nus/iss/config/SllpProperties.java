@@ -1,49 +1,48 @@
 package com.nus.iss.config;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.URI;
+import java.time.Duration;
+
 @Configuration
 @ConfigurationProperties(prefix = "sllp")
-@NoArgsConstructor
-@AllArgsConstructor
 @Data
 public class SllpProperties {
-
-    private Kafka kafka = new Kafka();
-    private Services services = new Services();
     private String a2aToken;
     private String publicBaseUrl = "http://localhost:8093";
+    private Health health = new Health();
+    private AiUsage aiUsage = new AiUsage();
+    private Audit audit = new Audit();
+    private Services services = new Services();
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class Services {
-        private String userServiceUrl;
-        private String adminServiceUrl;
+        private String userServiceUrl = "http://localhost:8082";
+        private String adminServiceUrl = "http://localhost:8086";
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Kafka {
-        private String bootstrapServers;
-        private Topics topics = new Topics();
-        private String groupId;
-        private String autoOffsetReset;
-        private int retryBackoffMs;
-        private int requestTimeoutMs;
-        private int defaultApiTimeoutMs;
+    public static class Health {
+        private URI openAiStatusUrl = URI.create("https://status.openai.com/proxy/status.openai.com");
+        private Duration connectTimeout = Duration.ofSeconds(1);
+        private Duration readTimeout = Duration.ofSeconds(2);
     }
 
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Topics {
-        private String compositionGradingRequested;
-        private String compositionGradingCompleted;
+    public static class AiUsage {
+        private String provider = "OPENAI";
+        private String defaultModel = "gpt-6-luna";
+        private String pricingVersion = "openai-gpt-6-luna-2026-10";
+        private long inputPriceMicrosPerMillion = 100_000L;
+        private long cachedInputPriceMicrosPerMillion = 10_000L;
+        private long outputPriceMicrosPerMillion = 500_000L;
+    }
+
+    @Data
+    public static class Audit {
+        private Duration inProgressTimeout = Duration.ofMinutes(2);
     }
 }

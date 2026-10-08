@@ -3,6 +3,16 @@ output "eks_cluster_name" {
   value       = module.eks.cluster_name
 }
 
+output "cloudwatch_application_log_group_name" {
+  description = "CloudWatch log group containing logs from workloads in the sllp namespace"
+  value       = module.observability.application_log_group_name
+}
+
+output "cloudwatch_logs_dashboard_name" {
+  description = "CloudWatch dashboard for SLLP application logs"
+  value       = module.observability.dashboard_name
+}
+
 output "acm_certificate_arn" {
   description = "ACM certificate ARN"
   value       = one(module.acm[*].certificate_arn)
@@ -53,6 +63,11 @@ output "orchestrator_service_role_arn" {
   value       = module.service_identity["orchestrator_service"].role_arn
 }
 
+output "learning_service_role_arn" {
+  description = "IAM role used by the learning service through EKS Pod Identity"
+  value       = module.service_identity["learning_service"].role_arn
+}
+
 output "product_guide_service_role_arn" {
   description = "IAM role used by the product guide service through EKS Pod Identity"
   value       = module.service_identity["product_guide_service"].role_arn
@@ -71,6 +86,11 @@ output "postgres_secret_arn" {
 output "audit_ingest_secret_arn" {
   description = "ARN of the audit ingestion secret"
   value       = module.secrets.audit_ingest_secret_arn
+}
+
+output "internal_service_secret_arn" {
+  description = "ARN of the internal service authentication secret"
+  value       = module.secrets.internal_service_secret_arn
 }
 
 output "user_service_role_arn" {

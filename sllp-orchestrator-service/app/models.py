@@ -38,6 +38,8 @@ class ReviewDecision(StrEnum):
 class SuggestionStatus(StrEnum):
     AVAILABLE = "AVAILABLE"
     NOT_AVAILABLE_FOR_LANGUAGE = "NOT_AVAILABLE_FOR_LANGUAGE"
+    TEMPORARILY_UNAVAILABLE = "TEMPORARILY_UNAVAILABLE"
+    NO_PRIORITY_IMPROVEMENT = "NO_PRIORITY_IMPROVEMENT"
 
 
 class CompositionContext(BaseModel):
@@ -110,6 +112,7 @@ class GradingCompletionEvent(BaseModel):
     composition_id: int
     user_id: int
     score: float | None
+    rubric_scores: dict[str, float] = Field(default_factory=dict)
     feedback: str | None
     success: bool
     failure_reason: str | None
@@ -128,6 +131,7 @@ class GradingCompletionEvent(BaseModel):
         failure_reason: str | None,
         suggestion_status: SuggestionStatus | None = None,
         suggestions: list[dict[str, Any]] | None = None,
+        rubric_scores: dict[str, float] | None = None,
     ) -> "GradingCompletionEvent":
         return cls(
             request_id=submission.completion_request_id(workflow_id),
@@ -135,6 +139,7 @@ class GradingCompletionEvent(BaseModel):
             composition_id=submission.composition.composition_id,
             user_id=submission.composition.user_id,
             score=score,
+            rubric_scores=rubric_scores or {},
             feedback=feedback,
             success=success,
             failure_reason=failure_reason,
@@ -159,6 +164,7 @@ class Evidence(BaseModel):
 
 
 class EvidenceFinding(Evidence):
+    location: str = Field(min_length=1)
     polarity: Literal["STRENGTH", "WEAKNESS"]
     note: str = Field(min_length=1)
     verified_on_first_pass: bool = Field(
@@ -234,7 +240,12 @@ class EvidenceResponse(BaseModel):
 
 
 class CriterionAssessment(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_camel_case)
+
     criterion: str = Field(min_length=1)
+    band_score: int = Field(
+        ge=1, le=5, validation_alias=AliasChoices("bandScore", "band_score"), serialization_alias="bandScore"
+    )
     score: float = Field(ge=0, le=100)
     rationale: str = Field(min_length=1)
     evidence: list[Evidence] = Field(min_length=1)
@@ -249,6 +260,7 @@ class GradingResponse(BaseModel):
     rubric_scores: dict[str, float] = Field(
         default_factory=dict, validation_alias=AliasChoices("rubricScores", "rubric_scores")
     )
+    rubric_version: str = Field(min_length=1, validation_alias=AliasChoices("rubricVersion", "rubric_version"))
     criteria: list[CriterionAssessment] = Field(min_length=1)
     confidence: float = Field(ge=0, le=1)
     model_version: str | None = Field(default=None, validation_alias=AliasChoices("modelVersion", "model_version"))
@@ -280,7 +292,7 @@ class Suggestion(BaseModel):
     criterion: str = Field(min_length=1)
     priority: Literal["HIGH", "MEDIUM", "LOW"]
     recommendation: str = Field(min_length=1)
-    example_revision: str | None = Field(default=None, validation_alias=AliasChoices("exampleRevision", "example_revision"))
+    example_revision: str = Field(min_length=1, validation_alias=AliasChoices("exampleRevision", "example_revision"))
     learning_tip: str | None = Field(default=None, validation_alias=AliasChoices("learningTip", "learning_tip"))
     supporting_evidence: Evidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 

@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.nus.iss.contracts.grading.CompositionGradingRequestedEvent;
 import com.nus.iss.dto.CompositionGenerationRequestedEvent;
@@ -18,6 +19,7 @@ import com.nus.iss.enums.CompositionSource;
 import com.nus.iss.enums.CompositionStatus;
 import com.nus.iss.enums.Language;
 import com.nus.iss.exception.InvalidCompositionRequestException;
+import com.nus.iss.exception.CompositionModeratedException;
 import com.nus.iss.repository.CompositionRepository;
 
 import lombok.extern.slf4j.Slf4j;
@@ -31,17 +33,29 @@ public class CompositionCommandService {
     private final CompositionMapper compositionMapper;
     private final LanguageDetectorService languageDetectorService;
     private final KafkaProducerService kafkaProducerService;
+    private final AssessmentQuotaClient assessmentQuotaClient;
 
     public CompositionCommandService(CompositionRepository compositionRepository,
                                      CompositionAccessService compositionAccessService,
                                      CompositionMapper compositionMapper,
                                      LanguageDetectorService languageDetectorService,
                                      KafkaProducerService kafkaProducerService) {
+        this(compositionRepository, compositionAccessService, compositionMapper, languageDetectorService, kafkaProducerService, AssessmentQuotaClient.noop());
+    }
+
+    @Autowired
+    public CompositionCommandService(CompositionRepository compositionRepository,
+                                     CompositionAccessService compositionAccessService,
+                                     CompositionMapper compositionMapper,
+                                     LanguageDetectorService languageDetectorService,
+                                     KafkaProducerService kafkaProducerService,
+                                     AssessmentQuotaClient assessmentQuotaClient) {
         this.compositionRepository = compositionRepository;
         this.compositionAccessService = compositionAccessService;
         this.compositionMapper = compositionMapper;
         this.languageDetectorService = languageDetectorService;
         this.kafkaProducerService = kafkaProducerService;
+        this.assessmentQuotaClient = assessmentQuotaClient;
     }
 
     @Transactional
@@ -62,6 +76,7 @@ public class CompositionCommandService {
     public CompositionResponse update(Long userId, Long compositionId, UpdateCompositionRequest request) {
         validateUpdateRequest(request);
         Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
         composition.setTitle(request.title());
         composition.setContent(request.content());
         composition.setLanguage(detectLanguage(request.content()));
@@ -77,16 +92,21 @@ public class CompositionCommandService {
 
     @Transactional
     public void delete(Long userId, Long compositionId) {
-        compositionRepository.delete(compositionAccessService.requireOwned(userId, compositionId));
+        Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
+        compositionRepository.delete(composition);
         log.info("Deleted composition with ID: {} for user: {}", compositionId, userId);
     }
 
     @Transactional
     public CompositionResponse requestGrading(Long userId, Long compositionId) {
         Composition composition = compositionAccessService.requireOwned(userId, compositionId);
+        requireActive(composition);
         if (composition.getCompositionStatus() != CompositionStatus.DRAFT) {
             throw new InvalidCompositionRequestException("Only draft compositions can be submitted for review");
         }
+        UUID requestId = UUID.randomUUID();
+        assessmentQuotaClient.reserve(userId, requestId);
         LocalDateTime now = LocalDateTime.now();
         composition.setCompositionStatus(CompositionStatus.REVIEWING);
         composition.setSystemFeedback(null);
@@ -96,9 +116,20 @@ public class CompositionCommandService {
         composition.setGradingProgressStage("PREPARING");
         composition.setUpdatedAt(now);
         Composition saved = compositionRepository.save(composition);
-        kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
-                .requestId(UUID.randomUUID()).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
-                .language(saved.getLanguage().name()).requestedAt(now).build());
+        try {
+            kafkaProducerService.sendCompositionGradingRequestedEvent(CompositionGradingRequestedEvent.builder()
+                    .requestId(requestId).compositionId(saved.getId()).userId(saved.getUserId()).title(saved.getTitle()).content(saved.getContent())
+                    .language(saved.getLanguage().name()).requestedAt(now).build());
+        } catch (RuntimeException error) {
+            // The database transaction rolls back to DRAFT; release the external hold now
+            // rather than forcing the learner to wait for the reservation expiry.
+            try {
+                assessmentQuotaClient.settle(requestId, false);
+            } catch (RuntimeException ignored) {
+                // The reservation has its own expiry as a final recovery path.
+            }
+            throw error;
+        }
         return compositionMapper.toResponse(saved);
     }
 
@@ -146,5 +177,12 @@ public class CompositionCommandService {
 
     private static void validateContent(String content) {
         if (content == null || content.isBlank()) throw new InvalidCompositionRequestException("Composition content is required");
+    }
+
+    private static void requireActive(Composition composition) {
+        if (composition.getModerationStatus() != null
+                && composition.getModerationStatus() != com.nus.iss.enums.ModerationStatus.ACTIVE) {
+            throw new CompositionModeratedException();
+        }
     }
 }

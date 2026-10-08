@@ -20,6 +20,14 @@ class Settings:
     input_price_micros_per_million: int
     cached_input_price_micros_per_million: int
     output_price_micros_per_million: int
+    max_a2a_request_bytes: int = 262_144
+    max_completion_tokens: int = 500
+
+    def __post_init__(self) -> None:
+        if self.max_a2a_request_bytes <= 0:
+            raise ValueError("SUGGESTIONS_MAX_A2A_REQUEST_BYTES must be positive")
+        if self.max_completion_tokens <= 0:
+            raise ValueError("SUGGESTIONS_MAX_COMPLETION_TOKENS must be positive")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -38,4 +46,6 @@ class Settings:
             input_price_micros_per_million=int(os.getenv("SUGGESTIONS_INPUT_PRICE_MICROS_PER_MILLION", "150000")),
             cached_input_price_micros_per_million=int(os.getenv("SUGGESTIONS_CACHED_INPUT_PRICE_MICROS_PER_MILLION", "75000")),
             output_price_micros_per_million=int(os.getenv("SUGGESTIONS_OUTPUT_PRICE_MICROS_PER_MILLION", "600000")),
+            max_a2a_request_bytes=int(os.getenv("SUGGESTIONS_MAX_A2A_REQUEST_BYTES", "262144")),
+            max_completion_tokens=int(os.getenv("SUGGESTIONS_MAX_COMPLETION_TOKENS", "500")),
         )

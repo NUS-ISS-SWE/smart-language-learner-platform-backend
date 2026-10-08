@@ -36,6 +36,7 @@ data:
   SERVER_PORT: "8080"
   SPRING_CONFIG_IMPORT: "configtree:/mnt/secrets-store/"
   SLLP_SUBSCRIPTION_SERVICE: "http://subscription-service:8084"
+  LEARNING_SERVICE_URL: "http://learning-service:8095"
   TZ: "UTC"
 ---
 apiVersion: apps/v1
@@ -44,8 +45,13 @@ metadata:
   name: sllp-api-gateway
   namespace: sllp
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-api-gateway
@@ -57,6 +63,21 @@ spec:
       serviceAccountName: sllp-api-gateway
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-api-gateway
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-api-gateway
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -136,3 +157,14 @@ spec:
       port: 8080
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-api-gateway
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-api-gateway

@@ -20,6 +20,17 @@ module "eks" {
   private_subnet_ids = module.network.private_subnet_ids
 }
 
+module "observability" {
+  source = "./modules/observability"
+
+  project_name          = var.project_name
+  aws_region            = var.aws_region
+  cluster_name          = module.eks.cluster_name
+  cluster_version       = module.eks.cluster_version
+  application_namespace = "sllp"
+  log_retention_days    = 30
+}
+
 module "secrets" {
   source = "./modules/secrets"
 

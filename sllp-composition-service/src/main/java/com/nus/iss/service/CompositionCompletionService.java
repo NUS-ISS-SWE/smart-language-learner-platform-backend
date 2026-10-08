@@ -27,7 +27,7 @@ public class CompositionCompletionService {
     private static final Map<String, String> STUDENT_SAFE_PROGRESS_MESSAGES = Map.of(
             "EVIDENCING", "Gathering supporting passages from your composition…",
             "GRADING", "Assessing your composition…",
-            "REGRADING", "Refining your assessment…",
+            "REGRADING", "Double-checking your assessment for accuracy…",
             "REVIEWING", "Checking the assessment for accuracy…",
             "SUGGESTING", "Creating personalised improvement suggestions…");
 
@@ -35,15 +35,37 @@ public class CompositionCompletionService {
     private final EvaluationRepository evaluationRepository;
     private final AiUsageEventRepository aiUsageEventRepository;
     private final CompositionAccessService compositionAccessService;
+    private final AssessmentQuotaClient assessmentQuotaClient;
+    private final AgentReviewQueueService agentReviewQueue;
 
     public CompositionCompletionService(CompositionRepository compositionRepository,
                                         EvaluationRepository evaluationRepository,
                                         AiUsageEventRepository aiUsageEventRepository,
                                         CompositionAccessService compositionAccessService) {
+        this(compositionRepository, evaluationRepository, aiUsageEventRepository, compositionAccessService, AssessmentQuotaClient.noop(), AgentReviewQueueService.noop());
+    }
+
+    public CompositionCompletionService(CompositionRepository compositionRepository,
+                                        EvaluationRepository evaluationRepository,
+                                        AiUsageEventRepository aiUsageEventRepository,
+                                        CompositionAccessService compositionAccessService,
+                                        AssessmentQuotaClient assessmentQuotaClient) {
+        this(compositionRepository, evaluationRepository, aiUsageEventRepository, compositionAccessService, assessmentQuotaClient, AgentReviewQueueService.noop());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CompositionCompletionService(CompositionRepository compositionRepository,
+                                        EvaluationRepository evaluationRepository,
+                                        AiUsageEventRepository aiUsageEventRepository,
+                                        CompositionAccessService compositionAccessService,
+                                        AssessmentQuotaClient assessmentQuotaClient,
+                                        AgentReviewQueueService agentReviewQueue) {
         this.compositionRepository = compositionRepository;
         this.evaluationRepository = evaluationRepository;
         this.aiUsageEventRepository = aiUsageEventRepository;
         this.compositionAccessService = compositionAccessService;
+        this.assessmentQuotaClient = assessmentQuotaClient;
+        this.agentReviewQueue = agentReviewQueue;
     }
 
     @Transactional
@@ -56,6 +78,9 @@ public class CompositionCompletionService {
                 event.isSuccess(), event.getFailureReason(), completedAt) == 0) {
             return;
         }
+        // A verification failure leaves the learner's work editable and retryable.  Keep this
+        // within the long-standing persisted lifecycle rather than introducing a new database
+        // state for an exceptional, terminal workflow result.
         composition.setCompositionStatus(event.isSuccess() ? CompositionStatus.REVIEWED : CompositionStatus.DRAFT);
         composition.setSystemFeedback(event.isSuccess() ? event.getFeedback() : event.getFailureReason());
         composition.setSuggestionStatus(event.isSuccess() ? event.getSuggestionStatus() : null);
@@ -65,6 +90,14 @@ public class CompositionCompletionService {
         composition.setUpdatedAt(completedAt);
         compositionRepository.save(composition);
         saveAiUsage(event, completedAt);
+        if (!event.isSuccess()) {
+            agentReviewQueue.recordFailure(event.getRequestId(), event.getCompositionId(), event.getUserId(), event.getFailureReason());
+        }
+        try {
+            assessmentQuotaClient.settle(event.getRequestId(), event.isSuccess());
+        } catch (RuntimeException ignored) {
+            // A stale reservation expires safely; completion must never be replayed merely because quota settlement is down.
+        }
     }
 
     private void saveAiUsage(CompositionGradingCompletedEvent event, LocalDateTime completedAt) {

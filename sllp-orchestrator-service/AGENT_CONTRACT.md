@@ -6,7 +6,7 @@ Transient network failures and HTTP 5xx responses are retried twice with exponen
 
 ## Agent Cards
 
-Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL.
+Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; discovery fetches both URLs from that same origin and requires a draft 2020-12 object schema. Additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator.
 
 ```json
 {
@@ -14,7 +14,11 @@ Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. T
   "url": "https://grading-agent.example/a2a",
   "protocolVersion": "1.0",
   "skills": [{"id": "composition-grading", "name": "Composition grading"}],
-  "sllp": {"contractVersion": "2.0"}
+  "sllp": {
+    "contractVersion": "2.0",
+    "inputSchemaUrl": "https://grading-agent.example/.well-known/sllp-contracts/composition-grading-v2-input.json",
+    "outputSchemaUrl": "https://grading-agent.example/.well-known/sllp-contracts/composition-grading-v2-output.json"
+  }
 }
 ```
 
@@ -81,6 +85,7 @@ The following is a complete, representative `SendMessage` response from a gradin
         "parts": [{"mediaType": "application/json", "data": {
           "overallScore": 78,
           "rubricScores": {"TASK_IDEAS": 78, "EXPRESSION_DESCRIPTION_VOICE": 76},
+          "rubricVersion": "admin-rubric-<content-hash>",
           "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific details support the central idea.", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
           "confidence": 0.87,
           "modelVersion": "grading-model",
@@ -128,16 +133,16 @@ The following is a complete, representative `SendMessage` response from a gradin
 }
 ```
 
-The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. A re-grade uses `attempt: 2`.
+The Review request additionally includes `grading`; the Suggestion request includes both `grading` and the approved `review`. Grading, Review, and Suggestions additionally receive the immutable `rubricSnapshot` returned by Evidence. A re-grade uses `attempt: 2`.
 
-The Evidence request uses the shared request artifact only. It returns this artifact, which the orchestrator persists verbatim and supplies to Grading and Review:
+The Evidence request uses the shared request artifact only. Evidence verifies every excerpt against the immutable submitted composition, assigns a deterministic paragraph and character location, and returns this canonical artifact. The orchestrator validates and persists that artifact before supplying it to Grading and Review:
 
 ```json
 {
   "plan": ["Check each rubric criterion against the composition."],
   "rubricVersion": "admin-rubric-<content-hash>",
   "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
-  "criteria": [{"criterion": "TASK_IDEAS", "evidence": [{"excerpt": "The waves sparkled", "polarity": "STRENGTH", "note": "Specific detail", "verifiedOnFirstPass": true}]}],
+  "criteria": [{"criterion": "TASK_IDEAS", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2, characters 45-63", "polarity": "STRENGTH", "note": "Specific detail", "verifiedOnFirstPass": true}]}],
   "modelVersion": "model-name",
   "promptVersion": "evidence-v2",
   "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 240, "cachedInputTokens": 0, "completionTokens": 81, "totalTokens": 321, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
@@ -151,7 +156,6 @@ The Evidence request uses the shared request artifact only. It returns this arti
   "overallScore": 75,
   "rubricScores": {"TASK_IDEAS": 78, "ORGANISATION_COHESION": 72, "GRAMMAR_SENTENCE_CONTROL": 74},
   "rubricVersion": "admin-rubric-<content-hash>",
-  "rubricSnapshot": {"version": "admin-rubric-<content-hash>", "criteria": [{"name": "TASK_IDEAS", "weight": 20, "guidance": "..."}]},
   "criteria": [{"criterion": "Description", "score": 78, "rationale": "Specific explanation", "evidence": [{"excerpt": "The waves sparkled", "location": "paragraph 2"}]}],
   "confidence": 0.87,
   "modelVersion": "model-name",
@@ -160,7 +164,7 @@ The Evidence request uses the shared request artifact only. It returns this arti
 }
 ```
 
-`overallScore`, `rubricScores`, each criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Scores are 0-100; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Grading and Suggestions must use it rather than refetching Admin. Grading must cover every criterion exactly once and its overall score must equal the snapshot-weighted criterion scores. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
+`overallScore`, `rubricScores`, `rubricVersion`, each criterion's 1-5 `bandScore`, 0-100 criterion score, and `confidence` are required. Every criterion needs non-empty rationale and evidence. Criterion score must equal `bandScore × 20`; the overall score must equal the snapshot-weighted criterion scores; confidence is 0-1. The Evidence artifact's versioned `rubricSnapshot` is immutable for the workflow: Evidence obtains it once, verifies every returned excerpt against the submitted composition, assigns a non-empty deterministic location, and the orchestrator persists and distributes it. Grading, Review, and Suggestions must use that snapshot rather than refetching Admin. The orchestrator rejects a peer artifact that violates the evidence traceability contract. Grading must echo the exact snapshot version and cover every snapshot criterion exactly once. `deepScores` is not part of v2; Admin's weighted rubric is authoritative.
 
 ### Provider usage and cost snapshot
 
@@ -181,7 +185,7 @@ The orchestrator stores one idempotent event for each successful agent call, key
 }
 ```
 
-`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator permits one `REGRADE`; a rejection or second re-grade request returns only the safe retry message to the student.
+`decision` is `APPROVE`, `REGRADE`, or `REJECT`. The orchestrator starts one fresh evidence, grading, and review pass when the grading confidence or review confidence is below its configured threshold, or when Review returns `REGRADE` or `REJECT`. A further questionable result after that bounded reassessment returns only the safe retry message to the student.
 
 ## Suggestion response artifact
 
@@ -190,9 +194,9 @@ The orchestrator stores one idempotent event for each successful agent call, key
   "suggestionStatus": "AVAILABLE",
   "suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Name the feeling and its cause.", "exampleRevision": "I felt proud because...", "learningTip": "Pair each feeling with a detail.", "supportingEvidence": {"excerpt": "I clenched the certificate", "location": "paragraph 3"}}],
   "modelVersion": "model-name",
-  "promptVersion": "suggestion-v1",
+  "promptVersion": "suggestion-v2",
   "usage": {"provider": "provider-name", "model": "model-name", "promptTokens": 130, "cachedInputTokens": 0, "completionTokens": 50, "totalTokens": 180, "pricingVersion": "provider-price-catalog-v1", "inputPriceMicrosPerMillion": 250000, "cachedInputPriceMicrosPerMillion": 125000, "outputPriceMicrosPerMillion": 2000000}
 }
 ```
 
-`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence. `AVAILABLE` results contain one to three actionable suggestions. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.
+`priority` is `HIGH`, `MEDIUM`, or `LOW`. `supportingEvidence` must be copied from approved grading evidence and its excerpt must appear in the submitted composition. Every `AVAILABLE` suggestion must include a non-empty `exampleRevision`: a safe, one- or two-sentence local illustration of that cited excerpt that preserves the writer's meaning and is not merely a copy of the excerpt. `AVAILABLE` results contain one to three actionable suggestions. `NO_PRIORITY_IMPROVEMENT` has an empty suggestions array when all evidenced rubric criteria score 100. `TEMPORARILY_UNAVAILABLE` has an empty suggestions array when the peer cannot produce a valid result; the approved assessment still completes. The orchestrator does not invoke the English-only Suggestions agent for Chinese compositions; it creates a local `NOT_AVAILABLE_FOR_LANGUAGE` result with an empty suggestions array.

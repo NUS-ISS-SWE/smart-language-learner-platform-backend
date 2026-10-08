@@ -49,4 +49,12 @@ class ReflectionStepTest {
 
         assertEquals(2, ReflectionStep.findInvalidExcerpts(response, COMPOSITION).size());
     }
+
+    @Test
+    void locatesVerbatimEvidenceInTheCorrectHtmlParagraph() {
+        String content = "<p>First paragraph.</p><p>The second paragraph has the evidence.</p>";
+
+        assertEquals("paragraph 2, characters 27-64",
+                ReflectionStep.sourceLocation(content, "The second paragraph has the evidence."));
+    }
 }

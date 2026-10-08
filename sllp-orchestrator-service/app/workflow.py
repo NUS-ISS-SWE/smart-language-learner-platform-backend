@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from contextvars import ContextVar
 from typing import Any, Literal, TypedDict
 from uuid import UUID
 
@@ -26,15 +27,24 @@ from app.models import (
     WorkflowStatus,
     WorkflowSubmission,
 )
-from app.observability import record_agent_call
+from app.observability import (
+    record_agent_call,
+    record_agent_contract_rejection,
+    record_workflow_budget_guard,
+)
 from app.repository import WorkflowRepository
 from app.security import redact_for_trace
 from app.workflow_progress import ProgressEvent, progress_event
 from app.workflow_telemetry import agent_attempt_entries, response_metadata
-from app.workflow_validation import validate_submission
+from app.workflow_validation import validate_evidence_traceability, validate_grading_snapshot, validate_submission
 
 LOGGER = logging.getLogger(__name__)
 ProgressReporter = Callable[[ProgressEvent], None]
+_ACTIVE_CLAIM: ContextVar[WorkflowClaim | None] = ContextVar("active_workflow_claim", default=None)
+_REVIEW_REASSESSMENT_REASONS = {
+    ReviewDecision.REGRADE: "REVIEW_REGRADE",
+    ReviewDecision.REJECT: "REVIEW_REJECT",
+}
 
 
 class GraphState(TypedDict, total=False):
@@ -45,6 +55,7 @@ class GraphState(TypedDict, total=False):
     review: dict[str, Any]
     suggestions: dict[str, Any]
     grading_passes: int
+    reassessment_reason: str
     error: str
     completion_event: dict[str, Any]
     progress_reporter: ProgressReporter | None
@@ -88,12 +99,11 @@ class OrchestrationWorkflow:
             "resume_status": record.status,
             "claim": claim,
         }
-        previous_claim = getattr(self, "_active_claim", None)
-        self._active_claim = claim
+        claim_token = _ACTIVE_CLAIM.set(claim)
         try:
             self.graph.invoke(state)
         finally:
-            self._active_claim = previous_claim
+            _ACTIVE_CLAIM.reset(claim_token)
         return self.repository.get(record.workflow_id)
 
     def _build_graph(self):
@@ -115,7 +125,7 @@ class OrchestrationWorkflow:
         )
         graph.add_conditional_edges("validate", self._after_validate, {"evidence": "evidence", "fail": "fail"})
         graph.add_conditional_edges("evidence", self._after_evidence, {"grade": "grade", "fail": "fail"})
-        graph.add_conditional_edges("grade", self._after_grade, {"review": "review", "fail": "fail"})
+        graph.add_conditional_edges("grade", self._after_grade, {"evidence": "evidence", "review": "review", "fail": "fail"})
         graph.add_conditional_edges("review", self._after_review, {"evidence": "evidence", "suggest": "suggest", "fail": "fail"})
         graph.add_conditional_edges("suggest", self._after_suggest, {"assemble": "assemble", "fail": "fail"})
         graph.add_edge("assemble", END)
@@ -161,14 +171,15 @@ class OrchestrationWorkflow:
     def _evidence(self, state: GraphState) -> GraphState:
         workflow_id = state["workflow_id"]
         attempt = state["grading_passes"] + 1
+        progress_status = WorkflowStatus.REGRADING if attempt > 1 else WorkflowStatus.EVIDENCING
         self._update(
             workflow_id,
             status=WorkflowStatus.EVIDENCING,
             log_step="EVIDENCE_STARTED",
             attempt=attempt,
-            outbox=self._progress_outbox(state, WorkflowStatus.EVIDENCING, attempt),
+            outbox=self._progress_outbox(state, progress_status, attempt),
         )
-        self._report_progress(state, WorkflowStatus.EVIDENCING)
+        self._report_progress(state, progress_status)
         try:
             evidence, invocation = self._invoke_agent(
                 "evidence",
@@ -181,6 +192,10 @@ class OrchestrationWorkflow:
             )
         except AgentCallError as error:
             return {"error": f"evidence collection failed: {redact_for_trace(error)}"}
+        traceability_error = validate_evidence_traceability(evidence, state["submission"].composition.content)
+        if traceability_error:
+            record_agent_contract_rejection("evidence", traceability_error)
+            return {"error": "evidence response was not traceable to the submitted composition"}
         next_status = WorkflowStatus.REGRADING if attempt > 1 else WorkflowStatus.GRADING
         self._update(
             workflow_id,
@@ -190,7 +205,7 @@ class OrchestrationWorkflow:
             evidence_output=evidence,
             log_details=response_metadata(evidence, invocation),
         )
-        return {"evidence": evidence}
+        return {"evidence": evidence, "reassessment_reason": None}
 
     @staticmethod
     def _after_evidence(state: GraphState) -> Literal["grade", "fail"]:
@@ -212,6 +227,9 @@ class OrchestrationWorkflow:
         try:
             payload = state["submission"].request_payload(workflow_id, attempt)
             payload["evidence"] = state["evidence"]
+            # Evidence obtains the rubric once; the persisted workflow snapshot is
+            # authoritative for every downstream assessment decision.
+            payload["rubricSnapshot"] = state["evidence"]["rubricSnapshot"]
             grading, invocation = self._invoke_agent(
                 "grade",
                 "grading",
@@ -220,10 +238,37 @@ class OrchestrationWorkflow:
                 workflow_id,
                 attempt,
                 state["submission"],
-                requires_confidence=True,
             )
         except AgentCallError as error:
             return {"error": f"grading failed: {redact_for_trace(error)}", "grading_passes": attempt}
+        snapshot_error = validate_grading_snapshot(grading, state["evidence"])
+        if snapshot_error:
+            record_agent_contract_rejection("grading", snapshot_error)
+            return {
+                "error": "grading response did not match the workflow rubric snapshot",
+                "grading": grading,
+                "grading_passes": attempt,
+            }
+        if grading["confidence"] < self.settings.minimum_confidence:
+            if self._can_reassess(attempt):
+                self._request_reassessment(
+                    state,
+                    "LOW_GRADING_CONFIDENCE",
+                    grading_output=grading,
+                    grading_attempt=attempt,
+                    log_details=response_metadata(grading, invocation),
+                )
+                return {
+                    "grading": grading,
+                    "review": {},
+                    "grading_passes": attempt,
+                    "reassessment_reason": "LOW_GRADING_CONFIDENCE",
+                }
+            return {
+                "error": "grading confidence remained below the reassessment threshold",
+                "grading": grading,
+                "grading_passes": attempt,
+            }
         self._update(
             workflow_id,
             status=WorkflowStatus.REVIEWING,
@@ -235,21 +280,27 @@ class OrchestrationWorkflow:
             outbox=self._progress_outbox(state, WorkflowStatus.REVIEWING, attempt),
         )
         self._report_progress(state, WorkflowStatus.REVIEWING)
-        return {"grading": grading, "review": {}, "grading_passes": attempt}
+        return {"grading": grading, "review": {}, "grading_passes": attempt, "reassessment_reason": None}
 
     @staticmethod
-    def _after_grade(state: GraphState) -> Literal["review", "fail"]:
-        return "fail" if state.get("error") else "review"
+    def _after_grade(state: GraphState) -> Literal["evidence", "review", "fail"]:
+        if state.get("error"):
+            return "fail"
+        return "evidence" if state.get("reassessment_reason") else "review"
 
     def _review(self, state: GraphState) -> GraphState:
         workflow_id = state["workflow_id"]
         if state.get("review"):
             return {"review": state["review"]}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
-        payload.update({"evidence": state["evidence"], "grading": state["grading"]})
+        payload.update({
+            "evidence": state["evidence"],
+            "grading": state["grading"],
+            "rubricSnapshot": state["evidence"]["rubricSnapshot"],
+        })
         try:
             review, invocation = self._invoke_agent(
-                "review", "review", payload, ReviewResponse, workflow_id, state["grading_passes"], state["submission"], requires_confidence=True
+                "review", "review", payload, ReviewResponse, workflow_id, state["grading_passes"], state["submission"]
             )
         except AgentCallError as error:
             return {"error": f"review failed: {redact_for_trace(error)}"}
@@ -267,6 +318,9 @@ class OrchestrationWorkflow:
         if state.get("error"):
             return "fail"
         decision = ReviewDecision(state["review"]["decision"])
+        reassessment_reason = self._review_reassessment_reason(state["review"], decision)
+        if reassessment_reason is not None:
+            return self._reassess_or_fail(state, reassessment_reason)
         if decision is ReviewDecision.APPROVE:
             self._update(
                 state["workflow_id"],
@@ -277,9 +331,68 @@ class OrchestrationWorkflow:
             )
             self._report_progress(state, WorkflowStatus.SUGGESTING)
             return "suggest"
-        if decision is ReviewDecision.REGRADE and state["grading_passes"] <= self.settings.max_regrades:
-            return "evidence"
         return "fail"
+
+    def _review_reassessment_reason(self, review: dict[str, Any], decision: ReviewDecision) -> str | None:
+        if review["confidence"] < self.settings.minimum_confidence:
+            return "LOW_REVIEW_CONFIDENCE"
+        return _REVIEW_REASSESSMENT_REASONS.get(decision)
+
+    def _reassess_or_fail(self, state: GraphState, reason: str) -> Literal["evidence", "fail"]:
+        if self._can_reassess(state["grading_passes"]):
+            self._request_reassessment(state, reason)
+            return "evidence"
+        self._record_reassessment_limit(state, reason)
+        return "fail"
+
+    def _can_reassess(self, completed_grading_passes: int) -> bool:
+        """Keep the configured cap in regrades, rather than total grading attempts."""
+        return completed_grading_passes <= self.settings.max_regrades
+
+    def _request_reassessment(
+        self,
+        state: GraphState,
+        reason: str,
+        *,
+        grading_output: dict[str, Any] | None = None,
+        grading_attempt: int | None = None,
+        log_details: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a student-safe, bounded reassessment using existing peer signals.
+
+        The coordinator never decides whether the rubric was applied correctly; it
+        merely routes low-confidence or REVIEW_REGRADE results through fresh
+        evidence, grading, and review.
+        """
+        attempt = grading_attempt if grading_attempt is not None else state["grading_passes"]
+        details = {"reassessmentReason": reason}
+        if log_details:
+            details.update(log_details)
+        fields: dict[str, Any] = {
+            # Persist the next durable node, so a worker crash resumes with fresh
+            # evidence rather than grading again from the prior evidence artifact.
+            "status": WorkflowStatus.EVIDENCING,
+            "log_step": "REASSESSMENT_REQUESTED",
+            "attempt": attempt + 1,
+            "review_output": {},
+            "log_details": details,
+            "outbox": self._progress_outbox(state, WorkflowStatus.REGRADING, attempt + 1),
+        }
+        if grading_output is not None:
+            fields["grading_output"] = grading_output
+        if grading_attempt is not None:
+            fields["grading_passes"] = grading_attempt
+        self._update(state["workflow_id"], **fields)
+        self._report_progress(state, WorkflowStatus.REGRADING)
+
+    def _record_reassessment_limit(self, state: GraphState, reason: str) -> None:
+        self._update(
+            state["workflow_id"],
+            status=WorkflowStatus.REVIEWING,
+            log_step="REASSESSMENT_LIMIT_REACHED",
+            attempt=state["grading_passes"],
+            log_details={"reassessmentReason": reason},
+        )
 
     def _suggest(self, state: GraphState) -> GraphState:
         workflow_id = state["workflow_id"]
@@ -288,18 +401,11 @@ class OrchestrationWorkflow:
         if state["submission"].composition.language == "CHINESE":
             # Chinese grading/review remains available, but this English-only agent
             # must not turn a completed assessment into a workflow failure.
-            suggestions = SuggestionResponse(
-                suggestionStatus=SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE,
-                suggestions=[],
-            ).model_dump(by_alias=True, mode="json")
-            self._update(
-                workflow_id,
-                status=WorkflowStatus.SUGGESTING,
-                log_step="SUGGESTION_SKIPPED_LANGUAGE",
-                attempt=state["grading_passes"],
-                suggestion_output=suggestions,
+            return self._persist_empty_suggestions(
+                state,
+                SuggestionStatus.NOT_AVAILABLE_FOR_LANGUAGE,
+                "SUGGESTION_SKIPPED_LANGUAGE",
             )
-            return {"suggestions": suggestions}
         payload = state["submission"].request_payload(workflow_id, state["grading_passes"], state["grading"])
         payload.update({
             "grading": state["grading"],
@@ -313,7 +419,32 @@ class OrchestrationWorkflow:
                 "suggest", "suggestion", payload, SuggestionResponse, workflow_id, state["grading_passes"], state["submission"]
             )
         except AgentCallError as error:
-            return {"error": f"suggestion generation failed: {redact_for_trace(error)}"}
+            # Suggestions enhance an approved assessment; an unavailable peer must not
+            # discard the approved score, evidence, and feedback the learner can use.
+            LOGGER.warning("suggestion_generation_unavailable workflow_id=%s reason=%s", workflow_id, redact_for_trace(error))
+            return self._persist_empty_suggestions(
+                state,
+                SuggestionStatus.TEMPORARILY_UNAVAILABLE,
+                "SUGGESTION_UNAVAILABLE",
+            )
+        validation_error = self._suggestion_validation_error(
+            suggestions,
+            state["grading"],
+            state["submission"].composition.content,
+        )
+        if validation_error is not None:
+            LOGGER.warning(
+                "suggestion_generation_rejected workflow_id=%s reason=%s",
+                workflow_id,
+                validation_error,
+            )
+            record_agent_contract_rejection("suggestion", validation_error.casefold())
+            return self._persist_empty_suggestions(
+                state,
+                SuggestionStatus.TEMPORARILY_UNAVAILABLE,
+                "SUGGESTION_REJECTED_INCONSISTENT",
+                {"validationReason": validation_error},
+            )
         self._update(
             workflow_id,
             status=WorkflowStatus.SUGGESTING,
@@ -321,6 +452,61 @@ class OrchestrationWorkflow:
             attempt=state["grading_passes"],
             suggestion_output=suggestions,
             log_details=response_metadata(suggestions, invocation),
+        )
+        return {"suggestions": suggestions}
+
+    @staticmethod
+    def _suggestion_validation_error(
+        suggestions: dict[str, Any],
+        grading: dict[str, Any],
+        composition_content: str,
+    ) -> str | None:
+        """Return a bounded reason when peer coaching conflicts with approved grading."""
+        assessments = {
+            item["criterion"].casefold(): item
+            for item in grading["criteria"]
+        }
+        status = SuggestionStatus(suggestions["suggestionStatus"])
+        if status is SuggestionStatus.NO_PRIORITY_IMPROVEMENT:
+            return None if all(item["score"] >= 100 for item in assessments.values()) else "NO_PRIORITY_WITH_IMPERFECT_CRITERION"
+        if status is not SuggestionStatus.AVAILABLE:
+            return None
+        for suggestion in suggestions["suggestions"]:
+            assessment = assessments.get(suggestion["criterion"].casefold())
+            if assessment is None:
+                return "UNSUPPORTED_CRITERION"
+            if assessment["score"] >= 100:
+                return "PERFECT_CRITERION"
+            source_excerpt = suggestion["supportingEvidence"]["excerpt"]
+            example = suggestion["exampleRevision"]
+            if source_excerpt not in composition_content:
+                return "EVIDENCE_NOT_IN_COMPOSITION"
+            if OrchestrationWorkflow._normalise_coaching_text(example) == OrchestrationWorkflow._normalise_coaching_text(source_excerpt):
+                return "NO_OP_EXAMPLE"
+        return None
+
+    @staticmethod
+    def _normalise_coaching_text(value: str) -> str:
+        return "".join(character for character in value.casefold() if character.isalnum())
+
+    def _persist_empty_suggestions(
+        self,
+        state: GraphState,
+        suggestion_status: SuggestionStatus,
+        log_step: str,
+        log_details: dict[str, Any] | None = None,
+    ) -> GraphState:
+        suggestions = SuggestionResponse(
+            suggestionStatus=suggestion_status,
+            suggestions=[],
+        ).model_dump(by_alias=True, mode="json")
+        self._update(
+            state["workflow_id"],
+            status=WorkflowStatus.SUGGESTING,
+            log_step=log_step,
+            attempt=state["grading_passes"],
+            suggestion_output=suggestions,
+            log_details=log_details,
         )
         return {"suggestions": suggestions}
 
@@ -364,10 +550,12 @@ class OrchestrationWorkflow:
         workflow_id: UUID,
         grading_pass: int,
         submission: WorkflowSubmission,
-        *,
-        requires_confidence: bool = False,
     ) -> tuple[dict[str, Any], AgentInvocation[Any]]:
         try:
+            spent = self._workflow_cost_micros(workflow_id)
+            if spent >= self.settings.max_workflow_cost_micros:
+                record_workflow_budget_guard()
+                raise AgentCallError(agent, "workflow AI spend budget is exhausted", ())
             invocation = getattr(self.agent_client, operation)(payload, parser)
             result = invocation.response
             if result.usage is None and self.settings.agent_provider == "a2a":
@@ -390,19 +578,32 @@ class OrchestrationWorkflow:
                     invocation_id=invocation.task_id,
                     **self._claim_kwargs(),
                 )
-            # A rejected assessment still consumed provider tokens.
-            if requires_confidence and result.confidence < self.settings.minimum_confidence:
-                raise AgentCallError(agent, f"{agent} confidence is below the configured threshold")
             response = result.model_dump(by_alias=True, mode="json")
-            record_agent_call(agent, True)
+            record_agent_call(agent, True, sum(item.latency_ms for item in invocation.attempts))
             return response, invocation
         except AgentCallError as error:
-            record_agent_call(agent, False)
+            self._record_contract_rejection(agent, error)
+            record_agent_call(agent, False, sum(item.latency_ms for item in error.attempts))
             self._log_agent_attempts(workflow_id, agent, grading_pass, agent_attempt_entries(agent, list(error.attempts)))
             raise
         except ValidationError as error:
+            record_agent_contract_rejection(agent, "invalid_response")
             record_agent_call(agent, False)
             raise AgentCallError(agent, f"{agent} returned an invalid response") from error
+
+    def _workflow_cost_micros(self, workflow_id: UUID) -> int:
+        cost_reader = getattr(self.repository, "workflow_cost_micros", None)
+        return int(cost_reader(workflow_id)) if cost_reader is not None else 0
+
+    @staticmethod
+    def _record_contract_rejection(agent: str, error: AgentCallError) -> None:
+        statuses = {attempt.status for attempt in error.attempts}
+        if "MISSING_USAGE" in statuses:
+            record_agent_contract_rejection(agent, "missing_usage")
+        elif "INVALID_RESPONSE" in statuses:
+            record_agent_contract_rejection(agent, "invalid_response")
+        elif "PROTOCOL_ERROR" in statuses:
+            record_agent_contract_rejection(agent, "protocol_error")
 
     @staticmethod
     def _report_progress(state: GraphState, status: WorkflowStatus) -> None:
@@ -413,7 +614,7 @@ class OrchestrationWorkflow:
 
     def _update(self, workflow_id: UUID, **fields: Any) -> WorkflowRecord:
         """Apply a transition only while this runner still holds its fencing lease."""
-        if getattr(self, "_active_claim", None) is None:
+        if _ACTIVE_CLAIM.get() is None:
             # Keep the graph directly testable without requiring a database outbox.
             fields.pop("outbox", None)
         return self.repository.update(workflow_id, **fields, **self._claim_kwargs())
@@ -425,7 +626,7 @@ class OrchestrationWorkflow:
         completion_event: dict[str, Any],
         outbox: OutboxEvent,
     ) -> WorkflowRecord:
-        if getattr(self, "_active_claim", None) is None:
+        if _ACTIVE_CLAIM.get() is None:
             return self.repository.record_failure(workflow_id, error_details, completion_event)
         return self.repository.record_failure(
             workflow_id,
@@ -441,7 +642,8 @@ class OrchestrationWorkflow:
     def _claim_kwargs(self) -> dict[str, WorkflowClaim]:
         # Unit tests run the graph without a durable worker. Production calls always
         # set this per-run value before invoking the graph.
-        return {"claim": self._active_claim} if getattr(self, "_active_claim", None) is not None else {}
+        claim = _ACTIVE_CLAIM.get()
+        return {"claim": claim} if claim is not None else {}
 
     def _progress_outbox(self, state: GraphState, status: WorkflowStatus, attempt: int) -> OutboxEvent | None:
         event = progress_event(state["workflow_id"], state["submission"], status)

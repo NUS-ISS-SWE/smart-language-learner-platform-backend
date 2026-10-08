@@ -11,6 +11,7 @@ import com.nus.iss.enums.EvidencePolarity;
  */
 public record EvidenceItem(
         String excerpt,
+        String location,
         EvidencePolarity polarity,
         String note,
         boolean verifiedOnFirstPass) {

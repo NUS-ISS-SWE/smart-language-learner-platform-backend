@@ -18,7 +18,8 @@ locals {
       policy_sid      = "ReadCompositionServiceSecrets"
       secret_arns = [
         module.secrets.postgres_secret_arn,
-        module.secrets.audit_ingest_secret_arn
+        module.secrets.audit_ingest_secret_arn,
+        module.secrets.internal_service_secret_arn
       ]
     }
 
@@ -52,6 +53,7 @@ locals {
       policy_name     = "${var.project_name}-evaluation-service-secrets"
       policy_sid      = "ReadEvaluationServiceSecrets"
       secret_arns = [
+        module.secrets.postgres_secret_arn,
         module.secrets.openai_secret_arn,
         module.secrets.agent_tokens_secret_arn
       ]
@@ -89,6 +91,14 @@ locals {
         module.secrets.audit_ingest_secret_arn,
         module.secrets.agent_tokens_secret_arn
       ]
+    }
+
+    learning_service = {
+      workload_name   = "learning-service"
+      service_account = "sllp-learning-service"
+      policy_name     = "${var.project_name}-learning-service-secrets"
+      policy_sid      = "ReadLearningServiceSecrets"
+      secret_arns     = [module.secrets.postgres_secret_arn]
     }
 
     api_gateway = {
@@ -138,7 +148,8 @@ locals {
       secret_arns = [
         module.secrets.postgres_secret_arn,
         module.secrets.audit_ingest_secret_arn,
-        module.secrets.stripe_secret_arn
+        module.secrets.stripe_secret_arn,
+        module.secrets.internal_service_secret_arn
       ]
     }
 

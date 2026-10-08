@@ -38,6 +38,7 @@ class MemoryRepository:
         self.records: dict[UUID, WorkflowRecord] = {}
         self.agent_usage_events: list[dict] = []
         self.agent_attempt_logs: list[tuple] = []
+        self.cost_micros = 0
 
     def add(self, record: WorkflowRecord) -> None:
         self.records[record.workflow_id] = record
@@ -63,6 +64,9 @@ class MemoryRepository:
     def record_agent_usage(self, **kwargs):
         self.agent_usage_events.append(kwargs)
 
+    def workflow_cost_micros(self, workflow_id):
+        return self.cost_micros
+
 
 def usage():
     return {
@@ -83,6 +87,7 @@ class FakeAgents:
         self.evidence_calls = 0
         self.grade_calls = 0
         self.suggest_calls = 0
+        self.review_payloads: list[dict] = []
 
     @staticmethod
     def _invocation(response):
@@ -96,8 +101,12 @@ class FakeAgents:
         return self._invocation(GradingResponse.model_validate(
             {
                 "overallScore": 72,
-                "rubricScores": {"Description": 72, "Emotion": 70},
-                "criteria": [{"criterion": "Description", "score": 72, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]}],
+                "rubricScores": {"Description": 80, "Emotion": 60},
+                "rubricVersion": "test-rubric-v1",
+                "criteria": [
+                    {"criterion": "Description", "bandScore": 4, "score": 80, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]},
+                    {"criterion": "Emotion", "bandScore": 3, "score": 60, "rationale": "No feeling is stated", "evidence": [{"excerpt": "blue sea"}]},
+                ],
                 "confidence": 0.9,
                 "usage": usage(),
             }
@@ -107,18 +116,19 @@ class FakeAgents:
         self.evidence_calls += 1
         return self._invocation(EvidenceResponse.model_validate({
             "plan": ["Find rubric evidence."], "rubricVersion": "test-rubric-v1",
-            "rubricSnapshot": {"version": "test-rubric-v1", "criteria": [{"name": "Description", "weight": 100, "guidance": "Use clear details."}]},
-            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "polarity": "STRENGTH", "note": "specific detail", "verifiedOnFirstPass": True}]}],
+            "rubricSnapshot": {"version": "test-rubric-v1", "criteria": [{"name": "Description", "weight": 60, "guidance": "Use clear details."}, {"name": "Emotion", "weight": 40, "guidance": "Explain feelings."}]},
+            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "location": "paragraph 1, characters 11-18", "polarity": "STRENGTH", "note": "specific detail", "verifiedOnFirstPass": True}]}],
             "usage": usage(),
         }))
 
     def review(self, payload, parser):
+        self.review_payloads.append(payload)
         return self._invocation(ReviewResponse.model_validate({"decision": self.reviews.pop(0), "confidence": 0.9, "findings": [], "usage": usage()}))
 
     def suggest(self, payload, parser):
         self.suggest_calls += 1
         return self._invocation(SuggestionResponse.model_validate(
-            {"suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Explain how you felt.", "learningTip": "Use a feeling and a reason.", "supportingEvidence": {"excerpt": "blue sea"}}], "usage": usage()}
+            {"suggestions": [{"criterion": "Emotion", "priority": "HIGH", "recommendation": "Explain how you felt.", "exampleRevision": "I felt calm as I watched the blue sea.", "learningTip": "Use a feeling and a reason.", "supportingEvidence": {"excerpt": "blue sea"}}], "usage": usage()}
         ))
 
 
@@ -133,9 +143,15 @@ class FailingGradeAgents:
         return AgentInvocation(EvidenceResponse.model_validate({
             "rubricVersion": "test-rubric-v1",
             "rubricSnapshot": {"version": "test-rubric-v1", "criteria": [{"name": "Description", "weight": 100, "guidance": "Use clear details."}]},
-            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "polarity": "STRENGTH", "note": "detail", "verifiedOnFirstPass": True}]}],
+            "criteria": [{"criterion": "Description", "evidence": [{"excerpt": "blue sea", "location": "paragraph 1, characters 11-18", "polarity": "STRENGTH", "note": "detail", "verifiedOnFirstPass": True}]}],
             "usage": usage(),
         }), (AgentAttempt(1, "SUCCEEDED", 0),), "fake-evidence", payload["workflowId"], "fake")
+
+
+class FailingSuggestionAgents(FakeAgents):
+    def suggest(self, payload, parser):
+        self.suggest_calls += 1
+        raise AgentCallError("suggestion", "provider timeout", (AgentAttempt(1, "FAILED", 42, 504, "timeout"),))
 
 
 def workflow_record(language: str = "ENGLISH") -> WorkflowRecord:
@@ -163,6 +179,7 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     assert completed.status is WorkflowStatus.COMPLETED
     assert completed.completion_event["success"] is True
     assert completed.completion_event["score"] == 72
+    assert completed.completion_event["rubricScores"] == {"Description": 80, "Emotion": 60}
     suggestion = completed.completion_event["suggestions"][0]
     assert suggestion["supportingEvidence"]["excerpt"] == "blue sea"
     assert suggestion["learningTip"] == "Use a feeling and a reason."
@@ -177,17 +194,45 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     }
 
 
+def test_review_receives_deterministic_locations_for_verified_evidence():
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+    agents = FakeAgents(["APPROVE"])
+
+    OrchestrationWorkflow(settings(), repository, agents).run(record)
+
+    evidence = agents.review_payloads[0]["evidence"]["criteria"][0]["evidence"][0]
+    assert evidence["location"] == "paragraph 1, characters 11-18"
+
+
+def test_suggestion_failure_preserves_the_approved_assessment():
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+
+    completed = OrchestrationWorkflow(settings(), repository, FailingSuggestionAgents(["APPROVE"])).run(record)
+
+    assert completed.status is WorkflowStatus.COMPLETED
+    assert completed.completion_event["success"] is True
+    assert completed.completion_event["score"] == 72
+    assert completed.completion_event["suggestionStatus"] == "TEMPORARILY_UNAVAILABLE"
+    assert completed.completion_event["suggestions"] == []
+    assert "Overall score: 72/100" in completed.completion_event["feedback"]
+
+
 def test_placeholder_assessment_is_visibly_labelled_in_feedback():
     grading = GradingResponse.model_validate(
         {
-            "overallScore": 75,
-            "criteria": [{"criterion": "Placeholder", "score": 75, "rationale": "Development only", "evidence": [{"excerpt": "Submitted composition"}]}],
+            "overallScore": 80,
+            "rubricVersion": "placeholder-v1",
+            "criteria": [{"criterion": "Placeholder", "bandScore": 4, "score": 80, "rationale": "Development only", "evidence": [{"excerpt": "Submitted composition"}]}],
             "confidence": 0.99,
             "modelVersion": "placeholder-v1",
         }
     )
     suggestions = SuggestionResponse.model_validate(
-        {"suggestions": [{"criterion": "Placeholder", "priority": "HIGH", "recommendation": "Development only.", "supportingEvidence": {"excerpt": "Submitted composition"}}]}
+        {"suggestions": [{"criterion": "Placeholder", "priority": "HIGH", "recommendation": "Development only.", "exampleRevision": "Use a real assessment result.", "supportingEvidence": {"excerpt": "Submitted composition"}}]}
     )
 
     assert render_feedback(grading, suggestions).startswith("Development placeholder assessment")
@@ -198,13 +243,15 @@ def test_review_can_request_exactly_one_regrade_before_approval():
     record = workflow_record()
     repository.add(record)
     agents = FakeAgents(["REGRADE", "APPROVE"])
+    events: list[dict] = []
 
-    completed = OrchestrationWorkflow(settings(), repository, agents).run(record)
+    completed = OrchestrationWorkflow(settings(), repository, agents, progress_reporter=events.append).run(record)
 
     assert completed.status is WorkflowStatus.COMPLETED
     assert agents.grade_calls == 2
     assert agents.evidence_calls == 2
     assert completed.grading_passes == 2
+    assert [event["stage"] for event in events].count("REGRADING") >= 2
 
 
 def test_rejected_review_returns_safe_retry_notice_without_score():
@@ -212,9 +259,12 @@ def test_rejected_review_returns_safe_retry_notice_without_score():
     record = workflow_record()
     repository.add(record)
 
-    failed = OrchestrationWorkflow(settings(), repository, FakeAgents(["REJECT"])).run(record)
+    agents = FakeAgents(["REJECT", "REJECT"])
+    failed = OrchestrationWorkflow(settings(), repository, agents).run(record)
 
     assert failed.status is WorkflowStatus.FAILED
+    assert agents.grade_calls == 2
+    assert agents.evidence_calls == 2
     assert failed.completion_event["success"] is False
     assert failed.completion_event["score"] is None
     assert failed.completion_event["failureReason"] == SAFE_FAILURE_MESSAGE
@@ -232,6 +282,19 @@ def test_failed_agent_attempt_is_logged_for_agent_reliability_metrics():
     _, agent, attempt, entries = repository.agent_attempt_logs[-1]
     assert (agent, attempt) == ("grading", 1)
     assert entries == [{"agent": "grading", "agentAttempt": 1, "status": "FAILED", "httpStatus": 504, "error": "timeout", "latencyMs": 42}]
+
+
+def test_spend_guard_stops_before_the_next_agent_call():
+    repository = MemoryRepository()
+    repository.cost_micros = 100
+    record = workflow_record()
+    repository.add(record)
+    agents = FakeAgents(["APPROVE"])
+
+    failed = OrchestrationWorkflow(replace(settings(), max_workflow_cost_micros=100), repository, agents).run(record)
+
+    assert failed.status is WorkflowStatus.FAILED
+    assert agents.evidence_calls == 0
 
 
 def test_terminal_duplicate_does_not_run_agents_again():
@@ -258,7 +321,7 @@ def test_low_confidence_result_still_records_provider_usage():
     repository.add(record)
     completed = OrchestrationWorkflow(settings(), repository, LowConfidenceAgents([])).run(record)
     assert completed.status is WorkflowStatus.FAILED
-    assert [event["agent"] for event in repository.agent_usage_events] == ["evidence", "grading"]
+    assert [event["agent"] for event in repository.agent_usage_events] == ["evidence", "grading", "evidence", "grading"]
 
 
 def test_a2a_response_without_usage_is_recorded_as_a_contract_failure():
@@ -296,8 +359,10 @@ def test_recovery_resumes_from_persisted_grading_without_grading_twice():
     }
     record.grading_output = GradingResponse.model_validate(
         {
-            "overallScore": 72,
-            "criteria": [{"criterion": "Description", "score": 72, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]}],
+            "overallScore": 80,
+            "rubricVersion": "test-rubric-v1",
+            "rubricScores": {"Description": 80},
+            "criteria": [{"criterion": "Description", "bandScore": 4, "score": 80, "rationale": "Clear detail", "evidence": [{"excerpt": "blue sea"}]}],
             "confidence": 0.9,
         }
     ).model_dump(by_alias=True, mode="json")

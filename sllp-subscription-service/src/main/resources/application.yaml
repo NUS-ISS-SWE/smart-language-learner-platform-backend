@@ -33,6 +33,7 @@ stripe:
   payment-link-premium: ${STRIPE_PAYMENT_LINK_PREMIUM:}
 
 sllp:
+  internal-service-token: ${INTERNAL_SERVICE_TOKEN:}
   audit:
     ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
     ingest-secret: ${AUDIT_INGEST_SECRET:}

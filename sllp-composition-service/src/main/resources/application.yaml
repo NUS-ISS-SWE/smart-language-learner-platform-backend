@@ -28,6 +28,9 @@ spring:
         web-allow-others: true
 
 sllp:
+  subscription:
+    base-url: ${SUBSCRIPTION_SERVICE_URL:http://localhost:8084}
+  internal-service-token: ${INTERNAL_SERVICE_TOKEN:}
   audit:
     ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
     ingest-secret: ${AUDIT_INGEST_SECRET:}

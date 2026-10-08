@@ -62,13 +62,21 @@ class Suggestion(ApiModel):
     criterion: str = Field(min_length=1, max_length=200)
     priority: Literal["HIGH", "MEDIUM", "LOW"]
     recommendation: str = Field(min_length=1, max_length=1_200)
-    example_revision: str | None = Field(default=None, max_length=1_200)
+    example_revision: str = Field(min_length=1, max_length=1_200)
     learning_tip: str | None = Field(default=None, max_length=1_200)
     supporting_evidence: SupportingEvidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 
 
+SuggestionStatus = Literal[
+    "AVAILABLE",
+    "NOT_AVAILABLE_FOR_LANGUAGE",
+    "TEMPORARILY_UNAVAILABLE",
+    "NO_PRIORITY_IMPROVEMENT",
+]
+
+
 class SuggestionResponse(ApiModel):
-    suggestion_status: Literal["AVAILABLE", "NOT_AVAILABLE_FOR_LANGUAGE"] = Field(
+    suggestion_status: SuggestionStatus = Field(
         default="AVAILABLE", validation_alias=AliasChoices("suggestionStatus", "suggestion_status")
     )
     suggestions: list[Suggestion] = Field(default_factory=list, max_length=3)
@@ -89,7 +97,7 @@ class SuggestionResponse(ApiModel):
 class GeneratedSuggestion(ApiModel):
     criterion: str = Field(min_length=1, max_length=200)
     recommendation: str = Field(min_length=1, max_length=1_200)
-    example_revision: str | None = Field(default=None, max_length=1_200)
+    example_revision: str = Field(min_length=1, max_length=1_200)
     learning_tip: str | None = Field(default=None, max_length=1_200)
 
 

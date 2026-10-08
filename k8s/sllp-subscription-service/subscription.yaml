@@ -27,6 +27,11 @@ spec:
         jmesPath:
           - path: "secret"
             objectAlias: "sllp.audit.ingest-secret"
+      - objectName: "sllp/internal-service"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "token"
+            objectAlias: "sllp.internal-service-token"
       - objectName: "sllp/stripe"
         objectType: "secretsmanager"
         jmesPath:
@@ -56,8 +61,13 @@ metadata:
   name: sllp-subscription-service
   namespace: sllp
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: sllp-subscription-service
@@ -69,6 +79,21 @@ spec:
       serviceAccountName: sllp-subscription-service
       nodeSelector:
         eks.amazonaws.com/compute-type: auto
+      topologySpreadConstraints:
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-subscription-service
+        - maxSkew: 1
+          minDomains: 2
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sllp-subscription-service
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -146,3 +171,14 @@ spec:
       port: 8084
       targetPort: http
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sllp-subscription-service
+  namespace: sllp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sllp-subscription-service

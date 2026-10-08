@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from re import Pattern
 
 from app.framework import RubricFrameworkProvider, FrameworkUnavailable
-from app.generator import PROMPT_VERSION, GenerationError, SuggestionGenerator
+from app.generator import PROMPT_VERSION, GenerationError, GenerationResult, SuggestionGenerator
 from app.models import RubricCriterion, Evidence, GeneratedSuggestions, Grading, Suggestion, SuggestionRequest, SuggestionResponse
 from app.tools import LearnerProfileTool, ToolUnavailable
 
@@ -31,6 +31,8 @@ _WHOLE_COMPOSITION_PATTERNS: tuple[Pattern[str], ...] = (
 )
 _MAX_EXAMPLE_REVISION_CHARACTERS = 400
 _MAX_EXAMPLE_REVISION_SENTENCES = 2
+_MAX_GENERATION_ATTEMPTS = 2
+_PRIORITIES = ("HIGH", "MEDIUM", "LOW")
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,12 +70,13 @@ class SuggestionService:
         # Reusing it makes ranking reproducible when an Admin edits a rubric while a workflow runs.
         framework = request.rubric_snapshot
 
-        candidates = self._rank(request.grading, framework.criteria)
-        try:
-            generated = self.generator.generate(self._prompt(request, learner.difficulty_level, framework.version, candidates))
-        except GenerationError as error:
-            raise SuggestionServiceError("suggestion generation is temporarily unavailable") from error
-        suggestions = self._validate_and_attach(generated.output, candidates)
+        candidates = self._rank(request.grading, framework.criteria, request.composition.content)
+        if not candidates:
+            return SuggestionResponse(suggestionStatus="NO_PRIORITY_IMPROVEMENT", suggestions=[])
+        generated, suggestions = self._generate_valid_suggestions(
+            self._prompt(request, learner.difficulty_level, framework.version, candidates),
+            candidates,
+        )
         return SuggestionResponse(
             suggestions=suggestions,
             modelVersion=generated.model_version,
@@ -82,23 +85,50 @@ class SuggestionService:
             usage=generated.usage,
         )
 
+    def _generate_valid_suggestions(
+        self,
+        prompt: str,
+        candidates: list[Candidate],
+    ) -> tuple[GenerationResult, list[Suggestion]]:
+        last_error: Exception | None = None
+        # A usable suggestion must include an illustrative local revision. A single
+        # retry handles a malformed or unsafe model response without publishing
+        # recommendation-only coaching as an AVAILABLE result.
+        for _ in range(_MAX_GENERATION_ATTEMPTS):
+            try:
+                generated = self.generator.generate(prompt)
+                suggestions = self._validate_and_attach(generated.output, candidates)
+                return generated, suggestions
+            except (GenerationError, SuggestionServiceError) as error:
+                last_error = error
+                LOGGER.warning("Suggestion example generation attempt failed: %s", error)
+        raise SuggestionServiceError("suggestion generation is temporarily unavailable") from last_error
+
     @staticmethod
-    def _rank(grading: Grading, criteria: list[RubricCriterion]) -> list[Candidate]:
+    def _rank(grading: Grading, criteria: list[RubricCriterion], composition_content: str) -> list[Candidate]:
         assessments = {item.criterion.casefold(): item for item in grading.criteria}
         candidates: list[Candidate] = []
+        has_nonperfect_assessment = False
+        has_incomplete_assessment = False
         for criterion in criteria:
             assessment = assessments.get(criterion.name.casefold())
-            score = assessment.score if assessment else grading.rubric_scores.get(criterion.name)
-            if score is None or assessment is None or not assessment.evidence:
+            if assessment is None:
+                has_incomplete_assessment = True
+                continue
+            if assessment.score >= 100:
+                continue
+            has_nonperfect_assessment = True
+            evidence = _grounded_evidence(assessment.evidence, composition_content)
+            if evidence is None:
                 continue
             candidates.append(Candidate(
                 criterion=criterion,
-                score=score,
-                evidence=assessment.evidence[0],
+                score=assessment.score,
+                evidence=evidence,
                 rationale=assessment.rationale,
-                weighted_gap=(100 - score) * criterion.weight / 100,
+                weighted_gap=(100 - assessment.score) * criterion.weight / 100,
             ))
-        if not candidates:
+        if not candidates and (has_nonperfect_assessment or has_incomplete_assessment):
             raise SuggestionServiceError("approved grading has no rubric evidence that can ground a suggestion")
         return sorted(candidates, key=lambda item: (-item.weighted_gap, item.criterion.name))[:3]
 
@@ -115,13 +145,13 @@ class SuggestionService:
                     "guidance": item.criterion.guidance,
                     "score": item.score,
                     "gradingRationale": item.rationale,
-                    "evidence": item.evidence.model_dump(by_alias=True),
+                    "sourceExcerpt": item.evidence.model_dump(by_alias=True),
                 }
                 for item in candidates
             ],
             "responseSchema": {
                 "suggestions": [
-                    {"criterion": "exact candidate criterion", "recommendation": "actionable coaching", "exampleRevision": "optional short example", "learningTip": "optional practice tip"}
+                    {"criterion": "exact candidate criterion", "recommendation": "actionable coaching", "exampleRevision": "required one- or two-sentence illustrative revision of sourceExcerpt; it must improve that text, preserve the writer's meaning, and not merely repeat it", "learningTip": "optional practice tip"}
                 ]
             },
         }
@@ -134,7 +164,7 @@ class SuggestionService:
         if len(generated.suggestions) != len(candidates):
             raise SuggestionServiceError("model did not return exactly one suggestion for each selected criterion")
         suggestions: list[Suggestion] = []
-        priorities = ("HIGH", "MEDIUM", "LOW")
+        candidate_positions = {item.criterion.name.casefold(): index for index, item in enumerate(candidates)}
         for output in generated.suggestions:
             key = output.criterion.casefold()
             candidate = by_name.get(key)
@@ -142,29 +172,21 @@ class SuggestionService:
                 raise SuggestionServiceError("model returned a suggestion outside the selected rubric criteria")
             seen.add(key)
             recommendation = output.recommendation.strip()
-            example_revision = output.example_revision.strip() if output.example_revision else None
+            example_revision = output.example_revision.strip()
             learning_tip = output.learning_tip.strip() if output.learning_tip else None
             _validate_coaching_text(recommendation, "recommendation")
             if learning_tip:
                 _validate_coaching_text(learning_tip, "learning tip")
-            if example_revision:
-                try:
-                    _validate_example_revision(example_revision)
-                except SuggestionServiceError as error:
-                    # An example is optional. Keep the grounded recommendation when
-                    # the model makes its illustrative rewrite too broad or unsafe,
-                    # rather than failing the whole learner assessment.
-                    LOGGER.warning("Discarding invalid example revision for criterion %s: %s", candidate.criterion.name, error)
-                    example_revision = None
+            _validate_example_revision(example_revision, candidate.evidence.excerpt)
             suggestions.append(Suggestion(
                 criterion=candidate.criterion.name,
-                priority=priorities[candidates.index(candidate)],
+                priority=_PRIORITIES[candidate_positions[key]],
                 recommendation=recommendation,
                 exampleRevision=example_revision,
                 learningTip=learning_tip,
                 supportingEvidence=candidate.evidence.model_dump(by_alias=True),
             ))
-        return sorted(suggestions, key=lambda item: priorities.index(item.priority))
+        return sorted(suggestions, key=lambda item: _PRIORITIES.index(item.priority))
 
 
 def _validate_coaching_text(value: str, field: str) -> None:
@@ -175,7 +197,7 @@ def _validate_coaching_text(value: str, field: str) -> None:
         raise SuggestionServiceError(f"model returned unsuitable {field} content")
 
 
-def _validate_example_revision(value: str) -> None:
+def _validate_example_revision(value: str, source_excerpt: str) -> None:
     """Keep examples illustrative, local revisions rather than replacement work."""
     _validate_coaching_text(value, "example revision")
     if len(value) > _MAX_EXAMPLE_REVISION_CHARACTERS:
@@ -185,3 +207,13 @@ def _validate_example_revision(value: str) -> None:
         raise SuggestionServiceError("model returned an example revision that is not a short local revision")
     if any(pattern.search(value) for pattern in _WHOLE_COMPOSITION_PATTERNS):
         raise SuggestionServiceError("model returned an example revision that does not preserve student intent")
+    if _normalise_for_comparison(value) == _normalise_for_comparison(source_excerpt):
+        raise SuggestionServiceError("model returned an example revision that does not improve the cited text")
+
+
+def _normalise_for_comparison(value: str) -> str:
+    return re.sub(r"[^\w]+", "", value, flags=re.UNICODE).casefold()
+
+
+def _grounded_evidence(evidence_items: list[Evidence], composition_content: str) -> Evidence | None:
+    return next((item for item in evidence_items if item.excerpt in composition_content), None)

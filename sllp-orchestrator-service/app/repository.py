@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import BigInteger, Column, DateTime, Integer, MetaData, String, Table, create_engine, insert, or_, select, update
+from sqlalchemy import BigInteger, Column, DateTime, Integer, MetaData, String, Table, create_engine, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert as pg_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
@@ -322,6 +322,16 @@ class WorkflowRepository:
             connection.execute(pg_insert(ai_usage_event).values(**values).on_conflict_do_nothing(
                 index_elements=[ai_usage_event.c.event_id]
             ))
+
+    def workflow_cost_micros(self, workflow_id: UUID) -> int:
+        """Return only the aggregate cost needed for a pre-invocation budget guard."""
+        with self.engine.connect() as connection:
+            value = connection.execute(
+                select(func.coalesce(func.sum(ai_usage_event.c.estimated_cost_micros), 0)).where(
+                    ai_usage_event.c.workflow_id == workflow_id
+                )
+            ).scalar_one()
+        return int(value)
 
     def claim_next_outbox(self, owner: str, lease_seconds: int) -> OutboxClaim | None:
         now = datetime.now(timezone.utc)

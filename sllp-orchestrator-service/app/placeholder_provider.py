@@ -52,12 +52,14 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
     }
     if agent == "grading":
         return {
-            "overallScore": 75,
-            "rubricScores": {"Development placeholder": 75},
+            "overallScore": 80,
+            "rubricScores": {"Development placeholder": 80},
+            "rubricVersion": "placeholder-v1",
             "criteria": [
                 {
                     "criterion": "Development placeholder",
-                    "score": 75,
+                    "bandScore": 4,
+                    "score": 80,
                     "rationale": "This is a development placeholder response, not an AI-generated assessment.",
                     "evidence": [{"excerpt": "Submitted composition", "location": "development mode"}],
                 }
@@ -70,7 +72,7 @@ def _placeholder_response(agent: AgentName) -> dict[str, Any]:
             "plan": ["Development-only evidence placeholder."],
             "rubricVersion": "placeholder-v1",
             "rubricSnapshot": {"version": "placeholder-v1", "criteria": [{"name": "Development placeholder", "weight": 100, "guidance": "Development-only rubric."}]},
-            "criteria": [{"criterion": "Development placeholder", "evidence": [{"excerpt": "Submitted composition", "polarity": "STRENGTH", "note": "Development-only evidence.", "verifiedOnFirstPass": True}]}],
+            "criteria": [{"criterion": "Development placeholder", "evidence": [{"excerpt": "Submitted composition", "location": "development mode", "polarity": "STRENGTH", "note": "Development-only evidence.", "verifiedOnFirstPass": True}]}],
             **metadata,
         }
     if agent == "review":

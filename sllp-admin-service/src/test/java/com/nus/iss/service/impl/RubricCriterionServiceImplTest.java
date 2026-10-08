@@ -74,6 +74,20 @@ class RubricCriterionServiceImplTest {
     }
 
     @Test
+    void getAllSupportsEachSingleFilterAndNoFilters() {
+        RubricCriterion criterion = persistedCriterion();
+        when(repository.findByLanguage(org.mockito.ArgumentMatchers.eq(Language.ENGLISH), any(Sort.class)))
+                .thenReturn(List.of(criterion));
+        when(repository.findByDifficultyLevel(org.mockito.ArgumentMatchers.eq(DifficultyLevel.BEGINNER), any(Sort.class)))
+                .thenReturn(List.of(criterion));
+        when(repository.findAll(any(Sort.class))).thenReturn(List.of(criterion));
+
+        assertEquals(1, service.getAll(Language.ENGLISH, null).size());
+        assertEquals(1, service.getAll(null, DifficultyLevel.BEGINNER).size());
+        assertEquals(1, service.getAll(null, null).size());
+    }
+
+    @Test
     void getByIdWhenMissingThrowsNotFoundException() {
         when(repository.findById(99L)).thenReturn(Optional.empty());
 
@@ -119,6 +133,7 @@ class RubricCriterionServiceImplTest {
     @Test
     void invalidIdIsRejectedBeforeRepositoryLookup() {
         assertThrows(IllegalArgumentException.class, () -> service.getById(0L));
+        assertThrows(IllegalArgumentException.class, () -> service.getById(null));
 
         verify(repository, never()).findById(any());
     }

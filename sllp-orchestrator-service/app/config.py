@@ -42,6 +42,7 @@ class Settings:
     otel_exporter_otlp_endpoint: str | None = None
     audit_ingest_url: str = "http://localhost:8086/internal/audit-events"
     audit_ingest_secret: str = ""
+    max_workflow_cost_micros: int = 100_000
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -87,6 +88,7 @@ class Settings:
             otel_exporter_otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
             audit_ingest_url=os.getenv("AUDIT_INGEST_URL", "http://localhost:8086/internal/audit-events"),
             audit_ingest_secret=os.getenv("AUDIT_INGEST_SECRET", ""),
+            max_workflow_cost_micros=int(os.getenv("MAX_WORKFLOW_COST_MICROS", "100000")),
         )
         settings.validate()
         return settings
@@ -107,3 +109,5 @@ class Settings:
                 raise ValueError(
                     "AGENT_PROVIDER=a2a requires non-empty " + ", ".join(missing)
                 )
+        if self.max_workflow_cost_micros <= 0:
+            raise ValueError("MAX_WORKFLOW_COST_MICROS must be positive")

@@ -30,21 +30,27 @@ def settings(card_url: str = "http://grading.test/.well-known/agent-card.json") 
 
 
 def card(name: str, url: str, skill: str) -> dict:
+    origin = url.removesuffix("/a2a")
     return {
         "name": name,
         "url": url,
         "protocolVersion": "1.0",
         "skills": [{"id": skill, "name": skill}],
-        "sllp": {"contractVersion": "2.0"},
+        "sllp": {
+            "contractVersion": "2.0",
+            "inputSchemaUrl": f"{origin}/.well-known/sllp-contracts/{skill}-v2-input.json",
+            "outputSchemaUrl": f"{origin}/.well-known/sllp-contracts/{skill}-v2-output.json",
+        },
     }
 
 
 def test_discovers_and_validates_allowlisted_agent_cards():
-    responses = {
-        "/.well-known/agent-card.json": card("Grading", "http://grading.test/a2a", "composition-grading"),
-    }
-
     def handler(request: httpx.Request) -> httpx.Response:
+        if "/.well-known/sllp-contracts/" in request.url.path:
+            return httpx.Response(200, json={
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+            })
         host = request.url.host
         if host == "evidence.test":
             payload = card("Evidence", "http://evidence.test/a2a", "evidence-collection")
@@ -61,6 +67,7 @@ def test_discovers_and_validates_allowlisted_agent_cards():
 
     assert cards["grading"]["skill"] == "composition-grading"
     assert cards["review"]["contractVersion"] == "2.0"
+    assert cards["evidence"]["inputSchemaUrl"].endswith("evidence-collection-v2-input.json")
 
 
 def test_rejects_a_card_that_advertises_the_wrong_skill():
@@ -87,6 +94,11 @@ def test_rejects_a_card_without_a2a_v1_protocol_version():
 
 def test_chinese_workflow_does_not_require_the_english_suggestion_peer():
     def handler(request: httpx.Request) -> httpx.Response:
+        if "/.well-known/sllp-contracts/" in request.url.path:
+            return httpx.Response(200, json={
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+            })
         if request.url.host == "evidence.test":
             return httpx.Response(200, json=card("Evidence", "http://evidence.test/a2a", "evidence-collection"))
         if request.url.host == "grading.test":

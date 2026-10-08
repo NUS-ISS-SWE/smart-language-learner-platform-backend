@@ -2,6 +2,8 @@ package com.nus.iss.agent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Guards against hallucinated evidence: every excerpt the model returns must be a verbatim
@@ -9,6 +11,7 @@ import java.util.List;
  * {@link com.nus.iss.agent.EvidenceAgentService} can ask the model to correct it.
  */
 public final class ReflectionStep {
+    private static final Pattern HTML_PARAGRAPH = Pattern.compile("<p\\b[^>]*>", Pattern.CASE_INSENSITIVE);
 
     private ReflectionStep() {
     }
@@ -30,5 +33,26 @@ public final class ReflectionStep {
             }
         }
         return invalid;
+    }
+
+    /** Returns the stable learner-document location for a verbatim excerpt, or {@code null}. */
+    public static String sourceLocation(String content, String excerpt) {
+        if (content == null || excerpt == null || excerpt.isBlank()) return null;
+        String trimmed = excerpt.trim();
+        int start = content.indexOf(trimmed);
+        if (start < 0) return null;
+        Matcher paragraphs = HTML_PARAGRAPH.matcher(content.substring(0, start));
+        int paragraph = 0;
+        while (paragraphs.find()) paragraph++;
+        if (paragraph == 0) paragraph = 1 + countPlainTextParagraphs(content, start);
+        return "paragraph " + paragraph + ", characters " + (start + 1) + "-" + (start + trimmed.length());
+    }
+
+    private static int countPlainTextParagraphs(String content, int endExclusive) {
+        int paragraphs = 0;
+        for (int index = 0; index + 1 < endExclusive; index++) {
+            if (content.charAt(index) == '\n' && content.charAt(index + 1) == '\n') paragraphs++;
+        }
+        return paragraphs;
     }
 }

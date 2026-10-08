@@ -111,6 +111,7 @@ public class PricingPlanServiceImpl implements PricingPlanService {
         plan.setDurationDays(request.priceMinor() == 0 ? null : request.durationDays());
         plan.setAccessRole(request.priceMinor() == 0 ? FREE_TRIAL_ROLE : PAID_PLAN_ROLE);
         plan.setDisplayOrder(request.displayOrder());
+        plan.setMonthlyAssessmentLimit(request.monthlyAssessmentLimit());
         replaceFeatures(plan, request.features());
     }
 
@@ -140,7 +141,7 @@ public class PricingPlanServiceImpl implements PricingPlanService {
         return new SubscriptionPlanInfoDTO(plan.getCode(), plan.getDisplayName(), plan.getDescription(),
                 plan.getPriceMinor(), plan.getCurrency(), plan.getBillingInterval(), plan.getDurationDays(),
                 plan.getFeatures().stream().map(PricingPlanFeature::getFeatureText).toList(),
-                plan.isActive(), plan.getDisplayOrder());
+                plan.isActive(), plan.getDisplayOrder(), plan.getMonthlyAssessmentLimit());
     }
 
     private String blankToNull(String value) {

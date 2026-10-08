@@ -28,12 +28,12 @@ public class CompositionQueryService {
     public List<CompositionResponse> listForUser(Long userId, Pageable pageable) {
         compositionAccessService.requireUserId(userId);
         compositionAccessService.requirePageable(pageable);
-        return compositionRepository.findByUserId(userId, pageable).stream().map(compositionMapper::toResponse).toList();
+        return compositionRepository.findByUserId(userId, pageable).stream().map(compositionMapper::toOwnerResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public CompositionResponse getForUser(Long userId, Long compositionId) {
-        return compositionMapper.toResponse(compositionAccessService.requireOwned(userId, compositionId));
+        return compositionMapper.toOwnerResponse(compositionAccessService.requireOwned(userId, compositionId));
     }
 
     @Transactional(readOnly = true)

@@ -29,6 +29,20 @@ AGENT_CALLS = Counter(
     "Agent invocations by agent and result.",
     ("agent", "result"),
 )
+AGENT_CALL_DURATION = Histogram(
+    "sllp_orchestrator_agent_call_duration_seconds",
+    "Agent invocation duration by agent and outcome.",
+    ("agent", "result"),
+)
+AGENT_CONTRACT_REJECTIONS = Counter(
+    "sllp_orchestrator_agent_contract_rejections_total",
+    "Rejected peer artifacts by agent and bounded reason.",
+    ("agent", "reason"),
+)
+WORKFLOW_BUDGET_GUARDS = Counter(
+    "sllp_orchestrator_workflow_budget_guards_total",
+    "Workflows stopped before another agent call because their configured spend budget was exhausted.",
+)
 OUTBOX_PUBLICATIONS = Counter(
     "sllp_orchestrator_outbox_publications_total",
     "Outbox publication attempts by event type and result.",
@@ -71,8 +85,18 @@ def record_workflow_execution(result: str) -> None:
     WORKFLOW_EXECUTIONS.labels(result=result).inc()
 
 
-def record_agent_call(agent: str, succeeded: bool) -> None:
-    AGENT_CALLS.labels(agent=agent, result="success" if succeeded else "failure").inc()
+def record_agent_call(agent: str, succeeded: bool, latency_ms: int = 0) -> None:
+    result = "success" if succeeded else "failure"
+    AGENT_CALLS.labels(agent=agent, result=result).inc()
+    AGENT_CALL_DURATION.labels(agent=agent, result=result).observe(max(latency_ms, 0) / 1_000)
+
+
+def record_agent_contract_rejection(agent: str, reason: str) -> None:
+    AGENT_CONTRACT_REJECTIONS.labels(agent=agent, reason=reason).inc()
+
+
+def record_workflow_budget_guard() -> None:
+    WORKFLOW_BUDGET_GUARDS.inc()
 
 
 def record_outbox_publication(event_type: str, succeeded: bool) -> None:

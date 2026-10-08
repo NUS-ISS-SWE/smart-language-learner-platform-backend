@@ -37,9 +37,10 @@ public final class ReviewScoringPolicy {
                 throw new IllegalStateException("invalid review findings");
             }
         }
-        int qualityScore = calculateQualityScore(result.checks());
+        ReviewModelResponse normalized = normalizeNonBlockingWarnings(result);
+        int qualityScore = calculateQualityScore(normalized.checks());
         ReviewModelResponse canonical = new ReviewModelResponse(
-                result.decision(), result.confidence(), qualityScore, result.checks(), result.findings());
+                normalized.decision(), normalized.confidence(), qualityScore, normalized.checks(), normalized.findings());
         validateDecisionConsistency(canonical);
         return canonical;
     }
@@ -60,18 +61,33 @@ public final class ReviewScoringPolicy {
     }
 
     /**
+     * WARN is advisory: it can improve feedback, but cannot discard an otherwise sound learner
+     * assessment or start a duplicate grading pass. Reassessment requires a concrete failed audit
+     * check, which makes that expensive path both explainable and bounded.
+     */
+    private static ReviewModelResponse normalizeNonBlockingWarnings(ReviewModelResponse result) {
+        List<ReviewModelResponse.ReviewCheck> checks = result.checks().stream()
+                .map(check -> "ACTIONABILITY".equals(check.name()) && "FAIL".equals(check.status())
+                        ? new ReviewModelResponse.ReviewCheck(check.name(), "WARN", check.rationale())
+                        : check)
+                .toList();
+        boolean hasFailure = checks.stream().anyMatch(check -> "FAIL".equals(check.status()));
+        String decision = "REGRADE".equals(result.decision()) && !hasFailure ? "APPROVE" : result.decision();
+        return new ReviewModelResponse(decision, result.confidence(), result.qualityScore(), checks, result.findings());
+    }
+
+    /**
      * Prevent a model from approving a result which its own audit says is materially unsound.
      * These rules do not reinterpret the review for the orchestrator; they only reject internally
      * contradictory model output before it crosses the existing A2A boundary.
      */
     private static void validateDecisionConsistency(ReviewModelResponse result) {
         boolean hasFailure = result.checks().stream().anyMatch(check -> "FAIL".equals(check.status()));
-        boolean hasConcern = result.checks().stream().anyMatch(check -> !"PASS".equals(check.status()));
         if ("APPROVE".equals(result.decision()) && (hasFailure || result.qualityScore() < 70)) {
             throw new IllegalStateException("an approved review cannot have failed checks or a low quality score");
         }
-        if (("REGRADE".equals(result.decision()) || "REJECT".equals(result.decision())) && !hasConcern) {
-            throw new IllegalStateException("a non-approval requires at least one review concern");
+        if (("REGRADE".equals(result.decision()) || "REJECT".equals(result.decision())) && !hasFailure) {
+            throw new IllegalStateException("a non-approval requires at least one failed audit check");
         }
         if ("REJECT".equals(result.decision()) && !hasFailure) {
             throw new IllegalStateException("a rejected review requires at least one failed check");

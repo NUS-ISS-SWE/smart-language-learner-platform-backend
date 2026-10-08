@@ -7,6 +7,7 @@ from typing import Protocol
 import httpx
 
 from app.models import RubricCriterion, RubricFramework
+from app.metrics import record_upstream
 
 
 class FrameworkUnavailable(RuntimeError):
@@ -32,8 +33,11 @@ class AdminRubricFrameworkProvider:
             rows = response.json()
             criteria = [RubricCriterion(name=row["criterionName"], weight=float(row["weightPercentage"]), guidance=row["criterionDescription"]) for row in rows]
             raw = json.dumps([item.model_dump(by_alias=True) for item in criteria], sort_keys=True, ensure_ascii=False)
-            return RubricFramework(version=f"admin-rubric-{hashlib.sha256(raw.encode()).hexdigest()[:12]}", criteria=criteria)
+            framework = RubricFramework(version=f"admin-rubric-{hashlib.sha256(raw.encode()).hexdigest()[:12]}", criteria=criteria)
+            record_upstream("admin_rubric", True)
+            return framework
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as error:
+            record_upstream("admin_rubric", False)
             raise FrameworkUnavailable("the canonical Admin rubric is unavailable") from error
 
 

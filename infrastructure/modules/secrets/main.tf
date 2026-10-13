@@ -18,6 +18,16 @@ resource "aws_secretsmanager_secret" "openai" {
   }
 }
 
+resource "aws_secretsmanager_secret" "lakera" {
+  name        = "${var.project_name}/lakera"
+  description = "Lakera Guard credentials for SLLP"
+
+  recovery_window_in_days = 0
+  tags = {
+    Name = "${var.project_name}-lakera-secret"
+  }
+}
+
 resource "aws_secretsmanager_secret" "jwt" {
   name        = "${var.project_name}/jwt"
   description = "JWT secret for SLLP"

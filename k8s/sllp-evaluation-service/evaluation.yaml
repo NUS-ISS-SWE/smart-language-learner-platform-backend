@@ -20,6 +20,11 @@ spec:
         jmesPath:
           - path: "apiKey"
             objectAlias: "spring.ai.openai.api-key"
+      - objectName: "sllp/lakera"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "apiKey"
+            objectAlias: "sllp.lakera.api-key"
       - objectName: "sllp/agent-tokens"
         objectType: "secretsmanager"
         jmesPath:

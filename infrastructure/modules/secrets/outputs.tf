@@ -8,6 +8,11 @@ output "openai_secret_arn" {
   value       = aws_secretsmanager_secret.openai.arn
 }
 
+output "lakera_secret_arn" {
+  description = "ARN of the Lakera Guard secret"
+  value       = aws_secretsmanager_secret.lakera.arn
+}
+
 output "jwt_secret_arn" {
   description = "ARN of the JWT secret"
   value       = aws_secretsmanager_secret.jwt.arn

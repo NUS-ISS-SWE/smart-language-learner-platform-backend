@@ -11,6 +11,8 @@ import com.nus.iss.dto.EvidenceItem;
 import com.nus.iss.dto.RubricCriterionDTO;
 import com.nus.iss.enums.Language;
 import com.nus.iss.service.impl.EvidenceCollectionServiceImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +33,8 @@ import java.util.UUID;
 /** A2A v2 adapter; the evidence domain service remains transport-agnostic. */
 @RestController
 public class EvidenceA2aController {
+    private static final Logger log = LoggerFactory.getLogger(EvidenceA2aController.class);
+
     private final EvidenceCollectionServiceImpl service;
     private final SllpProperties properties;
     private final ObjectMapper objectMapper;
@@ -101,25 +105,44 @@ public class EvidenceA2aController {
         if (!authorized(authorization)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         JsonNode root = objectMapper.valueToTree(body);
         String requestId = root.path("id").isTextual() ? root.path("id").asText() : UUID.randomUUID().toString();
+        String contextId;
+        EvidenceAgentRequest request;
         try {
             if (!"2.0".equals(root.path("jsonrpc").asText()) || !"SendMessage".equals(root.path("method").asText())) {
                 throw new IllegalArgumentException("unsupported A2A request");
             }
             JsonNode message = root.path("params").path("message");
-            String contextId = message.path("contextId").asText();
+            contextId = message.path("contextId").asText();
             JsonNode data = jsonPart(message.path("parts"));
-            EvidenceAgentRequest request = new EvidenceAgentRequest(
+            request = new EvidenceAgentRequest(
                     data.path("composition").path("compositionId").asLong(),
                     data.path("composition").path("userId").asLong(),
                     data.path("composition").path("title").asText(),
                     data.path("composition").path("content").asText(),
                     Language.valueOf(data.path("composition").path("language").asText()));
             if (request.compositionId() <= 0 || request.userId() <= 0 || request.content().isBlank()) throw new IllegalArgumentException("invalid composition");
+        } catch (Exception error) {
+            // A malformed request will never succeed on retry, so it is a JSON-RPC error with HTTP 200.
+            log.warn("requestId={} action=a2a_rejected category={}", requestId, error.getClass().getSimpleName());
+            return ResponseEntity.ok(rpcError(requestId, -32602, "invalid A2A evidence request"));
+        }
+        try {
             EvidenceCollectionResult result = service.collect(request, requestId);
             return ResponseEntity.ok(completed(requestId, contextId, artifact(result)));
-        } catch (Exception error) {
-            return ResponseEntity.ok(Map.of("jsonrpc", "2.0", "id", requestId, "error", Map.of("code", -32602, "message", "invalid A2A evidence request")));
+        } catch (RuntimeException error) {
+            // Model, user/admin-service, and unverifiable-evidence failures can succeed on another
+            // attempt, so they are reported as HTTP 5xx: the orchestrator's bounded retry policy
+            // treats that as transient. Only categories are logged; model errors may echo essay text.
+            log.warn("requestId={} contextId={} compositionId={} action=a2a_failed category={} cause={}",
+                    requestId, contextId, request.compositionId(), error.getClass().getSimpleName(),
+                    error.getCause() == null ? "none" : error.getCause().getClass().getSimpleName());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(rpcError(requestId, -32603, "evidence collection failed"));
         }
+    }
+
+    private static Map<String, Object> rpcError(String requestId, int code, String message) {
+        return Map.of("jsonrpc", "2.0", "id", requestId, "error", Map.of("code", code, "message", message));
     }
 
     private static JsonNode jsonPart(JsonNode parts) {

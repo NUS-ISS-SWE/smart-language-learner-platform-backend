@@ -9,6 +9,7 @@ import com.nus.iss.dto.RubricCriterionDTO;
 import com.nus.iss.enums.EvidencePolarity;
 import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.Language;
+import com.nus.iss.exception.EvidenceGenerationException;
 import com.nus.iss.service.impl.EvidenceCollectionServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,6 +78,31 @@ class EvidenceA2aControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void rejectsAMalformedRequestWithoutARetryableStatus() throws Exception {
+        when(properties.getA2aToken()).thenReturn("test-token");
+
+        mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer test-token")
+                        .content(requestBody().replace("\"ENGLISH\"", "\"KLINGON\"")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.error.code").value(-32602));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void reportsAnExecutionFailureAsRetryableServerError() throws Exception {
+        when(properties.getA2aToken()).thenReturn("test-token");
+        when(service.collect(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new EvidenceGenerationException("Evidence agent failed: model call failed"));
+
+        mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer test-token").content(requestBody()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error.code").value(-32603));
     }
 
     private static AiUsage usage() {

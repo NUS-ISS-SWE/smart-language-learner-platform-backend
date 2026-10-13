@@ -228,7 +228,8 @@ def _models(raw: dict, workflow: dict) -> dict:
     for agent, key in (("evidence", "evidence"), ("grading", "grading"), ("review", "review"), ("suggestions", "suggestions")):
         output = workflow.get(key) or {}
         model = _get(_get(output, "usage"), "model") or _get(output, "modelVersion", "model_version")
-        if model and not any(agent in k for k in models):
+        # The usage ledger may name the agent "suggestion" rather than "suggestions".
+        if model and not any(agent.rstrip("s") in k for k in models):
             models[agent] = str(model)
     return models
 

@@ -47,6 +47,11 @@ sllp:
     output-price-micros-per-million: 500000
   audit:
     in-progress-timeout: 2m
+  lakera:
+    endpoint: ${LAKERA_GUARD_ENDPOINT:https://api.lakera.ai/v2/guard}
+    api-key: ${LAKERA_GUARD_API_KEY:}
+    connect-timeout: ${LAKERA_CONNECT_TIMEOUT:5s}
+    read-timeout: ${LAKERA_READ_TIMEOUT:10s}
   services:
     user-service-url: ${GRADING_USER_SERVICE_URL:http://localhost:8082}
     admin-service-url: ${GRADING_ADMIN_SERVICE_URL:http://localhost:8086}

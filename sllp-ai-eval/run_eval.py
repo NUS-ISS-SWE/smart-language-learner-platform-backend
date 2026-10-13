@@ -145,7 +145,16 @@ def collect(args: argparse.Namespace, cases: list[dict]) -> dict:
     print(f"Logging in to {args.gateway} as {args.username}", flush=True)
     token = login(args.gateway, args.username, args.password)
     print(f"Submitting {len(cases)} essays for grading", flush=True)
-    runs = {case["id"]: submit(args.gateway, token, case) for case in cases}
+    runs = {}
+    for case in cases:
+        runs[case["id"]] = submit(args.gateway, token, case)
+        run = runs[case["id"]]
+        print(f"  {case['id']}: " + (f"ERROR {run['error']}" if "error" in run else f"composition {run['compositionId']} submitted"),
+              flush=True)
+    if all("error" in run for run in runs.values()):
+        print("Every submission failed, so no essay reached the agents. See the errors above.", flush=True)
+    else:
+        print("Waiting for the agents to finish (evidence -> grading -> review -> suggestions)", flush=True)
     wait_for_results(args.gateway, token, runs, args.timeout)
 
     database = Database(Path(args.compose_dir))

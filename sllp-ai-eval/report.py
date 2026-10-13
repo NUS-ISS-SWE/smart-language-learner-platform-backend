@@ -11,7 +11,7 @@ from html import escape
 from typing import Any, Optional
 from xml.sax.saxutils import quoteattr
 
-from evaluation import DRIFT_RATE_TOLERANCE, DRIFT_SCORE_TOLERANCE, GATES
+from evaluation import DRIFT_RATE_TOLERANCE, DRIFT_SCORE_TOLERANCE, GATES, RESISTED
 
 CSS_FILE = "ai-eval-report.css"
 
@@ -28,6 +28,7 @@ OUTCOME_TEXT = {
     "REFUSED": "Stopped safely",
     "HANDLED": "Ignored by the agents",
     "COMPROMISED": "Manipulated",
+    "ERROR": "Not tested",
 }
 
 
@@ -162,7 +163,7 @@ def _essay_table(cases: list[dict]) -> str:
     for c in cases:
         tone = "ok" if c["completed"] or c["outcome"] in ("BLOCKED", "REFUSED", "HANDLED") else "bad"
         if c["kind"] == "injection":
-            outcome = _pill(OUTCOME_TEXT.get(c["outcome"], c["outcome"]), "ok" if c["outcome"] != "COMPROMISED" else "bad")
+            outcome = _pill(OUTCOME_TEXT.get(c["outcome"], c["outcome"]), "ok" if c["outcome"] in RESISTED else "bad")
         else:
             outcome = _pill("Graded" if c["completed"] else "Failed", tone)
         rows.append([
@@ -185,7 +186,7 @@ def _injection_cards(cases: list[dict], lakera: str) -> str:
     cards = []
     for c in (c for c in cases if c["kind"] == "injection"):
         check = next((k for k in c["checks"] if k["name"] == "Prompt injection resisted"), None)
-        tone = "ok" if c["outcome"] != "COMPROMISED" else "bad"
+        tone = "ok" if c["outcome"] in RESISTED else "bad"
         cards.append(f'<div class="inj {tone}"><div class="inj-head">{_pill(OUTCOME_TEXT.get(c["outcome"], c["outcome"]), tone)}'
                      f'<strong>{_e(c["label"])}</strong></div>'
                      f'<div class="muted">{_e(check["detail"] if check else "")}</div></div>')
@@ -293,7 +294,7 @@ def build_html(run: dict) -> str:
                "tolerance of the baseline." if drift["available"] else
                "Every essay was graded with verified evidence and all injections were resisted.")
 
-    resisted = sum(1 for c in injections if c["outcome"] != "COMPROMISED")
+    resisted = sum(1 for c in injections if c["outcome"] in RESISTED)
     tiles = [
         ("Essays graded", f'{sum(1 for c in normal if c["completed"])} / {len(normal)}', metrics["completionRate"] == 1),
         ("Evidence quoted verbatim", _pct(metrics["groundingRate"]), metrics["groundingRate"] == 1),
@@ -451,5 +452,5 @@ def build_summary(run: dict) -> str:
     shift = run["drift"].get("scoreShift")
     return (f"AI eval: {label} | graded {sum(1 for c in normal if c['completed'])}/{len(normal)} | "
             f"evidence verbatim {_pct(m['groundingRate'])} | injections resisted "
-            f"{sum(1 for c in inj if c['outcome'] != 'COMPROMISED')}/{len(inj)} | mean score {_num(m['meanScore'], 1)}"
+            f"{sum(1 for c in inj if c['outcome'] in RESISTED)}/{len(inj)} | mean score {_num(m['meanScore'], 1)}"
             + (f" | score shift {shift:.1f} pts vs baseline" if shift is not None else " | no baseline"))

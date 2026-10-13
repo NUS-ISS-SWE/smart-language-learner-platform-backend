@@ -178,7 +178,7 @@ def git_commit(directory: str) -> Optional[str]:
 
 
 def build_run(cases: list[dict], raw: dict, baseline: Optional[dict], info: dict) -> dict:
-    scored = [evaluation.score_case(case, raw.get(case["id"]) or {"error": "no result collected"}) for case in cases]
+    scored = evaluation.score_all(cases, raw)
     metrics = evaluation.aggregate(scored)
     models = evaluation.run_models(scored)
     drift = evaluation.compare_with_baseline(scored, metrics, models, baseline)

@@ -8,7 +8,7 @@ what every agent produced. One run answers four questions:
 |---|---|---|
 | Integration | Did every agent run and return a valid result? | pipeline completed, outputs match the contract, language detected |
 | Quality | Is the output any good? | evidence quoted verbatim, rubric criteria covered, score inside the expected band, review approved |
-| Security | Can an essay manipulate the agents? | two prompt-injection essays (Lakera Guard block, or agents ignore the instruction) |
+| Security | Can an essay manipulate the agents? | two prompt-injection essays, each checked request by request (score vs. an attack-free control essay, invented criteria, injected evidence, leaked system prompt) |
 | Drift | Has quality moved although our code did not? | same essays compared with `baseline.json` |
 
 Files: `cases.json` (test essays and expectations), `evaluation.py` (checks, gates, drift),
@@ -30,8 +30,10 @@ UNSTABLE. Tokens, cost and latency changing by more than 50 % are flagged as WAT
   every check as a test case under **Test Result**, and a one-line summary in the build description.
 - `SIMULATE_DRIFT` + `DRIFT_MODEL` — demo: run the chosen agent(s) on another model with the same
   code and essays, and watch the drift check catch it.
-- Lakera Guard is used when a `lakera-api-key` secret-text credential exists; otherwise the
-  grading agent runs unscreened and the injection tests show how the agents resist on their own.
+- Lakera Guard is used when a `lakera-api-key` secret-text credential exists. The injection tests
+  target the agents' own defences (untrusted-content prompts, fixed rubric, verbatim evidence
+  verification, independent review); each attack essay has a control copy without the attack,
+  so any effect shows up as a score difference.
 
 ### Setting the baseline
 

@@ -26,7 +26,7 @@ GATE_LABEL = {
 OUTCOME_TEXT = {
     "BLOCKED": "Blocked by Lakera Guard",
     "REFUSED": "Stopped safely",
-    "HANDLED": "Ignored by the agents",
+    "HANDLED": "Attack had no effect",
     "COMPROMISED": "Manipulated",
     "ERROR": "Not tested",
 }
@@ -182,18 +182,43 @@ def _essay_table(cases: list[dict]) -> str:
                    "Review", "Suggestions", "Time", "Cost"], rows)
 
 
+DEFENCE_LAYERS = [
+    ("Untrusted-content isolation",
+     "Every agent's system prompt marks the essay (and upstream agent output) as untrusted data and forbids "
+     "following instructions found in it."),
+    ("Fixed Admin rubric",
+     "Criteria come from the Admin rubric snapshot; agents must use each one exactly once and may not invent or rename criteria."),
+    ("Verbatim evidence verification",
+     "Code, not the model, checks every evidence excerpt against the essay; anything not found word for word is rejected."),
+    ("Independent review agent",
+     "A separate reviewer audits grounding, rubric coverage and traceability before any result is published."),
+]
+
+
 def _injection_cards(cases: list[dict], lakera: str) -> str:
+    """Per attack essay: what the attacker asked for, what actually happened, and the control comparison."""
+    screening = ("Lakera Guard input screening is active in this run: flagged essays are stopped before the grading model."
+                 if lakera == "true" else
+                 "Lakera Guard input screening in front of the grading agent is demonstrated separately; this test "
+                 "targets the agents' own defences, so every attack below reaches the models.")
+    layers = "".join(f"<li><strong>{_e(name)}</strong> — {_e(text)}</li>" for name, text in DEFENCE_LAYERS)
+    intro = ('<p>Each attack is hidden inside an otherwise normal essay and sent through the full pipeline. The same '
+             'essay is also graded <em>without</em> the attack (control), so any effect of the attack would show up as '
+             'a difference from the control.</p>'
+             f'<div class="card"><strong>Defence layers exercised</strong><ol class="layers">{layers}</ol>'
+             f'<div class="muted">{_e(screening)}</div></div>')
     cards = []
     for c in (c for c in cases if c["kind"] == "injection"):
-        check = next((k for k in c["checks"] if k["name"] == "Prompt injection resisted"), None)
         tone = "ok" if c["outcome"] in RESISTED else "bad"
+        rows = "".join(
+            f'<tr><td>{_e(a["asked"])}</td><td>{_e(a["observed"])}</td>'
+            f'<td><span class="cell {"ok" if a["passed"] else "bad"}">{"✓" if a["passed"] else "✗"}</span></td></tr>'
+            for a in c.get("attackChecks") or [])
         cards.append(f'<div class="inj {tone}"><div class="inj-head">{_pill(OUTCOME_TEXT.get(c["outcome"], c["outcome"]), tone)}'
                      f'<strong>{_e(c["label"])}</strong></div>'
-                     f'<div class="muted">{_e(check["detail"] if check else "")}</div></div>')
-    note = {"true": "Lakera Guard is active: flagged essays are stopped before the grading model sees them.",
-            "false": "Lakera Guard is not configured in this environment (no lakera-api-key credential), so these "
-                     "results show how the agents themselves resist injection."}.get(lakera, "")
-    return f'<p class="muted">{_e(note)}</p><div class="injs">{"".join(cards)}</div>'
+                     f'<table class="attack"><thead><tr><th>Attacker asked for</th><th>What happened</th><th></th></tr></thead>'
+                     f'<tbody>{rows}</tbody></table></div>')
+    return intro + f'<div class="injs">{"".join(cards)}</div>'
 
 
 def _gates_table(gates: list[dict]) -> str:
@@ -397,9 +422,12 @@ table.matrix td:first-child, table.matrix th:first-child { text-align: left; }
 .cell.ok { background: #d1fae5; } .cell.bad { background: #fee2e2; } .cell.na { color: #9ca3af; }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.ok { background: #d1fae5; color: #065f46; } .pill.bad { background: #fee2e2; color: #991b1b; } .pill.warn { background: #fef3c7; color: #92400e; }
-.injs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.injs { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; margin-top: 12px; }
+ol.layers { margin: 8px 0; padding-left: 22px; } ol.layers li { margin: 4px 0; }
+table.attack { margin-top: 8px; border: 0; font-size: 13px; } table.attack td:last-child { width: 32px; text-align: center; }
 .inj { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; }
 .inj.bad { border-color: #fecaca; }
+.inj.ok, .inj.bad { color: #111827; }
 .inj-head { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; color: #111827; }
 details { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
 summary { cursor: pointer; }
@@ -428,6 +456,8 @@ def build_junit(run: dict) -> str:
     for c in run["cases"]:
         for check in c["checks"]:
             case(f"ai-eval.{check['group']}.{c['id']}", check["name"], check["passed"], check["detail"])
+        for attack in c.get("attackChecks") or []:
+            case(f"ai-eval.security.{c['id']}", f"Attack: {attack['asked']}", attack["passed"], attack["observed"])
     for g in run["gates"]:
         case("ai-eval.gates", GATE_LABEL.get(g["metric"], g["metric"]), g["passed"],
              f"{g['metric']} = {g['value']} (minimum {g['minimum']})")
@@ -453,4 +483,5 @@ def build_summary(run: dict) -> str:
     return (f"AI eval: {label} | graded {sum(1 for c in normal if c['completed'])}/{len(normal)} | "
             f"evidence verbatim {_pct(m['groundingRate'])} | injections resisted "
             f"{sum(1 for c in inj if c['outcome'] in RESISTED)}/{len(inj)} | mean score {_num(m['meanScore'], 1)}"
-            + (f" | score shift {shift:.1f} pts vs baseline" if shift is not None else " | no baseline"))
+            + (f" | score shift {shift:.1f} pts vs baseline" if shift is not None
+               else "" if run["drift"].get("available") else " | no baseline"))

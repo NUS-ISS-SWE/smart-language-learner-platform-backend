@@ -45,7 +45,9 @@ public class ModerationServiceImpl implements ModerationService {
     public void moderateAndRecord(GradingRequestDTO request) {
         try {
             String moderatedText = moderatedText(request);
+            log.info("Calling moderation model requestId={} compositionId={} input={}", request.getRequestId(), request.getCompositionId(), moderatedText);
             ModerationResponse response = moderationModel.call(new ModerationPrompt(moderatedText));
+            log.info("Moderation model response requestId={} compositionId={} response={}", request.getRequestId(), request.getCompositionId(), response);
             Moderation moderation = moderation(response);
             Map<String, Double> scores = scores(moderation.getResults());
             Map<String, Double> matchedScores = new LinkedHashMap<>();

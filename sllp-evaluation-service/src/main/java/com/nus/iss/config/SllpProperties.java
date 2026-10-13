@@ -16,6 +16,7 @@ public class SllpProperties {
     private Health health = new Health();
     private AiUsage aiUsage = new AiUsage();
     private Audit audit = new Audit();
+    private Lakera lakera = new Lakera();
     private Services services = new Services();
 
     @Data
@@ -44,5 +45,13 @@ public class SllpProperties {
     @Data
     public static class Audit {
         private Duration inProgressTimeout = Duration.ofMinutes(2);
+    }
+
+    @Data
+    public static class Lakera {
+        private URI endpoint = URI.create("https://api.lakera.ai/v2/guard");
+        private String apiKey = "";
+        private Duration connectTimeout = Duration.ofSeconds(5);
+        private Duration readTimeout = Duration.ofSeconds(10);
     }
 }

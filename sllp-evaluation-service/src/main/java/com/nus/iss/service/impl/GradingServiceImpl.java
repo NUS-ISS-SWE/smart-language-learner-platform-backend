@@ -14,10 +14,12 @@ import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.exception.A2aExecutionException;
 import com.nus.iss.exception.A2aInvalidRequestException;
+import com.nus.iss.exception.PromptInjectionDetectedException;
 import com.nus.iss.model.GradingAttempt;
 import com.nus.iss.repository.GradingRepository;
 import com.nus.iss.service.AiUsageCostCalculator;
 import com.nus.iss.service.GradingService;
+import com.nus.iss.service.SafeguardService;
 import com.nus.iss.service.ModerationService;
 import com.nus.iss.service.RubricCalculator;
 import com.nus.iss.service.ValidationService;
@@ -56,6 +58,7 @@ public class GradingServiceImpl implements GradingService {
     private final Resource gradingPromptTemplate;
     private final SllpUserClient sllpUserClient;
     private final AnchorTools anchorTools;
+    private final SafeguardService safeguardService;
     private final ModerationService moderationService;
 
     public GradingServiceImpl(ChatClient.Builder chatClientBuilder,
@@ -71,6 +74,7 @@ public class GradingServiceImpl implements GradingService {
                               Resource gradingPromptTemplate,
                               SllpUserClient sllpUserClient,
                               AnchorTools anchorTools,
+                              SafeguardService safeguardService,
                               ModerationService moderationService) {
         this.chatClient = chatClientBuilder.defaultSystem(systemPromptTemplate).build();
         this.validationService = validationService;
@@ -82,6 +86,7 @@ public class GradingServiceImpl implements GradingService {
         this.gradingPromptTemplate = gradingPromptTemplate;
         this.sllpUserClient = sllpUserClient;
         this.anchorTools = anchorTools;
+        this.safeguardService = safeguardService;
         this.moderationService = moderationService;
     }
 
@@ -103,9 +108,10 @@ public class GradingServiceImpl implements GradingService {
             return savedResult(attempt);
         }
         try {
-            DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
             List<WorkflowRubricCriterionDTO> rubric = request.getRubric();
             validationService.validateRubric(rubric);
+            safeguardService.screenAndRecord(request);
+            DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
             moderationService.moderateAndRecord(request);
             GradingToolTrace toolTrace = new GradingToolTrace();
             logGradingContext(request, attempt, difficultyLevel, rubric);
@@ -150,6 +156,11 @@ public class GradingServiceImpl implements GradingService {
                     result.getOverallScore(), result.getConfidence(), result.getModelVersion(),
                     usage.getTotalTokens(), elapsedMillis(startedAt));
             return result;
+        } catch (PromptInjectionDetectedException error) {
+            fail(attempt, "PROMPT_INJECTION_DETECTED", "grading request blocked by security screening");
+            log.warn("Grading blocked by Lakera Guard requestId={} attempt={} durationMs={}",
+                    request.getRequestId(), attempt.getAttemptNumber(), elapsedMillis(startedAt));
+            throw new A2aExecutionException(request.getRequestId(), "grading execution failed", error);
         } catch (A2aInvalidRequestException error) {
             fail(attempt, "INVALID_REQUEST", "structured grading request was invalid");
             log.warn("Grading rejected requestId={} attempt={} category={} durationMs={}",

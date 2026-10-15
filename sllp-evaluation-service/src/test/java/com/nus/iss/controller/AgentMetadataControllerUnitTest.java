@@ -44,6 +44,32 @@ class AgentMetadataControllerUnitTest {
     }
 
     @Test
+    void inputSchemaDescribesRequiredCompositionGradingFields() {
+        Map<String, Object> schema = controller.inputSchema();
+
+        assertEquals("object", schema.get("type"));
+        assertEquals(
+                java.util.List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "rubricSnapshot"),
+                schema.get("required"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        assertEquals("object", ((Map<?, ?>) properties.get("composition")).get("type"));
+        assertEquals("object", ((Map<?, ?>) properties.get("rubricSnapshot")).get("type"));
+    }
+
+    @Test
+    void outputSchemaConstrainsScoreConfidenceAndCriteria() {
+        Map<String, Object> schema = controller.outputSchema();
+
+        assertEquals("object", schema.get("type"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        assertEquals(100, ((Map<?, ?>) properties.get("overallScore")).get("maximum"));
+        assertEquals(1, ((Map<?, ?>) properties.get("confidence")).get("maximum"));
+        assertEquals(1, ((Map<?, ?>) properties.get("criteria")).get("minItems"));
+    }
+
+    @Test
     void healthIsReadyOnlyWhenOpenAiAndDatabaseAreOperational() {
         when(statusClient.isOperational()).thenReturn(true);
         when(gradingRepository.count()).thenReturn(4L);

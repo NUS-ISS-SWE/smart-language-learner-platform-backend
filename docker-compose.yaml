@@ -277,7 +277,7 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=uat
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
-      - LAKERA_GUARD_API_KEY=${LAKERA_GUARD_API_KEY:?LAKERA_GUARD_API_KEY is required for grading agent}
+      - LAKERA_GUARD_API_KEY=${LAKERA_GUARD_API_KEY:-}
       - GRADING_PUBLIC_BASE_URL=http://grading-agent:8093
       - GRADING_AGENT_TOKEN=${GRADING_AGENT_TOKEN:-}
     healthcheck:

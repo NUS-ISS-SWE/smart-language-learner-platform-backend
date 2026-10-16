@@ -104,6 +104,8 @@ whenever the service starts. Existing entries are updated using their stable ide
 
 The default Compose topology is A2A: `docker compose up --build` builds and starts the Evidence, Grading, Review, and Suggestions agents together with the orchestrator. `AGENT_PROVIDER` defaults to `a2a`; set distinct, non-empty peer bearer secrets in `.env`. The orchestrator refuses to start in A2A mode if any agent token is absent, and it verifies every peer's Agent Card before delegation.
 
+`LAKERA_GUARD_API_KEY` is optional for local Compose. If it is unset or blank, the Grading agent runs but skips Lakera Guard screening; grading still uses `OPENAI_API_KEY`. Set a Lakera key in `.env` to enable screening. Configure the key in deployed environments that require prompt-injection screening.
+
 For an intentionally lightweight workflow-only session, use the explicit placeholder overlay. It omits the four A2A services and marks every result as a development placeholder; those results must not be used as assessments:
 
 ```powershell

@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: SLLP evaluation-service anchor regression model comparison
+
+prompts:
+  - file://prompts/grading.yaml
+
+providers:
+  - id: openai:chat:gpt-6-luna
+    label: gpt-6-luna
+    config:
+      reasoning_effort: low
+      max_completion_tokens: 3000
+      response_format: file://schemas/grading-output.json
+  - id: openai:chat:gpt-5.6-luna
+    label: gpt-5.6-luna
+    config:
+      reasoning_effort: low
+      max_completion_tokens: 3000
+      response_format: file://schemas/grading-output.json
+  - id: openai:chat:gpt-5-nano
+    label: gpt-5-nano
+    config:
+      reasoning_effort: low
+      max_completion_tokens: 3000
+      response_format: file://schemas/grading-output.json
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://assertions/grading-quality.js
+
+tests: file://tests/english-cases.yaml
+
+evaluateOptions:
+  cache: false
+  maxConcurrency: 2
+  timeoutMs: 120000
+
+commandLineOptions:
+  share: false
+  write: false

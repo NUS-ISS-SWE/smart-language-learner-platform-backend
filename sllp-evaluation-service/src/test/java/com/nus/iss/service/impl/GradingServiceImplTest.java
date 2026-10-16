@@ -14,6 +14,7 @@ import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.enums.Language;
 import com.nus.iss.exception.A2aExecutionException;
+import com.nus.iss.exception.A2aInvalidRequestException;
 import com.nus.iss.exception.PromptInjectionDetectedException;
 import com.nus.iss.model.GradingAttempt;
 import com.nus.iss.repository.GradingRepository;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,6 +60,70 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class GradingServiceImplTest {
+    @Test
+    void rejectsRequestIdReuseWhenPayloadHashChanges() {
+        GradingRepository repository = mock(GradingRepository.class);
+        GradingAttempt existing = GradingAttempt.builder()
+                .requestId("request-reused").requestHash("original-hash").attemptNumber(1)
+                .status(GradingAttemptStatus.FAILED).build();
+        when(repository.findFirstByRequestIdOrderByAttemptNumberDesc("request-reused"))
+                .thenReturn(Optional.of(existing));
+        GradingServiceImpl service = serviceWith(repository);
+
+        A2aInvalidRequestException error = assertThrows(A2aInvalidRequestException.class,
+                () -> service.grade(GradingRequestDTO.builder()
+                        .requestId("request-reused").requestHash("different-hash").build()));
+
+        assertEquals("request ID was reused with different input", error.getMessage());
+    }
+
+    @Test
+    void rejectsDuplicateRequestWhileMatchingAttemptIsActive() {
+        GradingRepository repository = mock(GradingRepository.class);
+        GradingAttempt active = GradingAttempt.builder()
+                .requestId("request-active").requestHash("same-hash").attemptNumber(1)
+                .status(GradingAttemptStatus.IN_PROGRESS).receivedAt(LocalDateTime.now()).build();
+        when(repository.findFirstByRequestIdOrderByAttemptNumberDesc("request-active"))
+                .thenReturn(Optional.of(active));
+        GradingServiceImpl service = serviceWith(repository);
+
+        A2aExecutionException error = assertThrows(A2aExecutionException.class,
+                () -> service.grade(GradingRequestDTO.builder()
+                        .requestId("request-active").requestHash("same-hash").build()));
+
+        assertEquals("grading request is already in progress", error.getMessage());
+    }
+
+    @Test
+    void marksTimedOutAttemptStaleBeforeCreatingRetry() {
+        GradingRepository repository = mock(GradingRepository.class);
+        GradingAttempt stale = GradingAttempt.builder()
+                .requestId("request-stale").requestHash("same-hash").attemptNumber(1)
+                .status(GradingAttemptStatus.IN_PROGRESS)
+                .receivedAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5)).build();
+        when(repository.findFirstByRequestIdOrderByAttemptNumberDesc("request-stale"))
+                .thenReturn(Optional.of(stale));
+        when(repository.saveAndFlush(any(GradingAttempt.class))).thenAnswer(invocation -> {
+            GradingAttempt attempt = invocation.getArgument(0);
+            if (attempt == stale) {
+                return attempt;
+            }
+            throw new IllegalStateException("stop after retry creation");
+        });
+        GradingServiceImpl service = serviceWith(repository);
+
+        A2aExecutionException error = assertThrows(A2aExecutionException.class,
+                () -> service.grade(GradingRequestDTO.builder()
+                        .requestId("request-stale").requestHash("same-hash").build()));
+
+        assertEquals("could not acquire grading audit attempt", error.getMessage());
+        assertAll(
+                () -> assertEquals(GradingAttemptStatus.FAILED, stale.getStatus()),
+                () -> assertEquals("STALE_ATTEMPT", stale.getErrorCode()),
+                () -> assertEquals("grading attempt exceeded its processing timeout", stale.getErrorMessage()),
+                () -> assertTrue(stale.getCompletedAt() != null));
+    }
+
     @Test
     void returnsPersistedCompletedResultWithoutCallingOpenAi() throws Exception {
         ChatClient.Builder builder = mock(ChatClient.Builder.class);
@@ -262,5 +328,18 @@ class GradingServiceImplTest {
         assertEquals("PROMPT_INJECTION_DETECTED", failed.getErrorCode());
         verify(safeguardService).screenAndRecord(any(GradingRequestDTO.class));
         verifyNoInteractions(userClient, moderationService, chatClient);
+    }
+
+    private static GradingServiceImpl serviceWith(GradingRepository repository) {
+        ChatClient.Builder builder = mock(ChatClient.Builder.class);
+        when(builder.defaultSystem(any(Resource.class))).thenReturn(builder);
+        when(builder.build()).thenReturn(mock(ChatClient.class));
+        return new GradingServiceImpl(builder, mock(ValidationService.class),
+                mock(RubricCalculator.class), mock(AiUsageCostCalculator.class), repository,
+                new SllpProperties(), new ObjectMapper(),
+                new ClassPathResource("promptTemplates/systemPromptTemplate.st"),
+                new ClassPathResource("promptTemplates/gradingPromptTemplate.st"),
+                mock(SllpUserClient.class), mock(AnchorTools.class),
+                mock(SafeguardService.class), mock(ModerationService.class));
     }
 }

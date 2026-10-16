@@ -1,0 +1,264 @@
+- description: BEGINNER - My Surprise Birthday
+  vars:
+    title: My Surprise Birthday
+    language: ENGLISH
+    difficultyLevel: BEGINNER
+    difficultyStandard: Singapore Primary 1 to 2
+    evidence: No evidence supplied; inspect the composition directly.
+    content: >-
+      When I reached home, the living room was dark and strangely quiet. I called for Mum, but nobody
+      answered. Suddenly, the lights came on. My family and friends jumped out and shouted, “Surprise!”
+      Colourful balloons covered the wall, and a chocolate cake waited on the table. I laughed because I had
+      thought everyone had forgotten my birthday. We played musical chairs and shared the cake. Before my
+      friends left, I opened a small box from my sister. Inside was the storybook I had wanted for weeks. I
+      hugged her tightly. It was not the biggest party, but it was my happiest one.
+    rubric: |-
+      - TASK_IDEAS (25%): Assess whether the student responds to the topic with a simple, relevant and understandable sequence of ideas. For Primary 1–2, reward clarity and completeness rather than sophisticated development.
+      - ORGANISATION_COHESION (20%): Assess whether events and ideas are arranged in a basic logical order with a recognisable beginning, middle and ending. Simple connecting words are sufficient at this level.
+      - GRAMMAR_SENTENCE_CONTROL (20%): Assess whether the student can write understandable and mostly complete simple sentences. Consider whether grammar errors affect meaning rather than only counting errors.
+      - VOCABULARY_WORD_CHOICE (15%): Assess whether the student uses familiar and age-appropriate words accurately to communicate actions, people, places and feelings.
+      - MECHANICS (10%): Assess basic spelling, capitalisation and sentence-ending punctuation. Minor mistakes should not be heavily penalised when meaning remains clear.
+      - EXPRESSION_DESCRIPTION_VOICE (10%): Assess whether the student includes simple actions, feelings or descriptive details that make the composition clearer and more interesting.
+    bandDescriptors: |-
+      TASK_IDEAS:
+      - Band 1: Shows little or no evidence of a simple, relevant and understandable response with a recognisable event sequence; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      ORGANISATION_COHESION:
+      - Band 1: Shows little or no evidence of a basic beginning, middle and ending in logical order, using simple connectors; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      GRAMMAR_SENTENCE_CONTROL:
+      - Band 1: Shows little or no evidence of understandable, mostly complete simple sentences whose errors do not obscure meaning; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      VOCABULARY_WORD_CHOICE:
+      - Band 1: Shows little or no evidence of accurate familiar words for actions, people, places and feelings; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      MECHANICS:
+      - Band 1: Shows little or no evidence of readable basic spelling, capitals and sentence-ending punctuation; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      EXPRESSION_DESCRIPTION_VOICE:
+      - Band 1: Shows little or no evidence of simple actions, feelings or details that make the writing clear and interesting; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+    anchors: |-
+      1. My Lost Pencil
+      Composition: Yesterday I lose my pencil. It is blue and nice. I look my bag and table but no pencil. I was sad because I need it for my work. I ask Ben. He say he do not know. Then teacher come. She find it under my chair. I was happy. I take pencil and write my work. I must keep it good next time.
+      Calibrated bands: TASK_IDEAS=2, ORGANISATION_COHESION=1, GRAMMAR_SENTENCE_CONTROL=1, VOCABULARY_WORD_CHOICE=2, MECHANICS=1, EXPRESSION_DESCRIPTION_VOICE=1.
+
+      2. A Rainy Recess
+      Composition: It was recess and rain was very big. We cannot go playground. Me and Jia Min sit in class. We play a game with paper. The paper fly to the floor because the fan. Our teacher told us pick it up. Then we draw a house and a sun. Soon the bell ring. Rainy recess was not fun but the drawing is nice.
+      Calibrated bands: TASK_IDEAS=2, ORGANISATION_COHESION=2, GRAMMAR_SENTENCE_CONTROL=2, VOCABULARY_WORD_CHOICE=1, MECHANICS=2, EXPRESSION_DESCRIPTION_VOICE=1.
+
+      3. Helping at the Market
+      Composition: On Sunday morning, I went to the market with Mum. The market was crowded and noisy. Mum bought carrots, fish and a bag of oranges. The bags looked heavy, so I carried the oranges for her. One orange rolled onto the floor. A kind uncle picked it up and gave it back to me. I thanked him. At home, Mum smiled and said that I was a helpful child. I felt proud because I had made her work easier.
+      Calibrated bands: TASK_IDEAS=3, ORGANISATION_COHESION=3, GRAMMAR_SENTENCE_CONTROL=3, VOCABULARY_WORD_CHOICE=3, MECHANICS=3, EXPRESSION_DESCRIPTION_VOICE=3.
+
+      4. The Stray Kitten
+      Composition: I heard a soft cry near the stairs after school. A tiny grey kitten was hiding behind a flowerpot. It looked wet and hungry. I wanted to take it home, but I knew its owner might be looking for it. My father helped me dry the kitten with a towel. We made a sign and put it near the lift. That evening, a girl from the next block knocked on our door. She hugged the kitten and thanked us. I was glad that we had helped them find each other.
+      Calibrated bands: TASK_IDEAS=4, ORGANISATION_COHESION=4, GRAMMAR_SENTENCE_CONTROL=4, VOCABULARY_WORD_CHOICE=4, MECHANICS=4, EXPRESSION_DESCRIPTION_VOICE=4.
+    expectedBands:
+      TASK_IDEAS: 5
+      ORGANISATION_COHESION: 4
+      GRAMMAR_SENTENCE_CONTROL: 4
+      VOCABULARY_WORD_CHOICE: 4
+      MECHANICS: 5
+      EXPRESSION_DESCRIPTION_VOICE: 4
+    expectedOverall: 87
+
+- description: INTERMEDIATE - Our Class Garden
+  vars:
+    title: Our Class Garden
+    language: ENGLISH
+    difficultyLevel: INTERMEDIATE
+    difficultyStandard: Singapore Primary 3 to 4
+    evidence: No evidence supplied; inspect the composition directly.
+    content: |-
+      Our teacher gave the class an empty patch of soil behind the canteen. She challenged us to turn it into a garden before Open House. At first, we argued about what to plant. Some classmates wanted flowers, while others wanted vegetables. We finally divided the patch into two sections and formed teams.
+
+      My team planted tomato seeds. Every morning, two pupils watered them and pulled out weeds. For many days, nothing appeared. We wondered if we had done something wrong. Then, after a rainy weekend, tiny green shoots pushed through the soil. We cheered as if we had won a prize.
+
+      By Open House, yellow flowers and red tomatoes filled our section. The other team had grown bright sunflowers. Our garden was not perfectly neat, but every pupil had helped. When our parents visited, we proudly explained how patience and teamwork had changed an empty patch into a lively place.
+    rubric: |-
+      - TASK_IDEAS (25%): Assess whether the student addresses the topic clearly and develops the main events with relevant supporting details, explanations and reactions appropriate for Primary 3–4.
+      - ORGANISATION_COHESION (20%): Assess whether the composition has a clear beginning, development and ending, with logical paragraphing and suitable transitions between events and ideas.
+      - GRAMMAR_SENTENCE_CONTROL (20%): Assess control of simple and compound sentences, tense consistency, subject-verb agreement and attempts at more varied sentence structures.
+      - VOCABULARY_WORD_CHOICE (15%): Assess whether vocabulary is accurate, reasonably varied and appropriate to the context, with limited unnecessary repetition.
+      - MECHANICS (10%): Assess spelling, punctuation, capitalisation and paragraph formatting. Errors should be considered according to their frequency and impact on readability.
+      - EXPRESSION_DESCRIPTION_VOICE (10%): Assess the use of description, dialogue, actions and emotional detail to develop events and engage the reader.
+    bandDescriptors: |-
+      TASK_IDEAS:
+      - Band 1: Shows little or no evidence of a clearly developed response with relevant supporting details, explanations and reactions; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      ORGANISATION_COHESION:
+      - Band 1: Shows little or no evidence of a clear beginning, development and ending with logical paragraphs and suitable transitions; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      GRAMMAR_SENTENCE_CONTROL:
+      - Band 1: Shows little or no evidence of controlled simple and compound sentences, consistent tense and agreement, with some structural variety; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      VOCABULARY_WORD_CHOICE:
+      - Band 1: Shows little or no evidence of accurate, reasonably varied contextual vocabulary with limited unnecessary repetition; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      MECHANICS:
+      - Band 1: Shows little or no evidence of generally accurate spelling, punctuation, capitals and paragraph formatting; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      EXPRESSION_DESCRIPTION_VOICE:
+      - Band 1: Shows little or no evidence of developed description, dialogue, action or emotion that engages the reader; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+    anchors: |-
+      1. The Broken Window
+      Composition: After school, Ravi and me played ball at the corridor. Teacher say we must not play there but outside was hot. Ravi kick the ball very hard. It fly past me and hit the classroom window. The glass make a loud sound and broke. We was scared. Ravi said we should run away, so we hide near the toilet. I keep thinking about the window and feel bad. Later, the cleaner saw us and asked why we were there. I told her nothing happened. Then our form teacher came. She knew somebody broke it because another boy see us. The class became quiet when they heard about it. Ravi blamed me and I blamed him. Teacher was angry because we lied. We say sorry and our parents had to pay. I learn not to play ball there and not tell lies because it make everything more worse.
+      Calibrated bands: TASK_IDEAS=2, ORGANISATION_COHESION=1, GRAMMAR_SENTENCE_CONTROL=2, VOCABULARY_WORD_CHOICE=2, MECHANICS=1, EXPRESSION_DESCRIPTION_VOICE=1.
+
+      2. The Day I Was Late
+      Composition: I wake up and saw the clock. It was already seven fifteen! I jump from bed and wear my uniform very fast, my books was still on the table. I did not eat breakfast because no time. My father already left for work so I run to the bus stop. When I reach there, the school bus was turning away. I wave my hands but the driver never see me. I felt worried and call Mum. She was upset but she take me to school in a taxi. There was a traffic jam and many car move slowly. I kept looking at my watch again and again. At last I arrived when the class was reading. Everyone look at me when I entered. I told teacher my alarm did not ring. She tell me check it before sleeping. That night I set two alarms and pack my bag early. I do not want to late again.
+      Calibrated bands: TASK_IDEAS=2, ORGANISATION_COHESION=2, GRAMMAR_SENTENCE_CONTROL=2, VOCABULARY_WORD_CHOICE=2, MECHANICS=2, EXPRESSION_DESCRIPTION_VOICE=2.
+
+      3. An Unexpected Kindness
+      Composition: The afternoon bus was crowded, and I was tired after basketball practice. When a seat became empty, I hurried towards it. At the same moment, an elderly man carrying two grocery bags reached for the handrail beside me. I pretended not to notice him and sat down. At the next stop, the bus jerked suddenly. One of his bags tore, sending oranges rolling along the floor. Shame warmed my face. Before I could move, several passengers bent down to help. I quickly gathered the last two oranges and offered the man my seat. Instead of scolding me, he smiled and thanked me. We began talking. He told me that he was bringing fruit to his wife in hospital. When he left, he gave me one orange, saying that kindness should always be passed on. I did not feel that I deserved it, but I accepted it politely. The orange remained in my bag all evening, reminding me that a small selfish choice could be corrected by a better one.
+      Calibrated bands: TASK_IDEAS=4, ORGANISATION_COHESION=4, GRAMMAR_SENTENCE_CONTROL=4, VOCABULARY_WORD_CHOICE=4, MECHANICS=4, EXPRESSION_DESCRIPTION_VOICE=5.
+
+      4. The Missing Wallet
+      Composition: A brown wallet lay beneath the bench at the playground. I picked it up and found several fifty-dollar notes inside. For one exciting moment, I imagined buying the remote-controlled car displayed at the toy shop. Nobody seemed to be watching. Then I noticed a photograph tucked behind the notes. It showed an old woman smiling beside two children. A library card bore her name and address. My friend Hakim suggested taking the wallet to the police post, but it would close soon. Since the address was only three blocks away, our parents agreed to accompany us there. An anxious woman opened the door before we could knock twice. Her expression changed from worry to relief when she saw the wallet. She explained that the money was meant for her medical appointment. She tried to reward us, but we refused. Instead, she gave us cold drinks and called our parents to praise us. As I walked home, the toy car no longer seemed important. Returning the wallet had given me something money could not buy: the quiet satisfaction of knowing that I had made the honest choice when nobody was watching.
+      Calibrated bands: TASK_IDEAS=5, ORGANISATION_COHESION=5, GRAMMAR_SENTENCE_CONTROL=4, VOCABULARY_WORD_CHOICE=4, MECHANICS=5, EXPRESSION_DESCRIPTION_VOICE=5.
+    expectedBands:
+      TASK_IDEAS: 3
+      ORGANISATION_COHESION: 4
+      GRAMMAR_SENTENCE_CONTROL: 3
+      VOCABULARY_WORD_CHOICE: 3
+      MECHANICS: 4
+      EXPRESSION_DESCRIPTION_VOICE: 3
+    expectedOverall: 66
+
+- description: ADVANCED - The Choice I Regretted
+  vars:
+    title: The Choice I Regretted
+    language: ENGLISH
+    difficultyLevel: ADVANCED
+    difficultyStandard: Singapore Primary 5 to 6
+    evidence: No evidence supplied; inspect the composition directly.
+    content: |-
+      I had a science project with Farid. We need to make a bridge from sticks. He wanted meet on Saturday but I wanted play games, so I told him I was sick. I stayed home and played for many hours. Farid did most of the bridge himself.
+
+      On Monday, he brought it to school. It looked okay but one side was not strong. Our teacher asked us how we shared the work. I said I made the plan and helped a lot. Farid looked at me but did not say anything. During the test, teacher put weights on the bridge. It broke fast. Other groups bridges could hold more. I felt angry and said Farid did not build it properly. He became upset and told teacher the truth.
+
+      Teacher was disappointed with me. She said marks were not the main problem. The problem was I lied and blamed my partner. I knew she was right. Farid had spend his Saturday doing our project while I only enjoyed myself. I said sorry to him, but he did not answer much.
+
+      We got a low mark and had to redo the project. This time I went to his house. We made another bridge and it was stronger. Even though the project became better, Farid did not trust me like before. I regretted my choice because one afternoon of games caused many problems. A fast apology could not make our friendship normal at once. I learned that group work means doing your part and not making excuses.
+    rubric: |-
+      - TASK_IDEAS (25%): Assess whether the student produces a focused, relevant and well-developed response with purposeful elaboration, meaningful details and sufficient depth for Primary 5–6 or PSLE preparation.
+      - ORGANISATION_COHESION (20%): Assess whether the composition is deliberately structured with effective pacing, clear progression, coherent paragraphs and smooth transitions.
+      - GRAMMAR_SENTENCE_CONTROL (20%): Assess accurate and flexible control of varied sentence structures, tense, agreement, clauses and sentence boundaries. Errors should rarely affect fluency or meaning.
+      - VOCABULARY_WORD_CHOICE (15%): Assess whether vocabulary is precise, varied, natural and appropriate to the context. Do not reward difficult vocabulary when it is forced or incorrectly used.
+      - MECHANICS (10%): Assess accurate spelling, punctuation, capitalisation, paragraphing and dialogue punctuation where applicable.
+      - EXPRESSION_DESCRIPTION_VOICE (10%): Assess purposeful use of description, dialogue, reflection, emotional depth, personal voice and writing techniques to create reader impact.
+    bandDescriptors: |-
+      TASK_IDEAS:
+      - Band 1: Shows little or no evidence of a focused, purposeful and well-developed response with meaningful elaboration and depth; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      ORGANISATION_COHESION:
+      - Band 1: Shows little or no evidence of deliberate structure, effective pacing, coherent paragraphs, clear progression and smooth transitions; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      GRAMMAR_SENTENCE_CONTROL:
+      - Band 1: Shows little or no evidence of accurate, flexible control of varied sentence structures, clauses, tense, agreement and boundaries; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      VOCABULARY_WORD_CHOICE:
+      - Band 1: Shows little or no evidence of precise, varied and natural vocabulary used effectively without forced complexity; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      MECHANICS:
+      - Band 1: Shows little or no evidence of consistently accurate spelling, punctuation, capitals, paragraphing and applicable dialogue punctuation; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+
+      EXPRESSION_DESCRIPTION_VOICE:
+      - Band 1: Shows little or no evidence of purposeful and sustained description, reflection, emotional depth, personal voice and reader impact; major weaknesses dominate.
+      - Band 2: Shows some evidence of that expectation, but it is limited or inconsistent and weaknesses outweigh strengths.
+      - Band 3: Generally demonstrates that expectation, although noticeable weaknesses or inconsistencies remain.
+      - Band 4: Demonstrates that expectation consistently, with only occasional minor weaknesses.
+      - Band 5: Demonstrates that expectation exceptionally and consistently throughout, with almost no meaningful weaknesses.
+    anchors: |-
+      1. A Misunderstanding Between Friends
+      Composition: Nadia was my best friend since Primary Three. One week she suddenly stop sitting with me at recess. When I message her, she only answer with one word. I did not know why. I remember I got higher marks for mathematics, so I think maybe she was jealous. I told two classmates about it. They told another person and soon many people know. Nadia came to find me outside the library. She ask why I said those things. I said because she was avoiding me. Then she told me her grandmother was in hospital. Her family went there every day and she was very worried. It was not about my marks at all. I felt bad, but I also told her she should explain earlier. She became angry and walked away. Now we had another problem. We did not talk for one week. It was bad because we were in the same project group. We pass papers to each other but never really speak. Our teacher noticed it and ask what happened. I did not want to explain because it was embarrassing. After class, I wrote Nadia a note. I said sorry for guessing and telling other people. She read the note and said she forgive me, but she was still quiet. I shared lesson notes when she visit the hospital. After some days we started talking more. We became friends again, but not immediately. I learned I should ask my friend what is wrong. I should not make my own story and spread it because a misunderstanding can become bigger very fast.
+      Calibrated bands: TASK_IDEAS=2, ORGANISATION_COHESION=2, GRAMMAR_SENTENCE_CONTROL=2, VOCABULARY_WORD_CHOICE=3, MECHANICS=2, EXPRESSION_DESCRIPTION_VOICE=2.
+
+      2. The Competition That Changed Me
+      Composition: When my teacher selected me for the inter-school speaking competition, I accepted immediately. I imagined standing beneath the stage lights while the audience applauded. Since I usually spoke confidently in class, I assumed that little preparation was needed. My attitude changed during the first rehearsal. I forgot an entire paragraph, rushed through my examples and stared at the floor. My teacher advised me to practise in front of others, but embarrassment made me avoid every opportunity. I kept rewriting the speech instead, hoping that better words would solve the problem. A week before the competition, my younger brother found me practising alone. He sat on my bed and listened. Each time I stumbled, he waited without laughing. Gradually, I invited my parents and then two classmates to become my audience. Their comments helped me slow down and make eye contact. On competition day, my hands still trembled. Halfway through the speech, I lost my place. Rather than freezing, I paused, took a breath and continued in my own words. I did not win, but I completed the speech clearly and received a commendation. At first, the result disappointed me because I had hoped to bring a trophy back to school. Later, I realised the competition had exposed both my overconfidence and my fear of failure. Careful practice had not guaranteed a prize, but it had taught me to accept criticism and recover from mistakes. I also understood that confidence comes from repeated effort, not simply from believing that I am talented. Those lessons mattered beyond one afternoon on a stage.
+      Calibrated bands: TASK_IDEAS=3, ORGANISATION_COHESION=3, GRAMMAR_SENTENCE_CONTROL=3, VOCABULARY_WORD_CHOICE=3, MECHANICS=4, EXPRESSION_DESCRIPTION_VOICE=3.
+
+      3. The Night of the Power Cut
+      Composition: The ceiling fan slowed to a stop, and every light in our flat vanished at once. For a few seconds, the darkness seemed complete. Then phones began glowing in neighbouring windows, and surprised voices drifted along the corridor. My first thought was the history presentation stored on my computer. I had postponed saving a backup, and the blank screen now reflected my anxious face. While I complained, my grandmother calmly found a torch and suggested checking on Mr Lim, our elderly neighbour. He lived alone and depended on an electric mobility aid. We discovered him near his doorway, trying to reach a drawer where he kept spare batteries. My brother held the torch while I retrieved them. Other neighbours soon emerged. One family brought candles, another shared a battery-powered fan, and someone called the electricity provider. With the lifts unavailable, two adults climbed twelve floors to deliver medicine to a resident who had just returned from hospital. The corridor, usually a place of hurried greetings, became a gathering point. Children told stories while adults exchanged food that might spoil in warm refrigerators. Even Mr Lim began joking about our unexpected candlelight party. Power returned two hours later. Cheers broke out, followed by the familiar hum of appliances. I was relieved to discover that my presentation had survived, yet it no longer seemed like the evening’s greatest concern. The blackout had interrupted our routines, but it also illuminated a community hidden behind closed doors. Before going to bed, I saved my work twice and wrote down the names of neighbours I had finally come to know.
+      Calibrated bands: TASK_IDEAS=4, ORGANISATION_COHESION=4, GRAMMAR_SENTENCE_CONTROL=4, VOCABULARY_WORD_CHOICE=4, MECHANICS=5, EXPRESSION_DESCRIPTION_VOICE=4.
+
+      4. The Phone on the Bus
+      Composition: The phone slid across the bus floor as the vehicle turned sharply. I trapped it beneath my shoe before it disappeared under a seat. Its case was cracked, but the screen lit up with a photograph of a laughing family and twelve missed calls from “Mum”. The owner had clearly left in a hurry. My stop was approaching, and I was expected at a team rehearsal. Handing the phone to the driver would have been simple, yet an uneasy thought stopped me: what if the owner returned to the interchange and could not trace which bus held it? I answered the next call. A breathless woman explained that the phone belonged to her son, who had alighted two stops earlier on his way to an examination. We agreed to meet at the interchange. I messaged my teammates, got off several stops beyond my destination and boarded a bus travelling back. By the time I arrived, rehearsal had begun. A boy in school uniform stood beside his mother, repeatedly checking the road. Relief transformed his face when I raised the phone. He thanked me, then admitted that his examination entry details were stored on it. His mother offered to pay for my taxi, but I declined and hurried to rehearsal. My teammates were annoyed by my late arrival. Once I explained, however, our captain quietly shifted the schedule so that I could join the final run. I had expected honesty to feel effortless and immediately rewarding. Instead, returning the phone cost time and inconvenienced others. That was precisely why the decision stayed with me. Doing the right thing is meaningful not when it is convenient, but when there is a genuine reason to walk away.
+      Calibrated bands: TASK_IDEAS=5, ORGANISATION_COHESION=5, GRAMMAR_SENTENCE_CONTROL=5, VOCABULARY_WORD_CHOICE=4, MECHANICS=5, EXPRESSION_DESCRIPTION_VOICE=5.
+    expectedBands:
+      TASK_IDEAS: 2
+      ORGANISATION_COHESION: 2
+      GRAMMAR_SENTENCE_CONTROL: 2
+      VOCABULARY_WORD_CHOICE: 2
+      MECHANICS: 1
+      EXPRESSION_DESCRIPTION_VOICE: 1
+    expectedOverall: 36
+

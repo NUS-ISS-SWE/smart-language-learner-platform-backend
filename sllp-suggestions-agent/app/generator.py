@@ -11,7 +11,7 @@ from app.models import AgentUsage, GeneratedSuggestions
 from app.metrics import record_moderation, record_upstream
 
 
-PROMPT_VERSION = "suggestion-v2"
+PROMPT_VERSION = "suggestion-v3"
 
 
 class GenerationError(RuntimeError):

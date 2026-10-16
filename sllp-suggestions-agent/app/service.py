@@ -139,6 +139,14 @@ class SuggestionService:
             "learnerDifficulty": difficulty,
             "frameworkVersion": framework_version,
             "composition": {"title": request.composition.title, "content": request.composition.content},
+            "meaningPreservation": (
+                "Revise only the cited source excerpt, using the full composition to check context. "
+                "Keep the writer's stated facts and meaning. Do not turn clues into asserted facts: "
+                "a result, cause, motive, feeling, or event that the writer has not stated must remain unknown. "
+                "You may improve wording and add a small illustrative detail only when it does not imply an "
+                "unstated outcome or change what happened. If a natural example would require an unknown fact, "
+                "demonstrate a different improvement to the excerpt instead."
+            ),
             "candidates": [
                 {
                     "criterion": item.criterion.name,

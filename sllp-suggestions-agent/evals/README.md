@@ -40,5 +40,8 @@ before making broader claims.
 
 The original four-case, three-repeat run and its limitations are documented in
 `RESULTS_2026-10-15.md`. Its 12/12 result does not describe the expanded suite.
-The expanded run and its observed meaning-preservation failures are documented
-in `RESULTS_2026-10-16.md`.
+The expanded baseline, the `suggestion-v3` prompt run, the `suggestion-v4`
+guarded run, and the `suggestion-v5` local-reorder follow-up are documented in
+`RESULTS_2026-10-16.md`. The latest run returned Suggestions in 15/24 case-runs,
+correctly returned no priority improvement in 3/24, and withheld Suggestions
+in 6/24. These results still need human review for teaching usefulness.

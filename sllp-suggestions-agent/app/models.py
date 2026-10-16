@@ -97,7 +97,7 @@ class SuggestionResponse(ApiModel):
 class GeneratedSuggestion(ApiModel):
     criterion: str = Field(min_length=1, max_length=200)
     recommendation: str = Field(min_length=1, max_length=1_200)
-    example_revision: str = Field(min_length=1, max_length=1_200)
+    example_revision: str | None = Field(default=None, min_length=1, max_length=1_200)
     learning_tip: str | None = Field(default=None, max_length=1_200)
 
 

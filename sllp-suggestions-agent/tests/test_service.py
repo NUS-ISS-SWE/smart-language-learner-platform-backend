@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from dataclasses import replace
 
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.framework import FixtureDeepFrameworkProvider
 from app.generator import GenerationError, GenerationResult, OpenAIChatGenerator
-from app.models import DeepFramework, GeneratedSuggestions, SuggestionRequest
+from app.models import AgentUsage, DeepFramework, GeneratedSuggestions, SuggestionRequest
 from app.service import SuggestionService, SuggestionServiceError
 from app.main import create_app
 
@@ -88,6 +89,63 @@ def request() -> SuggestionRequest:
 
 
 class SuggestionServiceTest(unittest.TestCase):
+    def test_counts_tokens_from_a_rejected_generation_attempt(self):
+        class RetryingGenerator:
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, prompt):
+                self.calls += 1
+                first_criterion = "Vocabulary" if self.calls == 1 else "Emotion"
+                output = GeneratedSuggestions.model_validate({"suggestions": [
+                    {"criterion": first_criterion, "recommendation": "Show your reaction.",
+                     "exampleRevision": "I smiled as I walked home."},
+                    {"criterion": "Description", "recommendation": "Describe the setting.",
+                     "exampleRevision": "The quiet street glowed in the afternoon sun."},
+                ]})
+                usage = AgentUsage(provider="OPENAI", model="test-model", promptTokens=10,
+                                   cachedInputTokens=0, completionTokens=5, totalTokens=15,
+                                   pricingVersion="test-v1", inputPriceMicrosPerMillion=1,
+                                   cachedInputPriceMicrosPerMillion=1, outputPriceMicrosPerMillion=1)
+                return GenerationResult(output, "test-model", 15, usage)
+
+        generator = RetryingGenerator()
+        result = SuggestionService(FakeProfileTool(), FixtureDeepFrameworkProvider(framework()), generator).generate(request())
+
+        self.assertEqual(2, generator.calls)
+        self.assertIsNotNone(result.usage)
+        self.assertEqual(30, result.usage.total_tokens)
+        self.assertEqual(30, result.token_usage)
+
+    def test_drops_ungrounded_example_and_tries_next_ranked_criterion(self):
+        class SelectiveGenerator:
+            def __init__(self):
+                self.prompts = []
+
+            def generate(self, prompt):
+                self.prompts.append(prompt)
+                candidates = json.loads(prompt)["candidates"]
+                return GenerationResult(GeneratedSuggestions.model_validate({"suggestions": [
+                    {"criterion": item["criterion"], "recommendation": "Improve this criterion.",
+                     "exampleRevision": None if item["criterion"] == "Emotion" else "I walked home."}
+                    for item in candidates
+                ]}), "test-model", 17)
+
+        original = request()
+        payload = original.model_dump(by_alias=True)
+        payload["grading"]["criteria"].extend([
+            {"criterion": "Elaboration", "score": 60, "rationale": "Needs detail", "evidence": [{"excerpt": "walked home"}]},
+            {"criterion": "Personal Experience", "score": 90, "rationale": "Needs reflection", "evidence": [{"excerpt": "walked home"}]},
+        ])
+        generator = SelectiveGenerator()
+        service = SuggestionService(FakeProfileTool(), FixtureDeepFrameworkProvider(framework()), generator)
+
+        result = service.generate(SuggestionRequest.model_validate(payload))
+
+        self.assertEqual(["Elaboration", "Description", "Personal Experience"], [item.criterion for item in result.suggestions])
+        self.assertEqual(["HIGH", "MEDIUM", "LOW"], [item.priority for item in result.suggestions])
+        self.assertEqual(2, len(generator.prompts))
+
     def test_priorities_do_not_depend_on_model_output_order(self):
         generator = FakeGenerator({"suggestions": [
             {"criterion": "Description", "recommendation": "Describe the setting.", "exampleRevision": "The quiet street glowed in the afternoon sun."},
@@ -164,8 +222,8 @@ class SuggestionServiceTest(unittest.TestCase):
             ]}),
         )
 
-        with self.assertRaisesRegex(SuggestionServiceError, "temporarily unavailable"):
-            service.generate(request())
+        result = service.generate(request())
+        self.assertEqual(["Description"], [item.criterion for item in result.suggestions])
 
     def test_rejects_an_example_that_attempts_to_replace_the_composition(self):
         service = SuggestionService(
@@ -177,8 +235,8 @@ class SuggestionServiceTest(unittest.TestCase):
             ]}),
         )
 
-        with self.assertRaisesRegex(SuggestionServiceError, "temporarily unavailable"):
-            service.generate(request())
+        result = service.generate(request())
+        self.assertEqual(["Description"], [item.criterion for item in result.suggestions])
 
     def test_rejects_non_english_compositions(self):
         service = SuggestionService(FakeProfileTool(), FixtureDeepFrameworkProvider(framework()), FakeGenerator({"suggestions": []}))

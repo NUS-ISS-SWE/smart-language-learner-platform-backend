@@ -8,7 +8,7 @@ from re import Pattern
 
 from app.framework import RubricFrameworkProvider, FrameworkUnavailable
 from app.generator import PROMPT_VERSION, GenerationError, GenerationResult, SuggestionGenerator
-from app.models import RubricCriterion, Evidence, GeneratedSuggestions, Grading, Suggestion, SuggestionRequest, SuggestionResponse
+from app.models import AgentUsage, RubricCriterion, Evidence, GeneratedSuggestions, Grading, Suggestion, SuggestionRequest, SuggestionResponse
 from app.tools import LearnerProfileTool, ToolUnavailable
 
 
@@ -73,32 +73,46 @@ class SuggestionService:
         candidates = self._rank(request.grading, framework.criteria, request.composition.content)
         if not candidates:
             return SuggestionResponse(suggestionStatus="NO_PRIORITY_IMPROVEMENT", suggestions=[])
-        generated, suggestions = self._generate_valid_suggestions(
-            self._prompt(request, learner.difficulty_level, framework.version, candidates),
-            candidates,
-        )
+        generations: list[GenerationResult] = []
+        suggestions: list[Suggestion] = []
+        for batch_start in range(0, len(candidates), 3):
+            if len(suggestions) >= 3:
+                break
+            batch = candidates[batch_start:batch_start + 3]
+            try:
+                accepted = self._generate_valid_suggestions(
+                    self._prompt(request, learner.difficulty_level, framework.version, batch), batch, generations,
+                )
+            except SuggestionServiceError:
+                continue
+            suggestions.extend(accepted[:3 - len(suggestions)])
+        if not suggestions:
+            raise SuggestionServiceError("suggestion generation is temporarily unavailable")
+        suggestions = [item.model_copy(update={"priority": _PRIORITIES[index]}) for index, item in enumerate(suggestions)]
+        usage = _combined_usage(generations)
         return SuggestionResponse(
             suggestions=suggestions,
-            modelVersion=generated.model_version,
+            modelVersion=generations[0].model_version,
             promptVersion=PROMPT_VERSION,
-            tokenUsage=generated.token_usage,
-            usage=generated.usage,
+            tokenUsage=usage.total_tokens if usage else sum(item.token_usage or 0 for item in generations) or None,
+            usage=usage,
         )
 
     def _generate_valid_suggestions(
         self,
         prompt: str,
         candidates: list[Candidate],
-    ) -> tuple[GenerationResult, list[Suggestion]]:
+        generations: list[GenerationResult],
+    ) -> list[Suggestion]:
         last_error: Exception | None = None
-        # A usable suggestion must include an illustrative local revision. A single
-        # retry handles a malformed or unsafe model response without publishing
-        # recommendation-only coaching as an AVAILABLE result.
+        # Unsupported examples are dropped; a later candidate may replace them.
+        # A single retry handles malformed or unsafe responses.
         for _ in range(_MAX_GENERATION_ATTEMPTS):
             try:
                 generated = self.generator.generate(prompt)
+                generations.append(generated)
                 suggestions = self._validate_and_attach(generated.output, candidates)
-                return generated, suggestions
+                return suggestions
             except (GenerationError, SuggestionServiceError) as error:
                 last_error = error
                 LOGGER.warning("Suggestion example generation attempt failed: %s", error)
@@ -130,7 +144,7 @@ class SuggestionService:
             ))
         if not candidates and (has_nonperfect_assessment or has_incomplete_assessment):
             raise SuggestionServiceError("approved grading has no rubric evidence that can ground a suggestion")
-        return sorted(candidates, key=lambda item: (-item.weighted_gap, item.criterion.name))[:3]
+        return sorted(candidates, key=lambda item: (-item.weighted_gap, item.criterion.name))
 
     @staticmethod
     def _prompt(request: SuggestionRequest, difficulty: str, framework_version: str, candidates: list[Candidate]) -> str:
@@ -143,9 +157,17 @@ class SuggestionService:
                 "Revise only the cited source excerpt, using the full composition to check context. "
                 "Keep the writer's stated facts and meaning. Do not turn clues into asserted facts: "
                 "a result, cause, motive, feeling, or event that the writer has not stated must remain unknown. "
-                "You may improve wording and add a small illustrative detail only when it does not imply an "
-                "unstated outcome or change what happened. If a natural example would require an unknown fact, "
-                "demonstrate a different improvement to the excerpt instead."
+                "Do not add a new thought, emotion, intention, sensation, sound, person, or event to the "
+                "exampleRevision. For criteria asking for more reflection or emotion, use the recommendation "
+                "to ask the learner what they actually thought or felt; keep the exampleRevision to a safe "
+                "wording or sentence-structure improvement of the cited excerpt. If an example would require "
+                "an unknown fact, demonstrate a different improvement instead. Example: when the excerpt "
+                "only says 'I practised for weeks' and gives no feelings or result, an acceptable revision is "
+                "'For weeks, I practised.' A revision such as 'I hoped to win' invents a motive. "
+                "The recommendation may ask the learner to add their real feeling or result, but the example "
+                "must not supply it for them. Use content words already present in the composition, "
+                "mainly changing their order or sentence structure. Do not add new descriptive or emotional "
+                "words to the example. Apply this rule even when the grading rationale mentions a missing detail."
             ),
             "candidates": [
                 {
@@ -180,12 +202,18 @@ class SuggestionService:
                 raise SuggestionServiceError("model returned a suggestion outside the selected rubric criteria")
             seen.add(key)
             recommendation = output.recommendation.strip()
-            example_revision = output.example_revision.strip()
+            example_revision = output.example_revision.strip() if output.example_revision else None
             learning_tip = output.learning_tip.strip() if output.learning_tip else None
-            _validate_coaching_text(recommendation, "recommendation")
-            if learning_tip:
-                _validate_coaching_text(learning_tip, "learning tip")
-            _validate_example_revision(example_revision, candidate.evidence.excerpt)
+            if not example_revision:
+                continue
+            try:
+                _validate_coaching_text(recommendation, "recommendation")
+                if learning_tip:
+                    _validate_coaching_text(learning_tip, "learning tip")
+                _validate_example_revision(example_revision, candidate.evidence.excerpt)
+            except SuggestionServiceError:
+                LOGGER.warning("Omitting suggestion whose coaching or example failed validation")
+                continue
             suggestions.append(Suggestion(
                 criterion=candidate.criterion.name,
                 priority=_PRIORITIES[candidate_positions[key]],
@@ -195,6 +223,26 @@ class SuggestionService:
                 supportingEvidence=candidate.evidence.model_dump(by_alias=True),
             ))
         return sorted(suggestions, key=lambda item: _PRIORITIES.index(item.priority))
+
+
+def _combined_usage(generations: list[GenerationResult]) -> AgentUsage | None:
+    usages = [item.usage for item in generations if item.usage is not None]
+    if not usages:
+        return None
+    if len(usages) != len(generations):
+        raise SuggestionServiceError("provider usage is incomplete")
+    first = usages[0]
+    return AgentUsage(
+        provider=first.provider, model=first.model,
+        promptTokens=sum(item.prompt_tokens for item in usages),
+        cachedInputTokens=sum(item.cached_input_tokens for item in usages),
+        completionTokens=sum(item.completion_tokens for item in usages),
+        totalTokens=sum(item.total_tokens for item in usages),
+        pricingVersion=first.pricing_version,
+        inputPriceMicrosPerMillion=first.input_price_micros_per_million,
+        cachedInputPriceMicrosPerMillion=first.cached_input_price_micros_per_million,
+        outputPriceMicrosPerMillion=first.output_price_micros_per_million,
+    )
 
 
 def _validate_coaching_text(value: str, field: str) -> None:

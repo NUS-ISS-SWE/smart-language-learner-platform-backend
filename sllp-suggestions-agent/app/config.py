@@ -22,6 +22,7 @@ class Settings:
     output_price_micros_per_million: int
     max_a2a_request_bytes: int = 262_144
     max_completion_tokens: int = 500
+    agent_version: str = "0.1.0"
 
     def __post_init__(self) -> None:
         if self.max_a2a_request_bytes <= 0:
@@ -48,4 +49,5 @@ class Settings:
             output_price_micros_per_million=int(os.getenv("SUGGESTIONS_OUTPUT_PRICE_MICROS_PER_MILLION", "600000")),
             max_a2a_request_bytes=int(os.getenv("SUGGESTIONS_MAX_A2A_REQUEST_BYTES", "262144")),
             max_completion_tokens=int(os.getenv("SUGGESTIONS_MAX_COMPLETION_TOKENS", "500")),
+            agent_version=os.getenv("SLLP_AGENT_VERSION", "0.1.0"),
         )

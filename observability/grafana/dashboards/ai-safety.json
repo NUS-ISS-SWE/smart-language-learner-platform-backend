@@ -1,0 +1,12 @@
+{
+  "title": "SLLP AI Safety and Audit",
+  "uid": "sllp-ai-safety",
+  "schemaVersion": 41,
+  "version": 1,
+  "panels": [
+    {"type":"timeseries","title":"Moderation decisions","targets":[{"expr":"sum by (service, stage, decision) (increase(sllp_ai_moderation_checks_total[5m]))"}],"gridPos":{"h":8,"w":16,"x":0,"y":0}},
+    {"type":"timeseries","title":"Product Guide AI invocations","targets":[{"expr":"sum by (outcome) (increase(sllp_ai_invocations_total{service=\"product-guide-service\"}[5m]))"}],"gridPos":{"h":8,"w":8,"x":16,"y":0}},
+    {"type":"timeseries","title":"Audit ingestion failures","targets":[{"expr":"sum by (service) (increase(audit_write_failures_total[5m]))"}],"gridPos":{"h":8,"w":24,"x":0,"y":8}}
+  ],
+  "time":{"from":"now-6h","to":"now"}
+}

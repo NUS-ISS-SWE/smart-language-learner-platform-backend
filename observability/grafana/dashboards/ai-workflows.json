@@ -1,0 +1,13 @@
+{
+  "title": "SLLP AI Workflows",
+  "uid": "sllp-ai-workflows",
+  "schemaVersion": 41,
+  "version": 1,
+  "panels": [
+    {"type":"timeseries","title":"Workflow outcomes","targets":[{"expr":"sum by (result) (increase(sllp_orchestrator_workflow_executions_total[5m]))"}],"gridPos":{"h":8,"w":12,"x":0,"y":0}},
+    {"type":"timeseries","title":"Agent call p95 latency","targets":[{"expr":"histogram_quantile(0.95, sum by (le, agent) (rate(sllp_orchestrator_agent_call_duration_seconds_bucket[5m])))"}],"gridPos":{"h":8,"w":12,"x":12,"y":0}},
+    {"type":"stat","title":"Spend guards (15m)","targets":[{"expr":"increase(sllp_orchestrator_workflow_budget_guards_total[15m])"}],"gridPos":{"h":8,"w":8,"x":0,"y":8}},
+    {"type":"timeseries","title":"Suggestion tokens","targets":[{"expr":"sum by (kind) (increase(sllp_suggestions_tokens_total[5m]))"}],"gridPos":{"h":8,"w":16,"x":8,"y":8}}
+  ],
+  "time":{"from":"now-6h","to":"now"}
+}

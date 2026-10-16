@@ -3,11 +3,12 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.framework import FixtureDeepFrameworkProvider
-from app.generator import GenerationError, GenerationResult
+from app.generator import GenerationError, GenerationResult, OpenAIChatGenerator
 from app.models import DeepFramework, GeneratedSuggestions, SuggestionRequest
 from app.service import SuggestionService, SuggestionServiceError
 from app.main import create_app
@@ -27,6 +28,29 @@ class FakeGenerator:
     def generate(self, prompt):
         self.prompts.append(prompt)
         return GenerationResult(GeneratedSuggestions.model_validate(self.payload), "test-model", 17)
+
+
+class OutputModerationTest(unittest.TestCase):
+    def moderate(self, payload):
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+        with httpx.Client(transport=transport) as client:
+            generator = OpenAIChatGenerator("test-key", "http://openai.test/v1", "test-model", 0.2, client)
+            generator._moderate_feedback('{"suggestions":[]}')
+
+    def test_accepts_complete_safe_decision(self):
+        self.moderate({"results": [{"flagged": False, "category_scores": {"violence": 0.01}}]})
+
+    def test_rejects_missing_scores_or_decision(self):
+        for result in ({"flagged": False}, {"category_scores": {"violence": 0.01}}):
+            with self.subTest(result=result), self.assertRaisesRegex(GenerationError, "temporarily unavailable"):
+                self.moderate({"results": [result]})
+
+    def test_blocks_any_flagged_result(self):
+        with self.assertRaisesRegex(GenerationError, "blocked"):
+            self.moderate({"results": [
+                {"flagged": False, "category_scores": {"violence": 0.01}},
+                {"flagged": True, "category_scores": {"violence": 0.01}},
+            ]})
 
 
 def framework() -> DeepFramework:
@@ -186,6 +210,7 @@ class SuggestionServiceTest(unittest.TestCase):
             input_price_micros_per_million=1,
             cached_input_price_micros_per_million=1,
             output_price_micros_per_million=1,
+            agent_version="test-suggestions-version",
         )
         body = {
             "jsonrpc": "2.0", "id": "request-1", "method": "SendMessage",
@@ -203,9 +228,15 @@ class SuggestionServiceTest(unittest.TestCase):
 
         self.assertEqual(200, card.status_code)
         self.assertEqual("2.0", card.json()["sllp"]["contractVersion"])
+        self.assertEqual("test-suggestions-version", card.json()["version"])
         self.assertEqual("writing-suggestions", card.json()["skills"][0]["id"])
+        self.assertEqual("JSONRPC", card.json()["supportedInterfaces"][0]["protocolBinding"])
+        self.assertEqual(["application/json"], card.json()["defaultOutputModes"])
+        self.assertEqual("Bearer", card.json()["securitySchemes"]["peerBearer"]["httpAuthSecurityScheme"]["scheme"])
         self.assertEqual("https://json-schema.org/draft/2020-12/schema", input_schema.json()["$schema"])
         self.assertEqual("https://json-schema.org/draft/2020-12/schema", output_schema.json()["$schema"])
+        self.assertIn("suggestionStatus", output_schema.json()["required"])
+        self.assertEqual(2, len(output_schema.json()["allOf"]))
         self.assertEqual("TASK_STATE_COMPLETED", response.json()["result"]["task"]["status"]["state"])
         artifact = response.json()["result"]["task"]["artifacts"][0]["parts"][0]["data"]
         self.assertEqual("AVAILABLE", artifact["suggestionStatus"])

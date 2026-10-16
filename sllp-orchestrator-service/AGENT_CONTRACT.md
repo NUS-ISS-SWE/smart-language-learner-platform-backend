@@ -6,14 +6,24 @@ Transient network failures and HTTP 5xx responses are retried twice with exponen
 
 ## Agent Cards
 
-Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; discovery fetches both URLs from that same origin and requires a draft 2020-12 object schema. Additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator.
+Each peer service must expose an Agent Card at `/.well-known/agent-card.json`. The SLLP v2 profile retains the top-level `url` and `protocolVersion` fields for existing clients, and also declares the same JSON-RPC endpoint in A2A v1 `supportedInterfaces`. Every card identifies its synchronous-only capabilities, JSON input/output modes, and required peer-bearer authentication. Each skill supplies a description and tags so it is useful beyond the fixed SLLP allowlist.
+
+The card's `url` is its A2A JSON-RPC endpoint, not a separate custom API. The endpoint must share an origin with the allowlisted card URL. Each card must also publish stable `sllp.inputSchemaUrl` and `sllp.outputSchemaUrl` JSON Schema endpoints for its advertised skill; discovery fetches both URLs from that same origin and requires a draft 2020-12 object schema. Additive output fields remain forward-compatible, but the required fields in this document are enforced by the orchestrator. `version` identifies the deployed agent implementation (and can be overridden with `SLLP_AGENT_VERSION`); it is distinct from the fixed `sllp.contractVersion` wire-contract version.
 
 ```json
 {
   "name": "SLLP Grading Agent",
+  "description": "Grades a submitted composition against the immutable SLLP rubric.",
   "url": "https://grading-agent.example/a2a",
   "protocolVersion": "1.0",
-  "skills": [{"id": "composition-grading", "name": "Composition grading"}],
+  "version": "2026.10.5",
+  "supportedInterfaces": [{"url": "https://grading-agent.example/a2a", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+  "capabilities": {"streaming": false, "pushNotifications": false, "extendedAgentCard": false},
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "securitySchemes": {"peerBearer": {"httpAuthSecurityScheme": {"scheme": "Bearer"}}},
+  "securityRequirements": [{"schemes": {"peerBearer": {"list": []}}}],
+  "skills": [{"id": "composition-grading", "name": "Composition grading", "description": "Scores every immutable rubric criterion.", "tags": ["assessment", "grading"]}],
   "sllp": {
     "contractVersion": "2.0",
     "inputSchemaUrl": "https://grading-agent.example/.well-known/sllp-contracts/composition-grading-v2-input.json",

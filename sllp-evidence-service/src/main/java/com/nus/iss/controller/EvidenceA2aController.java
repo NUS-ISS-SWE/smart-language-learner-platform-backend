@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.nus.iss.agent.EvidenceAgentRequest;
 import com.nus.iss.config.SllpProperties;
+import com.nus.iss.contracts.a2a.SllpA2aContract;
 import com.nus.iss.dto.AiUsage;
 import com.nus.iss.dto.CriterionEvidence;
 import com.nus.iss.dto.EvidenceCollectionResult;
@@ -43,50 +44,38 @@ public class EvidenceA2aController {
 
     @GetMapping("/.well-known/agent-card.json")
     public Map<String, Object> card() {
-        return Map.of("name", "SLLP Evidence Agent", "url", properties.getPublicBaseUrl() + "/a2a", "protocolVersion", "1.0",
-                "skills", List.of(Map.of("id", "evidence-collection", "name", "Evidence collection")),
-                "sllp", Map.of(
-                        "contractVersion", "2.0",
-                        "inputSchemaUrl", properties.getPublicBaseUrl() + "/.well-known/sllp-contracts/evidence-collection-v2-input.json",
-                        "outputSchemaUrl", properties.getPublicBaseUrl() + "/.well-known/sllp-contracts/evidence-collection-v2-output.json"));
+        return SllpA2aContract.agentCard(
+                "SLLP Evidence Agent",
+                "Collects traceable evidence from a submitted composition against the immutable assessment rubric.",
+                properties.getAgentVersion(), properties.getPublicBaseUrl(),
+                "evidence-collection", "Evidence collection",
+                "Finds and locates rubric-relevant passages in the submitted composition.",
+                List.of("assessment", "evidence", "rubric", "traceability"),
+                "/.well-known/sllp-contracts/evidence-collection-v2-input.json",
+                "/.well-known/sllp-contracts/evidence-collection-v2-output.json");
     }
 
     @GetMapping("/.well-known/sllp-contracts/evidence-collection-v2-input.json")
     public Map<String, Object> inputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "Evidence collection input",
-                "type", "object",
-                "required", List.of("schemaVersion", "workflowId", "attempt", "composition"),
-                "properties", Map.of("composition", Map.of(
-                        "type", "object",
-                        "required", List.of("compositionId", "userId", "title", "content", "language"))));
+        return SllpA2aContract.objectSchema(
+                "Evidence collection input",
+                List.of("schemaVersion", "workflowId", "attempt", "composition"),
+                SllpA2aContract.commonRequestProperties());
     }
 
     @GetMapping("/.well-known/sllp-contracts/evidence-collection-v2-output.json")
     public Map<String, Object> outputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "Evidence collection output",
-                "type", "object",
-                "required", List.of("criteria", "rubricVersion", "rubricSnapshot", "usage"),
-                "properties", Map.of(
-                        "criteria", Map.of("type", "array", "minItems", 1,
-                                "items", Map.of("type", "object", "required", List.of("criterion", "evidence"),
-                                        "properties", Map.of(
-                                                "criterion", Map.of("type", "string", "minLength", 1),
-                                                "evidence", Map.of("type", "array", "minItems", 1,
-                                                        "items", Map.of("type", "object",
-                                                                "required", List.of("excerpt", "location", "polarity", "note", "verifiedOnFirstPass"),
-                                                                "properties", Map.of(
-                                                                        "excerpt", Map.of("type", "string", "minLength", 1),
-                                                                        "location", Map.of("type", "string", "minLength", 1),
-                                                                        "polarity", Map.of("type", "string", "enum", List.of("STRENGTH", "WEAKNESS")),
-                                                                        "note", Map.of("type", "string", "minLength", 1),
-                                                                        "verifiedOnFirstPass", Map.of("type", "boolean"))))))),
-                        "rubricVersion", Map.of("type", "string", "minLength", 1),
-                        "rubricSnapshot", Map.of("type", "object", "required", List.of("version", "criteria")),
-                        "usage", Map.of("type", "object")));
+        return SllpA2aContract.objectSchema(
+                "Evidence collection output",
+                List.of("plan", "criteria", "rubricVersion", "rubricSnapshot", "modelVersion", "promptVersion", "usage"),
+                Map.ofEntries(
+                        Map.entry("plan", Map.of("type", "array", "items", Map.of("type", "string", "minLength", 1))),
+                        Map.entry("criteria", SllpA2aContract.evidenceCriteriaSchema()),
+                        Map.entry("rubricVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("rubricSnapshot", SllpA2aContract.rubricSnapshotSchema()),
+                        Map.entry("modelVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("promptVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("usage", SllpA2aContract.usageSchema())));
     }
 
     @GetMapping({"/health", "/ready"})

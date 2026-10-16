@@ -1,0 +1,12 @@
+{
+  "title": "SLLP Service Health",
+  "uid": "sllp-service-health",
+  "schemaVersion": 41,
+  "version": 1,
+  "panels": [
+    {"type":"stat","title":"Services up","targets":[{"expr":"sum(up{job=~\"sllp-services|sllp-orchestrator|sllp-assessment-agents|sllp-suggestions-agent\"})"}],"gridPos":{"h":8,"w":8,"x":0,"y":0}},
+    {"type":"stat","title":"Services down","targets":[{"expr":"count(up{job=~\"sllp-services|sllp-orchestrator|sllp-assessment-agents|sllp-suggestions-agent\"} == 0)"}],"gridPos":{"h":8,"w":8,"x":8,"y":0}},
+    {"type":"timeseries","title":"Agent failures (10m)","targets":[{"expr":"sum(increase(sllp_orchestrator_agent_calls_total{result=\"failure\"}[10m]))"}],"gridPos":{"h":8,"w":8,"x":16,"y":0}}
+  ],
+  "time":{"from":"now-6h","to":"now"}
+}

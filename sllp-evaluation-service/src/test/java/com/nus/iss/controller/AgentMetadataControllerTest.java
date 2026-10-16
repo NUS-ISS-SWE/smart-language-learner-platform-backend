@@ -58,4 +58,21 @@ class AgentMetadataControllerTest {
 
         verifyNoInteractions(openAiStatusClient);
     }
+
+    @Test
+    void publishesA2aMetadataAndDetailedGradingSchemas() throws Exception {
+        when(properties.getPublicBaseUrl()).thenReturn("http://grading.test");
+        when(properties.getAgentVersion()).thenReturn("test-grading-version");
+
+        mockMvc.perform(get("/.well-known/agent-card.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.supportedInterfaces[0].protocolBinding").value("JSONRPC"))
+                .andExpect(jsonPath("$.version").value("test-grading-version"))
+                .andExpect(jsonPath("$.securitySchemes.peerBearer.httpAuthSecurityScheme.scheme").value("Bearer"));
+
+        mockMvc.perform(get("/.well-known/sllp-contracts/composition-grading-v2-output.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.properties.criteria.items.required").isArray())
+                .andExpect(jsonPath("$.properties.criteria.items.properties.bandScore.maximum").value(5));
+    }
 }

@@ -23,8 +23,27 @@ class AgentSkill(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str
-    name: str | None = None
-    description: str | None = None
+    name: str
+    description: str
+    tags: list[str] = Field(min_length=1)
+    input_modes: list[str] | None = Field(default=None, alias="inputModes")
+    output_modes: list[str] | None = Field(default=None, alias="outputModes")
+
+
+class AgentInterface(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    url: str
+    protocol_binding: str = Field(alias="protocolBinding")
+    protocol_version: str = Field(alias="protocolVersion")
+
+
+class AgentCapabilities(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    streaming: bool
+    push_notifications: bool = Field(alias="pushNotifications")
+    extended_agent_card: bool = Field(alias="extendedAgentCard")
 
 
 class AgentCard(BaseModel):
@@ -33,10 +52,17 @@ class AgentCard(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     name: str
+    description: str
     url: str
     protocol_version: str | None = Field(default=None, alias="protocolVersion")
+    version: str
+    supported_interfaces: list[AgentInterface] = Field(min_length=1, alias="supportedInterfaces")
+    capabilities: AgentCapabilities
+    default_input_modes: list[str] = Field(min_length=1, alias="defaultInputModes")
+    default_output_modes: list[str] = Field(min_length=1, alias="defaultOutputModes")
+    security_schemes: dict[str, Any] = Field(alias="securitySchemes")
+    security_requirements: list[dict[str, Any]] = Field(min_length=1, alias="securityRequirements")
     skills: list[AgentSkill] = Field(default_factory=list)
-    version: str | None = None
     sllp: dict[str, Any] | None = None
 
 
@@ -139,6 +165,19 @@ class AgentRegistry:
             raise AgentDiscoveryError(f"{peer.key} agent card does not advertise {peer.required_skill}")
         if not card.protocol_version or not card.protocol_version.startswith("1."):
             raise AgentDiscoveryError(f"{peer.key} agent card does not support A2A v1")
+        if "application/json" not in card.default_input_modes or "application/json" not in card.default_output_modes:
+            raise AgentDiscoveryError(f"{peer.key} agent card does not support JSON artifacts")
+        if not any(
+            interface.url == card.url
+            and interface.protocol_binding == "JSONRPC"
+            and interface.protocol_version.startswith("1.")
+            for interface in card.supported_interfaces
+        ):
+            raise AgentDiscoveryError(f"{peer.key} agent card does not advertise its JSON-RPC interface")
+        if "peerBearer" not in card.security_schemes or not any(
+            "peerBearer" in requirement.get("schemes", {}) for requirement in card.security_requirements
+        ):
+            raise AgentDiscoveryError(f"{peer.key} agent card does not advertise bearer authentication")
         extension = card.sllp or {}
         if extension.get("contractVersion") != "2.0":
             raise AgentDiscoveryError(f"{peer.key} agent card does not support SLLP contract v2.0")

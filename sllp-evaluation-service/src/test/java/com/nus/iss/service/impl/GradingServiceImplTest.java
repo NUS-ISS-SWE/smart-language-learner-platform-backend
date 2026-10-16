@@ -185,7 +185,7 @@ class GradingServiceImplTest {
 
         verify(userClient).getDifficultyLevel(7L);
         org.mockito.InOrder moderationBeforeGrading = org.mockito.Mockito.inOrder(moderationService, chatClient);
-        moderationBeforeGrading.verify(moderationService).moderateAndRecord(any(GradingRequestDTO.class));
+        moderationBeforeGrading.verify(moderationService).moderateComposition(any(GradingRequestDTO.class));
         moderationBeforeGrading.verify(chatClient).prompt();
         assertEquals("grading-v8", result.getPromptVersion());
         assertEquals(4, result.getCriteria().getFirst().getBandScore());

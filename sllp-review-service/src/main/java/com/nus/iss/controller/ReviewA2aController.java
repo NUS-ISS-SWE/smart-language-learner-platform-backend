@@ -4,6 +4,7 @@ import com.nus.iss.agent.ReviewAgentService;
 import com.nus.iss.agent.ReviewModelResponse;
 import com.nus.iss.agent.ReviewScoringPolicy;
 import com.nus.iss.config.SllpProperties;
+import com.nus.iss.contracts.a2a.SllpA2aContract;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -38,54 +39,55 @@ public class ReviewA2aController {
 
     @GetMapping("/.well-known/agent-card.json")
     public Map<String, Object> card() {
-        String baseUrl = properties.getPublicBaseUrl();
-        return Map.of(
-                "name", "SLLP Review Agent",
-                "url", baseUrl + "/a2a",
-                "protocolVersion", "1.0",
-                "skills", List.of(Map.of("id", "assessment-review", "name", "Assessment review")),
-                "sllp", Map.of(
-                        "contractVersion", "2.0",
-                        "inputSchemaUrl", baseUrl + "/.well-known/sllp-contracts/assessment-review-v2-input.json",
-                        "outputSchemaUrl", baseUrl + "/.well-known/sllp-contracts/assessment-review-v2-output.json"));
+        return SllpA2aContract.agentCard(
+                "SLLP Review Agent",
+                "Independently reviews a rubric-based composition assessment for grounding, coverage, traceability, and actionability.",
+                properties.getAgentVersion(), properties.getPublicBaseUrl(),
+                "assessment-review", "Assessment review",
+                "Approves, rejects, or requests reassessment of a completed rubric-based grade.",
+                List.of("assessment", "review", "quality", "traceability"),
+                "/.well-known/sllp-contracts/assessment-review-v2-input.json",
+                "/.well-known/sllp-contracts/assessment-review-v2-output.json");
     }
 
     @GetMapping("/.well-known/sllp-contracts/assessment-review-v2-input.json")
     public Map<String, Object> inputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "Assessment review input",
-                "type", "object",
-                "required", List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "grading", "rubricSnapshot"),
-                "properties", Map.of(
-                        "composition", Map.of("type", "object"),
-                        "evidence", Map.of("type", "object", "required", List.of("criteria"),
-                                "properties", Map.of("criteria", Map.of("type", "array", "minItems", 1,
-                                        "items", Map.of("type", "object", "required", List.of("criterion", "evidence"),
-                                                "properties", Map.of("evidence", Map.of("type", "array", "minItems", 1,
-                                                        "items", Map.of("type", "object", "required", List.of("excerpt", "location", "polarity", "note"),
-                                                                "properties", Map.of(
-                                                                        "excerpt", Map.of("type", "string", "minLength", 1),
-                                                                        "location", Map.of("type", "string", "minLength", 1),
-                                                                        "polarity", Map.of("type", "string", "enum", List.of("STRENGTH", "WEAKNESS")),
-                                                                        "note", Map.of("type", "string", "minLength", 1))))))))),
-                        "grading", Map.of("type", "object"),
-                        "rubricSnapshot", Map.of("type", "object")));
+        Map<String, Object> properties = SllpA2aContract.commonRequestProperties();
+        properties.put("evidence", SllpA2aContract.evidenceArtifactSchema());
+        properties.put("grading", gradingSchema());
+        properties.put("rubricSnapshot", SllpA2aContract.rubricSnapshotSchema());
+        return SllpA2aContract.objectSchema(
+                "Assessment review input",
+                List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "grading", "rubricSnapshot"),
+                properties);
     }
 
     @GetMapping("/.well-known/sllp-contracts/assessment-review-v2-output.json")
     public Map<String, Object> outputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "Assessment review output",
-                "type", "object",
-                "required", List.of("decision", "confidence", "findings", "usage"),
-                "properties", Map.of(
+        return SllpA2aContract.objectSchema(
+                "Assessment review output",
+                List.of("decision", "confidence", "qualityScore", "checks", "findings", "modelVersion", "promptVersion", "usage"),
+                Map.of(
                         "decision", Map.of("type", "string", "enum", List.of("APPROVE", "REGRADE", "REJECT")),
                         "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1),
-                        "findings", Map.of("type", "array"),
-                        "usage", Map.of("type", "object")));
+                        "qualityScore", Map.of("type", "number", "minimum", 0, "maximum", 100),
+                        "checks", Map.of("type", "array", "minItems", 1, "items", Map.of("type", "object", "required", List.of("name", "status", "rationale"), "properties", Map.of(
+                                "name", Map.of("type", "string", "enum", List.of("GROUNDING", "RUBRIC_COVERAGE", "EVIDENCE_TRACEABILITY", "ACTIONABILITY")),
+                                "status", Map.of("type", "string", "enum", List.of("PASS", "WARN", "FAIL")), "rationale", Map.of("type", "string", "minLength", 1)))),
+                        "findings", Map.of("type", "array", "items", Map.of("type", "object", "required", List.of("message"), "properties", Map.of(
+                                "criterion", Map.of("type", List.of("string", "null")), "message", Map.of("type", "string", "minLength", 1)))),
+                        "modelVersion", Map.of("type", "string", "minLength", 1), "promptVersion", Map.of("type", "string", "minLength", 1), "usage", SllpA2aContract.usageSchema()));
     }
+
+    private static Map<String, Object> gradingSchema() {
+        return Map.of("type", "object", "required", List.of("overallScore", "rubricScores", "rubricVersion", "criteria", "confidence"), "properties", Map.of(
+                "overallScore", Map.of("type", "number", "minimum", 0, "maximum", 100), "rubricScores", Map.of("type", "object", "additionalProperties", Map.of("type", "number", "minimum", 0, "maximum", 100)),
+                "rubricVersion", Map.of("type", "string", "minLength", 1), "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1),
+                "criteria", Map.of("type", "array", "minItems", 1, "items", Map.of("type", "object", "required", List.of("criterion", "bandScore", "score", "rationale", "evidence"), "properties", Map.of(
+                        "criterion", Map.of("type", "string", "minLength", 1), "bandScore", Map.of("type", "integer", "minimum", 1, "maximum", 5), "score", Map.of("type", "number", "minimum", 0, "maximum", 100),
+                        "rationale", Map.of("type", "string", "minLength", 1), "evidence", Map.of("type", "array", "minItems", 1))))));
+    }
+
     @GetMapping({"/health", "/ready"}) public Map<String,String> health() { return Map.of("status", "ready"); }
     @PostMapping("/a2a") public ResponseEntity<Map<String,Object>> invoke(@RequestHeader(value="Authorization", required=false) String auth, @RequestBody Map<String,Object> body) {
         if (!authorized(auth)) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

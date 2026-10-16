@@ -28,6 +28,20 @@ public class A2aExceptionHandler {
         return ResponseEntity.ok(A2aResponseDTO.error(requestId, -32602, "invalid A2A grading request"));
     }
 
+    @ExceptionHandler(ModerationBlockedException.class)
+    public ResponseEntity<A2aResponseDTO> moderationBlocked(ModerationBlockedException error) {
+        log.warn("A2A grading blocked by moderation requestId={}", error.getRequestId());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(A2aResponseDTO.error(error.getRequestId(), -32010, "content blocked by safety moderation"));
+    }
+
+    @ExceptionHandler(ModerationUnavailableException.class)
+    public ResponseEntity<A2aResponseDTO> moderationUnavailable(ModerationUnavailableException error) {
+        log.warn("A2A grading moderation unavailable requestId={}", error.getRequestId());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(A2aResponseDTO.error(error.getRequestId(), -32011, "content safety verification unavailable"));
+    }
+
     @ExceptionHandler(A2aExecutionException.class)
     public ResponseEntity<A2aResponseDTO> executionFailure(A2aExecutionException error) {
         log.warn("A2A grading failed requestId={} category={}", error.getRequestId(),

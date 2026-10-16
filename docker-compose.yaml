@@ -258,6 +258,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
       - EVIDENCE_PUBLIC_BASE_URL=http://evidence-agent:8092
       - EVIDENCE_AGENT_TOKEN=${EVIDENCE_AGENT_TOKEN:-}
+      - SLLP_AGENT_VERSION=${SLLP_AGENT_VERSION:-0.0.1-SNAPSHOT}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8092/ready >/dev/null || exit 1"]
       interval: 10s
@@ -279,6 +280,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
       - GRADING_PUBLIC_BASE_URL=http://grading-agent:8093
       - GRADING_AGENT_TOKEN=${GRADING_AGENT_TOKEN:-}
+      - AUDIT_INGEST_URL=http://admin-service:8086/internal/audit-events
+      - AUDIT_INGEST_SECRET=${AUDIT_INGEST_SECRET:-}
+      - SLLP_AGENT_VERSION=${SLLP_AGENT_VERSION:-0.0.1-SNAPSHOT}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8093/ready >/dev/null || exit 1"]
       interval: 10s
@@ -299,6 +303,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required for A2A agents}
       - REVIEW_PUBLIC_BASE_URL=http://review-agent:8094
       - REVIEW_AGENT_TOKEN=${REVIEW_AGENT_TOKEN:-}
+      - SLLP_AGENT_VERSION=${SLLP_AGENT_VERSION:-0.0.1-SNAPSHOT}
       - REVIEW_AUTO_APPROVE=${REVIEW_AUTO_APPROVE:-false}
       - REVIEW_USER_SERVICE_URL=http://user-service:8082
       - REVIEW_ADMIN_SERVICE_URL=http://admin-service:8086
@@ -325,6 +330,7 @@ services:
       - SUGGESTIONS_OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - SUGGESTIONS_OPENAI_MODEL=${SUGGESTIONS_OPENAI_MODEL:-gpt-4o-mini}
       - SUGGESTION_AGENT_TOKEN=${SUGGESTION_AGENT_TOKEN:-}
+      - SLLP_AGENT_VERSION=${SLLP_AGENT_VERSION:-0.1.0}
       - SUGGESTIONS_MAX_A2A_REQUEST_BYTES=${SUGGESTIONS_MAX_A2A_REQUEST_BYTES:-262144}
       - SUGGESTIONS_MAX_COMPLETION_TOKENS=${SUGGESTIONS_MAX_COMPLETION_TOKENS:-500}
     depends_on:
@@ -351,6 +357,23 @@ services:
     depends_on:
       orchestrator-service:
         condition: service_started
+
+  grafana:
+    image: grafana/grafana:12.3.1
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - sllp-network
+    depends_on:
+      - prometheus
 
   admin-service:
     build:

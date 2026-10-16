@@ -8,7 +8,7 @@ scrape_configs:
   - job_name: sllp-services
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: [user-service:8082, composition-service:8083, document-service:8089, subscription-service:8084, admin-service:8086, api-gateway:8080]
+      - targets: [user-service:8082, composition-service:8083, document-service:8089, subscription-service:8084, admin-service:8086, api-gateway:8080, product-guide-service:8087]
 
   - job_name: sllp-orchestrator
     metrics_path: /metrics

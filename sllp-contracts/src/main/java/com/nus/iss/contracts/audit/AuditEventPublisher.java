@@ -8,6 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -22,6 +24,10 @@ import tools.jackson.databind.node.ObjectNode;
 
 /** Small dependency-free client used by services to submit redacted audit metadata. */
 public final class AuditEventPublisher {
+    private static final Set<String> SAFE_METADATA_KEYS = Set.of(
+            "operation", "decision", "provider", "model", "latencyMs", "promptVersion",
+            "promptTokens", "completionTokens", "cachedInputTokens", "totalTokens", "estimatedCostMicros",
+            "outcome", "stage", "threshold");
     private final String service;
     private final URI ingestUri;
     private final String secret;
@@ -40,6 +46,14 @@ public final class AuditEventPublisher {
     public void publish(String category, String action, String outcome, String actorType, String actorId, String actorName,
             String actorRole, String targetType, String targetId, String requestId, String sourceIp, String userAgent,
             String method, String path, int status, Consumer<Throwable> failureHandler) {
+        publish(category, action, outcome, actorType, actorId, actorName, actorRole, targetType, targetId, requestId,
+                sourceIp, userAgent, method, path, status, Map.of(), failureHandler);
+    }
+
+    /** Publishes whitelisted, non-content metadata for operational audit events. */
+    public void publish(String category, String action, String outcome, String actorType, String actorId, String actorName,
+            String actorRole, String targetType, String targetId, String requestId, String sourceIp, String userAgent,
+            String method, String path, int status, Map<String, String> metadata, Consumer<Throwable> failureHandler) {
         if (secret == null || secret.isBlank()) return;
         try {
             ObjectNode event = objectMapper.createObjectNode();
@@ -68,7 +82,13 @@ public final class AuditEventPublisher {
             put(event, "httpMethod", method, 12);
             put(event, "httpPath", path, 512);
             event.put("httpStatus", status);
-            event.set("metadata", objectMapper.createObjectNode());
+            ObjectNode safeMetadata = objectMapper.createObjectNode();
+            if (metadata != null) metadata.forEach((key, value) -> {
+                if (key != null && SAFE_METADATA_KEYS.contains(key) && value != null) {
+                    put(safeMetadata, key, value, 120);
+                }
+            });
+            event.set("metadata", safeMetadata);
             String body = objectMapper.writeValueAsString(event);
             String timestamp = Long.toString(Instant.now().getEpochSecond());
             HttpRequest request = HttpRequest.newBuilder(ingestUri).timeout(Duration.ofSeconds(2))

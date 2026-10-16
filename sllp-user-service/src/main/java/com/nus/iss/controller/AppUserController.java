@@ -33,14 +33,14 @@ public class AppUserController {
 
     @PostMapping("/register")
     public ResponseEntity<AppUserDTO> register(@Valid @RequestBody AppUserDTO appUserDTO) {
-        log.info("Registering user: {}", appUserDTO);
+        log.info("Registering user username={}", appUserDTO.getUsername());
         AppUserDTO registeredUser = appUserService.registerUser(appUserDTO);
         return ResponseEntity.ok(registeredUser);
     }
 
     @GetMapping("/activate")
     public ResponseEntity<Void> activate(@RequestParam String token) {
-        log.info("Activating user with token: {}", token);
+        log.info("Activation request received");
         appUserService.activateUser(token);
         return ResponseEntity.ok().build();
     }

@@ -9,10 +9,15 @@ UPSTREAM_CALLS = Counter("sllp_suggestions_upstream_calls_total", "Upstream call
 TOKENS = Counter("sllp_suggestions_tokens_total", "Provider-reported tokens used by suggestions.", ("kind",))
 ESTIMATED_COST_MICROS = Counter("sllp_suggestions_estimated_cost_micros_total", "Estimated USD micros consumed by suggestions.")
 SUGGESTIONS = Counter("sllp_suggestions_generated_total", "Learner suggestions emitted by priority.", ("priority",))
+MODERATION = Counter("sllp_ai_moderation_checks_total", "AI moderation checks by bounded decision.", ("service", "stage", "decision"))
 
 
 def record_upstream(dependency: str, succeeded: bool) -> None:
     UPSTREAM_CALLS.labels(dependency=dependency, outcome="success" if succeeded else "failure").inc()
+
+
+def record_moderation(stage: str, decision: str) -> None:
+    MODERATION.labels(service="suggestions-agent", stage=stage, decision=decision).inc()
 
 
 def record_result(result: object) -> None:

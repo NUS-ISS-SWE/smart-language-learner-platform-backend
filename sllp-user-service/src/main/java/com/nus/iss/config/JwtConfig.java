@@ -48,7 +48,7 @@ public class JwtConfig {
                 .expiration(Date.from(Instant.now().plusMillis(expirationTimeMillis)))
                 .signWith(key)
                 .compact();
-        log.info("Token generated for user {}: {}", username, token);
+        log.info("Access token generated for user={}", username);
         return token;
     }
 

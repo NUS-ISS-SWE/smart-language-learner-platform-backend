@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Horizontal composition assessment workflow</title>
+  <desc id="desc">A learner requests assessment through the Composition Service and Kafka. The Orchestrator validates the request, calls Evidence and Grading, checks confidence, and calls Review. Low confidence or a questioned review can trigger one fresh pass. Approved English assessments continue to Suggestions; approved Chinese assessments bypass Suggestions. The result returns through Kafka and the Composition Service.</desc>
+  <defs>
+    <marker id="blueArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#80c7f7" stroke-width="2.5" stroke-linejoin="round"/></marker>
+    <marker id="amberArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#f4bd73" stroke-width="2.5" stroke-linejoin="round"/></marker>
+    <style>
+      .bg{fill:#0b1017}.lane{fill:#111b27;stroke:#304459;stroke-width:2}.node{fill:#0d3152;stroke:#3d83b4;stroke-width:2}.node-alt{fill:#143a54;stroke:#53a9b2;stroke-width:2}.node-end{fill:#102b43;stroke:#498dbb;stroke-width:2}
+      .label{fill:#e9f5ff;font:600 23px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.small{fill:#a9c3d8;font:500 20px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.lane-label{fill:#a9c3d8;font:600 22px 'Segoe UI',Arial,sans-serif;letter-spacing:1px}.edge{fill:none;stroke:#80c7f7;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#blueArrow)}.loop{fill:none;stroke:#f4bd73;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#amberArrow)}.edge-text{fill:#80c7f7;font:600 18px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.loop-text{fill:#f4bd73;font:600 20px 'Segoe UI',Arial,sans-serif;text-anchor:middle}
+    </style>
+  </defs>
+  <rect class="bg" width="1920" height="1080"/>
+  <rect class="lane" x="505" y="279" width="1070" height="198" rx="24"/>
+  <text class="lane-label" x="530" y="315">ORCHESTRATOR</text>
+
+  <path class="edge" d="M244 406 H275"/>
+  <path class="edge" d="M480 406 H525"/>
+  <text class="edge-text" x="503" y="350">Kafka</text>
+  <path class="edge" d="M685 406 H725"/>
+  <path class="edge" d="M895 406 H935"/>
+  <path class="edge" d="M1105 406 H1145"/>
+  <path class="edge" d="M1315 406 H1355"/>
+
+  <path class="loop" d="M1230 361 V154 H810 V361"/>
+  <path d="M1525 406 H1605 V154 H1230" fill="none" stroke="#f4bd73" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="loop-text" x="1175" y="113">Low confidence or questioned review: one fresh pass from Evidence</text>
+
+  <path d="M1420 451 V537 H575 V650" fill="none" stroke="#80c7f7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#blueArrow)"/>
+  <path class="edge" d="M1470 451 V585 H930 V650"/>
+  <text class="edge-text" x="705" y="526">Approved English</text>
+  <text class="edge-text" x="1190" y="574">Approved Chinese</text>
+  <path class="edge" d="M690 705 H815"/>
+  <path class="edge" d="M1045 705 H1170"/>
+  <text class="edge-text" x="1108" y="803">Kafka completion</text>
+  <path class="edge" d="M1400 705 H1530"/>
+
+  <rect class="node-end" x="50" y="361" width="194" height="90" rx="18"/>
+  <text class="label" x="147" y="399"><tspan x="147">Learner requests</tspan><tspan x="147" dy="30">assessment</tspan></text>
+  <rect class="node-end" x="275" y="361" width="205" height="90" rx="18"/>
+  <text class="label" x="377.5" y="399"><tspan x="377.5">Composition</tspan><tspan x="377.5" dy="30">Service</tspan></text>
+  <rect class="node" x="525" y="361" width="160" height="90" rx="18"/>
+  <text class="label" x="605" y="414">Validate</text>
+  <rect class="node" x="725" y="361" width="170" height="90" rx="18"/>
+  <text class="label" x="810" y="399"><tspan x="810">Evidence</tspan><tspan x="810" dy="30">Agent</tspan></text>
+  <rect class="node" x="935" y="361" width="170" height="90" rx="18"/>
+  <text class="label" x="1020" y="399"><tspan x="1020">Grading</tspan><tspan x="1020" dy="30">Agent</tspan></text>
+  <rect class="node-alt" x="1145" y="361" width="170" height="90" rx="18"/>
+  <text class="label" x="1230" y="399"><tspan x="1230">Confidence</tspan><tspan x="1230" dy="30">check</tspan></text>
+  <rect class="node" x="1355" y="361" width="170" height="90" rx="18"/>
+  <text class="label" x="1440" y="399"><tspan x="1440">Review</tspan><tspan x="1440" dy="30">Agent</tspan></text>
+
+  <rect class="node" x="460" y="650" width="230" height="108" rx="18"/>
+  <text class="label" x="575" y="695"><tspan x="575">Suggestions</tspan><tspan x="575" dy="30">Agent</tspan></text>
+  <rect class="node-alt" x="815" y="650" width="230" height="108" rx="18"/>
+  <text class="label" x="930" y="695"><tspan x="930">Assemble</tspan><tspan x="930" dy="30">assessment</tspan></text>
+  <rect class="node-end" x="1170" y="650" width="230" height="108" rx="18"/>
+  <text class="label" x="1285" y="695"><tspan x="1285">Composition</tspan><tspan x="1285" dy="30">Service</tspan></text>
+  <rect class="node-end" x="1530" y="650" width="230" height="108" rx="18"/>
+  <text class="label" x="1645" y="695"><tspan x="1645">Learner views</tspan><tspan x="1645" dy="30">result</tspan></text>
+  <text class="small" x="960" y="992">If the second pass is still unresolved, the learner receives a safe retry message without a score.</text>
+</svg>

@@ -13,6 +13,7 @@ spring:
     model:
       chat: openai
       embedding: openai
+      moderation: openai
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
@@ -36,3 +37,9 @@ sllp:
   audit:
     ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
     ingest-secret: ${AUDIT_INGEST_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

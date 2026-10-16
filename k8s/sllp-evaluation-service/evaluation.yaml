@@ -25,6 +25,11 @@ spec:
         jmesPath:
           - path: "grading"
             objectAlias: "sllp.a2a-token"
+      - objectName: "sllp/audit-ingest"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: "secret"
+            objectAlias: "sllp.audit.ingest-secret"
       - objectName: "sllp/postgres"
         objectType: "secretsmanager"
         jmesPath:
@@ -47,6 +52,7 @@ data:
   GRADING_PUBLIC_BASE_URL: "http://grading-agent:8093"
   GRADING_USER_SERVICE_URL: "http://user-service:8082"
   GRADING_ADMIN_SERVICE_URL: "http://admin-service:8086"
+  AUDIT_INGEST_URL: "http://admin-service:8086/internal/audit-events"
   OPENAI_STATUS_URL: "https://status.openai.com/proxy/status.openai.com"
   OPENAI_STATUS_CONNECT_TIMEOUT: "10s"
   OPENAI_STATUS_READ_TIMEOUT: "10s"

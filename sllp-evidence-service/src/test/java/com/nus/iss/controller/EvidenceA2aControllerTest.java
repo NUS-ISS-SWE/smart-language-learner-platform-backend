@@ -45,6 +45,7 @@ class EvidenceA2aControllerTest {
     @Test
     void advertisesTheEvidenceCapabilityAndReturnsACompletedArtifact() throws Exception {
         when(properties.getPublicBaseUrl()).thenReturn("http://evidence.test");
+        when(properties.getAgentVersion()).thenReturn("test-evidence-version");
         when(properties.getA2aToken()).thenReturn("test-token");
         when(service.collect(argThat(request -> request.compositionId().equals(12L)
                 && request.userId().equals(7L) && request.language().name().equals("ENGLISH")), org.mockito.ArgumentMatchers.anyString()))
@@ -57,6 +58,9 @@ class EvidenceA2aControllerTest {
         mockMvc.perform(get("/.well-known/agent-card.json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.skills[0].id").value("evidence-collection"))
+                .andExpect(jsonPath("$.supportedInterfaces[0].protocolBinding").value("JSONRPC"))
+                .andExpect(jsonPath("$.version").value("test-evidence-version"))
+                .andExpect(jsonPath("$.securitySchemes.peerBearer.httpAuthSecurityScheme.scheme").value("Bearer"))
                 .andExpect(jsonPath("$.sllp.contractVersion").value("2.0"));
 
         mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Orchestrator decision flow</title>
+  <desc id="desc">The Orchestrator validates a request and calls Evidence, Grading and Review. If grading confidence is sufficient and Review approves, the assessment continues. Low confidence or Review REGRADE or REJECT triggers one fresh pass from Evidence. A questionable result after that limit produces a safe retry message without a score.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#83cafa" stroke-width="2.5" stroke-linejoin="round"/></marker>
+    <marker id="amber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1 1 L11 6 L1 11" fill="none" stroke="#f2be77" stroke-width="2.5" stroke-linejoin="round"/></marker>
+    <style>
+      .bg{fill:#0b1017}.node{fill:#0d3152;stroke:#3d83b4;stroke-width:2}.good{fill:#133e34;stroke:#61b994;stroke-width:2}.maybe{fill:#44331e;stroke:#d7a85f;stroke-width:2}.bad{fill:#492927;stroke:#dc7f79;stroke-width:2}.main{fill:#eaf6ff;font:600 30px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.body{fill:#d3e6f4;font:500 25px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.caption{fill:#a9c3d8;font:500 24px 'Segoe UI',Arial,sans-serif;text-anchor:middle}.green{fill:#9fe3bd}.amber-text{fill:#ffd497}.red{fill:#ffc0ba}.edge{fill:none;stroke:#83cafa;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#arrow)}.branch{fill:none;stroke:#f2be77;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;marker-end:url(#amber)}
+    </style>
+  </defs>
+  <rect class="bg" width="1920" height="1080"/>
+  <text class="caption" x="960" y="95">The Orchestrator uses agent responses and confidence signals to choose the next step.</text>
+  <path class="edge" d="M365 307 H470"/>
+  <path class="edge" d="M765 307 H870"/>
+  <path class="edge" d="M1165 307 H1270"/>
+  <rect class="node" x="70" y="245" width="295" height="124" rx="22"/>
+  <text class="main" x="217.5" y="318">Validate request</text>
+  <rect class="node" x="470" y="245" width="295" height="124" rx="22"/>
+  <text class="main" x="617.5" y="318">Evidence Agent</text>
+  <rect class="node" x="870" y="245" width="295" height="124" rx="22"/>
+  <text class="main" x="1017.5" y="318">Grading Agent</text>
+  <rect class="node" x="1270" y="245" width="295" height="124" rx="22"/>
+  <text class="main" x="1417.5" y="318">Review Agent</text>
+
+  <path class="edge" d="M1480 369 V505 H1580 V594"/>
+  <text class="caption green" x="1640" y="486">Review approves</text>
+  <path class="branch" d="M1017 369 V475 H960 V594"/>
+  <text class="caption amber-text" x="810" y="462">Low grading confidence</text>
+  <path class="branch" d="M1350 369 V535 H960 V594"/>
+  <text class="caption amber-text" x="1220" y="520">Review questions result</text>
+
+  <rect class="bad" x="100" y="594" width="480" height="261" rx="24"/>
+  <text class="main red" x="340" y="654">STILL UNRESOLVED</text>
+  <text class="body" x="340" y="713"><tspan x="340">Safe retry message</tspan><tspan x="340" dy="36">No score returned</tspan></text>
+
+  <path class="branch" d="M720 725 H580"/>
+  <text class="caption" x="650" y="687">No pass left</text>
+  <rect class="maybe" x="720" y="594" width="480" height="261" rx="24"/>
+  <text class="main amber-text" x="960" y="654">QUESTIONABLE RESULT</text>
+  <text class="body" x="960" y="713"><tspan x="960">If one fresh pass is available,</tspan><tspan x="960" dy="36">restart at Evidence</tspan><tspan x="960" dy="36">and record the reason</tspan></text>
+
+  <rect class="good" x="1340" y="594" width="480" height="261" rx="24"/>
+  <text class="main green" x="1580" y="654">APPROVED</text>
+  <text class="body" x="1580" y="713"><tspan x="1580">English: call Suggestions</tspan><tspan x="1580" dy="36">Chinese: assemble directly</tspan><tspan x="1580" dy="36">Return the assessment</tspan></text>
+  <text class="caption" x="960" y="977">Reassessment is limited to one fresh pass by the current configuration.</text>
+</svg>

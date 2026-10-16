@@ -39,6 +39,7 @@ class ReviewA2aControllerTest {
     @Test
     void advertisesTheReviewCapabilityAndCompletesAnApprovedReview() throws Exception {
         when(properties.getPublicBaseUrl()).thenReturn("http://review.test");
+        when(properties.getAgentVersion()).thenReturn("test-review-version");
         when(properties.getA2aToken()).thenReturn("test-token");
         when(service.review(anyString(), eq(7L), eq("ENGLISH"))).thenReturn(new ReviewAgentService.Reviewed(
                 approvedReview(),
@@ -48,7 +49,14 @@ class ReviewA2aControllerTest {
 
         mockMvc.perform(get("/.well-known/agent-card.json"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.skills[0].id").value("assessment-review"));
+                .andExpect(jsonPath("$.skills[0].id").value("assessment-review"))
+                .andExpect(jsonPath("$.supportedInterfaces[0].protocolBinding").value("JSONRPC"))
+                .andExpect(jsonPath("$.version").value("test-review-version"))
+                .andExpect(jsonPath("$.securitySchemes.peerBearer.httpAuthSecurityScheme.scheme").value("Bearer"));
+
+        mockMvc.perform(get("/.well-known/sllp-contracts/assessment-review-v2-output.json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.properties.findings.items.properties.criterion.type[1]").value("null"));
 
         mockMvc.perform(post("/a2a").contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer test-token").content(requestBody()))

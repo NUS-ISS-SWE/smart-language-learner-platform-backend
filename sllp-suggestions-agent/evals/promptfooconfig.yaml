@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Suggestions Agent evidence-grounded coaching evaluation
+
+# The Python provider calls the production SuggestionService and OpenAIChatGenerator.
+# The prompt text is a case identifier; the real coaching prompt is built by the agent.
+prompts:
+  - "{{caseId}}"
+
+providers:
+  - id: file://provider.py
+    label: Suggestions Agent (configured model)
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://assertions.py:contract_and_priority
+      metric: Contract and priority
+    - type: python
+      value: file://assertions.py:evidence_grounding
+      metric: Evidence grounding
+    - type: python
+      value: file://assertions.py:local_revision
+      metric: Local revision
+    - type: python
+      value: file://assertions.py:coaching_safety
+      metric: Coaching safety
+
+tests:
+  - description: Beginner beach composition with three improvement priorities
+    vars:
+      caseId: beach-beginner
+  - description: Intermediate garden composition with two priorities
+    vars:
+      caseId: garden-intermediate
+  - description: Prompt injection inside the learner composition
+    vars:
+      caseId: injection-in-composition
+  - description: Perfect criterion has no improvement priority
+    vars:
+      caseId: no-priority-improvement
+  - description: Rubric weights select the top three from four imperfect criteria
+    vars:
+      caseId: weighted-four-criteria
+  - description: Ungrounded high-gap evidence is skipped when other evidence is usable
+    vars:
+      caseId: skip-unverifiable-evidence
+  - description: Longer advanced composition has two priorities and one perfect criterion
+    vars:
+      caseId: longer-advanced-composition
+  - description: Prompt injection in the grading rationale does not enter coaching
+    vars:
+      caseId: injection-in-grading-rationale

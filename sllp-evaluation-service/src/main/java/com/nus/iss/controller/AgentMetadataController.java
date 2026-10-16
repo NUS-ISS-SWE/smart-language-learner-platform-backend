@@ -1,6 +1,7 @@
 package com.nus.iss.controller;
 
 import com.nus.iss.config.SllpProperties;
+import com.nus.iss.contracts.a2a.SllpA2aContract;
 import com.nus.iss.adapter.OpenAiStatusClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,46 +24,50 @@ public class AgentMetadataController {
 
     @GetMapping("/.well-known/agent-card.json")
     public Map<String, Object> card() {
-        return Map.of(
-                "name", "SLLP Grading Agent",
-                "url", properties.getPublicBaseUrl() + "/a2a",
-                "protocolVersion", "1.0",
-                "skills", List.of(Map.of("id", "composition-grading", "name", "Composition grading")),
-                "sllp", Map.of(
-                        "contractVersion", "2.0",
-                        "inputSchemaUrl", properties.getPublicBaseUrl()
-                                + "/.well-known/sllp-contracts/composition-grading-v2-input.json",
-                        "outputSchemaUrl", properties.getPublicBaseUrl()
-                                + "/.well-known/sllp-contracts/composition-grading-v2-output.json"));
+        return SllpA2aContract.agentCard(
+                "SLLP Grading Agent",
+                "Grades a submitted composition against the immutable SLLP rubric and returns traceable criterion assessments.",
+                properties.getAgentVersion(), properties.getPublicBaseUrl(),
+                "composition-grading", "Composition grading",
+                "Scores every immutable rubric criterion using the composition and verified evidence.",
+                List.of("assessment", "grading", "rubric", "writing"),
+                "/.well-known/sllp-contracts/composition-grading-v2-input.json",
+                "/.well-known/sllp-contracts/composition-grading-v2-output.json");
     }
 
     @GetMapping("/.well-known/sllp-contracts/composition-grading-v2-input.json")
     public Map<String, Object> inputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "SLLP composition-grading v2 input artifact",
-                "type", "object",
-                "required", List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "rubricSnapshot"),
-                "properties", Map.of(
-                        "composition", Map.of("type", "object", "required", List.of("userId", "title", "content", "language")),
-                        "evidence", Map.of("type", "object"),
-                        "rubricSnapshot", Map.of("type", "object", "required", List.of("version", "criteria"))));
+        Map<String, Object> properties = SllpA2aContract.commonRequestProperties();
+        properties.put("evidence", SllpA2aContract.evidenceArtifactSchema());
+        properties.put("rubricSnapshot", SllpA2aContract.rubricSnapshotSchema());
+        return SllpA2aContract.objectSchema(
+                "SLLP composition-grading v2 input artifact",
+                List.of("schemaVersion", "workflowId", "attempt", "composition", "evidence", "rubricSnapshot"),
+                properties);
     }
 
     @GetMapping("/.well-known/sllp-contracts/composition-grading-v2-output.json")
     public Map<String, Object> outputSchema() {
-        return Map.of(
-                "$schema", "https://json-schema.org/draft/2020-12/schema",
-                "title", "SLLP composition-grading v2 output artifact",
-                "type", "object",
-                "required", List.of("overallScore", "rubricScores", "rubricVersion", "criteria", "confidence", "usage"),
-                "properties", Map.of(
-                        "overallScore", Map.of("type", "number", "minimum", 0, "maximum", 100),
-                        "rubricScores", Map.of("type", "object"),
-                        "rubricVersion", Map.of("type", "string", "minLength", 1),
-                        "criteria", Map.of("type", "array", "minItems", 1),
-                        "confidence", Map.of("type", "number", "minimum", 0, "maximum", 1),
-                        "usage", Map.of("type", "object")));
+        return SllpA2aContract.objectSchema(
+                "SLLP composition-grading v2 output artifact",
+                List.of("overallScore", "rubricScores", "rubricVersion", "criteria", "confidence", "modelVersion", "promptVersion", "usage"),
+                Map.ofEntries(
+                        Map.entry("overallScore", Map.of("type", "number", "minimum", 0, "maximum", 100)),
+                        Map.entry("rubricScores", Map.of("type", "object", "additionalProperties", Map.of("type", "number", "minimum", 0, "maximum", 100))),
+                        Map.entry("rubricVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("criteria", gradingCriteriaSchema()),
+                        Map.entry("confidence", Map.of("type", "number", "minimum", 0, "maximum", 1)),
+                        Map.entry("modelVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("promptVersion", Map.of("type", "string", "minLength", 1)),
+                        Map.entry("usage", SllpA2aContract.usageSchema())));
+    }
+
+    private static Map<String, Object> gradingCriteriaSchema() {
+        return Map.of("type", "array", "minItems", 1, "items", Map.of("type", "object", "required", List.of("criterion", "bandScore", "score", "rationale", "evidence"), "properties", Map.of(
+                "criterion", Map.of("type", "string", "minLength", 1), "bandScore", Map.of("type", "integer", "minimum", 1, "maximum", 5),
+                "score", Map.of("type", "number", "minimum", 0, "maximum", 100), "rationale", Map.of("type", "string", "minLength", 1),
+                "evidence", Map.of("type", "array", "minItems", 1, "items", Map.of("type", "object", "required", List.of("excerpt"), "properties", Map.of(
+                        "excerpt", Map.of("type", "string", "minLength", 1), "location", Map.of("type", "string", "minLength", 1)))))));
     }
 
     @GetMapping({"/health", "/ready"})

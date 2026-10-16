@@ -13,6 +13,8 @@ import java.time.Duration;
 public class SllpProperties {
     private String a2aToken;
     private String publicBaseUrl = "http://localhost:8093";
+    /** Published Agent Card implementation version; override with SLLP_AGENT_VERSION at deployment. */
+    private String agentVersion = "0.0.1-SNAPSHOT";
     private Health health = new Health();
     private AiUsage aiUsage = new AiUsage();
     private Audit audit = new Audit();

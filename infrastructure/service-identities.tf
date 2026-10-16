@@ -54,7 +54,8 @@ locals {
       secret_arns = [
         module.secrets.postgres_secret_arn,
         module.secrets.openai_secret_arn,
-        module.secrets.agent_tokens_secret_arn
+        module.secrets.agent_tokens_secret_arn,
+        module.secrets.audit_ingest_secret_arn
       ]
     }
 

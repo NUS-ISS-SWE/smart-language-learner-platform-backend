@@ -62,6 +62,30 @@ def _draft_2020_schema(model: type[Any]) -> dict[str, Any]:
     }
 
 
+def _suggestion_output_schema() -> dict[str, Any]:
+    """Add response-state constraints that Pydantic's JSON Schema cannot express."""
+    schema = _draft_2020_schema(SuggestionResponse)
+    schema["required"] = list(dict.fromkeys([*schema.get("required", []), "suggestionStatus", "suggestions"]))
+    schema["allOf"] = [
+        {
+            "if": {"properties": {"suggestionStatus": {"const": "AVAILABLE"}}, "required": ["suggestionStatus"]},
+            "then": {"properties": {"suggestions": {"minItems": 1}}},
+        },
+        {
+            "if": {
+                "properties": {
+                    "suggestionStatus": {
+                        "enum": ["NOT_AVAILABLE_FOR_LANGUAGE", "TEMPORARILY_UNAVAILABLE", "NO_PRIORITY_IMPROVEMENT"]
+                    }
+                },
+                "required": ["suggestionStatus"],
+            },
+            "then": {"properties": {"suggestions": {"maxItems": 0}}},
+        },
+    ]
+    return schema
+
+
 async def _read_bounded_body(request: Request, limit: int) -> bytes:
     """Reject an oversized request while streaming, before buffering it in memory."""
     declared = request.headers.get("content-length")
@@ -104,11 +128,37 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
 
     @app.get("/.well-known/agent-card.json")
     def agent_card() -> dict[str, Any]:
+        a2a_url = f"{settings.public_base_url}/a2a"
+        bearer_requirement = [{"schemes": {"peerBearer": {"list": []}}}]
         return {
             "name": "SLLP Suggestions Agent",
-            "url": f"{settings.public_base_url}/a2a",
+            "description": "Creates short, evidence-grounded English writing improvements after an assessment has been approved.",
+            # Retained for the SLLP v2 profile; supportedInterfaces is the A2A v1 declaration.
+            "url": a2a_url,
             "protocolVersion": "1.0",
-            "skills": [{"id": "writing-suggestions", "name": "Writing suggestions"}],
+            "version": settings.agent_version,
+            "supportedInterfaces": [{"url": a2a_url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+            "capabilities": {"streaming": False, "pushNotifications": False, "extendedAgentCard": False},
+            "defaultInputModes": ["application/json"],
+            "defaultOutputModes": ["application/json"],
+            "securitySchemes": {
+                "peerBearer": {
+                    "httpAuthSecurityScheme": {
+                        "scheme": "Bearer",
+                        "description": "SLLP peer bearer token in the Authorization header.",
+                    }
+                }
+            },
+            "securityRequirements": bearer_requirement,
+            "skills": [{
+                "id": "writing-suggestions",
+                "name": "Writing suggestions",
+                "description": "Returns up to three actionable English composition improvements grounded in approved grading evidence.",
+                "tags": ["assessment", "writing", "coaching", "evidence"],
+                "inputModes": ["application/json"],
+                "outputModes": ["application/json"],
+                "securityRequirements": bearer_requirement,
+            }],
             "sllp": {
                 "contractVersion": "2.0",
                 "inputSchemaUrl": f"{settings.public_base_url}/.well-known/sllp-contracts/writing-suggestions-v2-input.json",
@@ -122,7 +172,7 @@ def create_app(service: SuggestionService | None = None, settings: Settings | No
 
     @app.get("/.well-known/sllp-contracts/writing-suggestions-v2-output.json")
     def suggestion_output_schema() -> dict[str, Any]:
-        return _draft_2020_schema(SuggestionResponse)
+        return _suggestion_output_schema()
 
     @app.get("/health")
     def health() -> dict[str, str]:

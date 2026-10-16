@@ -47,6 +47,8 @@ sllp:
     output-price-micros-per-million: 500000
   audit:
     in-progress-timeout: 2m
+    ingest-url: ${AUDIT_INGEST_URL:http://localhost:8086/internal/audit-events}
+    ingest-secret: ${AUDIT_INGEST_SECRET:}
   services:
     user-service-url: ${GRADING_USER_SERVICE_URL:http://localhost:8082}
     admin-service-url: ${GRADING_ADMIN_SERVICE_URL:http://localhost:8086}

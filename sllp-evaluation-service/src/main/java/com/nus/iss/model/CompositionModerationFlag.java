@@ -35,8 +35,14 @@ public class CompositionModerationFlag {
     private Long compositionId;
     @Column(name = "user_id", nullable = false)
     private Long userId;
-    @Column(name = "moderated_text", nullable = false, columnDefinition = "TEXT")
-    private String moderatedText;
+    @Column(name = "content_sha256", nullable = false, length = 64)
+    private String contentSha256;
+    @Column(name = "content_length", nullable = false)
+    private int contentLength;
+    @Column(name = "stage", nullable = false, length = 32)
+    private String stage;
+    @Column(name = "decision", nullable = false, length = 32)
+    private String decision;
     @Column(name = "provider_response_id", length = 255)
     private String providerResponseId;
     @Column(name = "model", nullable = false, length = 255)

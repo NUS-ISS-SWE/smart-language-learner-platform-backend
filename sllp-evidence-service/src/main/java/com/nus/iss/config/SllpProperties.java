@@ -16,6 +16,8 @@ public class SllpProperties {
     private Services services = new Services();
     private String a2aToken;
     private String publicBaseUrl = "http://localhost:8092";
+    /** Published Agent Card implementation version; override with SLLP_AGENT_VERSION at deployment. */
+    private String agentVersion = "0.0.1-SNAPSHOT";
 
     @Data
     @NoArgsConstructor

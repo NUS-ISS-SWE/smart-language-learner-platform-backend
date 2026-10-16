@@ -33,9 +33,17 @@ def card(name: str, url: str, skill: str) -> dict:
     origin = url.removesuffix("/a2a")
     return {
         "name": name,
+        "description": f"{name} capability",
         "url": url,
         "protocolVersion": "1.0",
-        "skills": [{"id": skill, "name": skill}],
+        "version": "2.0.0",
+        "supportedInterfaces": [{"url": url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+        "capabilities": {"streaming": False, "pushNotifications": False, "extendedAgentCard": False},
+        "defaultInputModes": ["application/json"],
+        "defaultOutputModes": ["application/json"],
+        "securitySchemes": {"peerBearer": {"httpAuthSecurityScheme": {"scheme": "Bearer"}}},
+        "securityRequirements": [{"schemes": {"peerBearer": {"list": []}}}],
+        "skills": [{"id": skill, "name": skill, "description": f"{skill} capability", "tags": ["assessment"]}],
         "sllp": {
             "contractVersion": "2.0",
             "inputSchemaUrl": f"{origin}/.well-known/sllp-contracts/{skill}-v2-input.json",
@@ -90,6 +98,20 @@ def test_rejects_a_card_without_a2a_v1_protocol_version():
 
     with pytest.raises(AgentDiscoveryError):
         registry.ensure_ready()
+
+
+def test_rejects_a_card_without_declared_json_rpc_bearer_contract():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "/.well-known/sllp-contracts/" in request.url.path:
+            return httpx.Response(200, json={"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"})
+        payload = card("Grading", "http://grading.test/a2a", "composition-grading")
+        payload["securityRequirements"] = []
+        return httpx.Response(200, json=payload)
+
+    registry = AgentRegistry(settings(), httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(AgentDiscoveryError):
+        registry.get("grading")
 
 
 def test_chinese_workflow_does_not_require_the_english_suggestion_peer():

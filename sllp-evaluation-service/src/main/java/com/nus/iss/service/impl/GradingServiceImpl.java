@@ -14,6 +14,8 @@ import com.nus.iss.enums.DifficultyLevel;
 import com.nus.iss.enums.GradingAttemptStatus;
 import com.nus.iss.exception.A2aExecutionException;
 import com.nus.iss.exception.A2aInvalidRequestException;
+import com.nus.iss.exception.ModerationBlockedException;
+import com.nus.iss.exception.ModerationUnavailableException;
 import com.nus.iss.model.GradingAttempt;
 import com.nus.iss.repository.GradingRepository;
 import com.nus.iss.service.AiUsageCostCalculator;
@@ -106,7 +108,7 @@ public class GradingServiceImpl implements GradingService {
             DifficultyLevel difficultyLevel = sllpUserClient.getDifficultyLevel(request.getUserId());
             List<WorkflowRubricCriterionDTO> rubric = request.getRubric();
             validationService.validateRubric(rubric);
-            moderationService.moderateAndRecord(request);
+            moderationService.moderateComposition(request);
             GradingToolTrace toolTrace = new GradingToolTrace();
             logGradingContext(request, attempt, difficultyLevel, rubric);
             log.info("Invoking AI grading requestId={} attempt={} difficultyLevel={} criteriaCount={} evidenceCount={}",
@@ -127,8 +129,9 @@ public class GradingServiceImpl implements GradingService {
                     .call().responseEntity(AiGradingOutputDTO.class);
 
             AiGradingOutputDTO output = response.getEntity();
-            logAiDiagnostics(request, attempt, difficultyLevel, rubric, toolTrace, output);
+            logAiDiagnostics(request, attempt, difficultyLevel, rubric, toolTrace);
             validationService.validateAiOutput(output, request, rubric);
+            moderationService.moderateFeedback(request, output);
             GradingScoreResult scoring = rubricCalculator.calculate(output.getCriteria(), rubric);
             ChatResponse chatResponse = response.getResponse();
             if (chatResponse == null || chatResponse.getMetadata() == null) {
@@ -150,6 +153,12 @@ public class GradingServiceImpl implements GradingService {
                     result.getOverallScore(), result.getConfidence(), result.getModelVersion(),
                     usage.getTotalTokens(), elapsedMillis(startedAt));
             return result;
+        } catch (ModerationBlockedException error) {
+            fail(attempt, "MODERATION_BLOCKED", "content was blocked by safety moderation");
+            throw error;
+        } catch (ModerationUnavailableException error) {
+            fail(attempt, "MODERATION_UNAVAILABLE", "content safety verification was unavailable");
+            throw error;
         } catch (A2aInvalidRequestException error) {
             fail(attempt, "INVALID_REQUEST", "structured grading request was invalid");
             log.warn("Grading rejected requestId={} attempt={} category={} durationMs={}",
@@ -307,8 +316,7 @@ public class GradingServiceImpl implements GradingService {
     private void logAiDiagnostics(GradingRequestDTO request, GradingAttempt attempt,
                                   DifficultyLevel difficultyLevel,
                                   List<WorkflowRubricCriterionDTO> rubric,
-                                  GradingToolTrace toolTrace,
-                                  AiGradingOutputDTO output) {
+                                  GradingToolTrace toolTrace) {
         try {
             Map<String, Object> diagnostics = new LinkedHashMap<>();
             diagnostics.put("difficultyLevel", difficultyLevel);
@@ -318,7 +326,6 @@ public class GradingServiceImpl implements GradingService {
             diagnostics.put("anchors", toolTrace.getAnchorPapers().stream()
                     .map(GradingServiceImpl::anchorDiagnostics)
                     .toList());
-            diagnostics.put("output", output);
             log.info("AI grading diagnostics requestId={} compositionId={} attempt={} details={}",
                     request.getRequestId(), request.getCompositionId(), attempt.getAttemptNumber(),
                     objectMapper.writeValueAsString(diagnostics));

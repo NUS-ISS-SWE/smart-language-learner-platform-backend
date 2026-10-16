@@ -76,10 +76,8 @@ public class AppUserServiceImpl implements AppUserService {
         try {
             notificationService.sendActivationEmail(savedUser);
         } catch (Exception e) {
-            // Email delivery failed — log activation link so local dev can activate manually
-            String activationToken = java.util.Base64.getEncoder().encodeToString(savedUser.getEmail().getBytes());
-            log.warn("Failed to send activation email to {} — activate manually: GET /api/v1/auth/activate?token={}",
-                    savedUser.getEmail(), activationToken);
+            log.warn("Failed to send activation email for userId={} category={}",
+                    savedUser.getId(), e.getClass().getSimpleName());
         }
 
         return mapToDTO(savedUser);
@@ -144,7 +142,7 @@ public class AppUserServiceImpl implements AppUserService {
     @Override
     @Transactional
     public void activateUser(String token) {
-        log.info("Activating user with token: {}", token);
+        log.info("Activation request received");
         String email = decodeEmailToken(token);
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> new BadCredentialsException("Invalid activation token"));
@@ -162,7 +160,7 @@ public class AppUserServiceImpl implements AppUserService {
         try {
             return new String(Base64.getDecoder().decode(token));
         } catch (IllegalArgumentException e) {
-            log.error("Invalid Base64 token: {}", token);
+            log.warn("Received an invalid activation or reset token");
             throw new BadCredentialsException("Invalid token");
         }
     }

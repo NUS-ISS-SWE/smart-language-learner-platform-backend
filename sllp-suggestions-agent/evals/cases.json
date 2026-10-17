@@ -8,6 +8,7 @@
       "Emotion",
       "Organisation"
     ],
+    "unsupportedExampleText": ["warm, soft", "smiled"],
     "request": {
       "schemaVersion": "1.0",
       "workflowId": "eval-beach-beginner",
@@ -550,6 +551,43 @@
             "guidance": "Use details that help the reader picture the setting."
           }
         ]
+      }
+    }
+  },
+  {
+    "id": "word-choice-redundancy",
+    "difficultyLevel": "INTERMEDIATE",
+    "expectedStatus": "AVAILABLE",
+    "expectedCriteria": ["Word choice"],
+    "requireExampleForCriteria": ["Word choice"],
+    "requireShorterRevisionForCriteria": ["Word choice"],
+    "request": {
+      "schemaVersion": "1.0",
+      "workflowId": "eval-word-choice-redundancy",
+      "attempt": 1,
+      "composition": {
+        "compositionId": 109,
+        "userId": 109,
+        "title": "The Match",
+        "content": "The referee blew the final whistle at the end of the match. I walked off the field quietly.",
+        "language": "ENGLISH"
+      },
+      "grading": {
+        "criteria": [{
+          "criterion": "Word choice",
+          "score": 55,
+          "rationale": "The final whistle already signals the end of the match, so the ending phrase repeats the same idea.",
+          "evidence": [{"excerpt": "The referee blew the final whistle at the end of the match."}]
+        }]
+      },
+      "review": {"decision": "APPROVE"},
+      "rubricSnapshot": {
+        "version": "eval-rubric-v1",
+        "criteria": [{
+          "name": "Word choice",
+          "weight": 100,
+          "guidance": "Choose precise, concise words and remove repeated ideas."
+        }]
       }
     }
   }

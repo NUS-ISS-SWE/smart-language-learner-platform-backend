@@ -481,7 +481,7 @@ class OrchestrationWorkflow:
             example = suggestion["exampleRevision"]
             if source_excerpt not in composition_content:
                 return "EVIDENCE_NOT_IN_COMPOSITION"
-            if OrchestrationWorkflow._normalise_coaching_text(example) == OrchestrationWorkflow._normalise_coaching_text(source_excerpt):
+            if example is not None and OrchestrationWorkflow._normalise_coaching_text(example) == OrchestrationWorkflow._normalise_coaching_text(source_excerpt):
                 return "NO_OP_EXAMPLE"
         return None
 

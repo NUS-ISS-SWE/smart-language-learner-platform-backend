@@ -20,7 +20,7 @@ defaultTest:
       metric: Evidence grounding
     - type: python
       value: file://assertions.py:local_revision
-      metric: Local revision
+      metric: Optional local revision
     - type: python
       value: file://assertions.py:coaching_safety
       metric: Coaching safety
@@ -50,3 +50,6 @@ tests:
   - description: Prompt injection in the grading rationale does not enter coaching
     vars:
       caseId: injection-in-grading-rationale
+  - description: Word-choice advice produces a concise, applicable revision
+    vars:
+      caseId: word-choice-redundancy

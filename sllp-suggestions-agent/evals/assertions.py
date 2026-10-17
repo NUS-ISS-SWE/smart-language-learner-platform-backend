@@ -82,15 +82,20 @@ def local_revision(output: str, context: dict) -> dict:
         for item in result["suggestions"]:
             revision = (item.get("exampleRevision") or "").strip()
             if not revision:
-                return _result(False, f"Suggestion for {item['criterion']} has no grounded example revision")
+                if item["criterion"] in case.get("requireExampleForCriteria", []):
+                    return _result(False, f"Expected a concrete example for {item['criterion']}")
+                continue
             source = item["supportingEvidence"]["excerpt"].strip()
+            if (item["criterion"] in case.get("requireShorterRevisionForCriteria", [])
+                    and len(revision) >= len(source) - 10):
+                return _result(False, f"Example for {item['criterion']} does not remove redundancy")
             sentences = [part for part in re.split(r"[.!?]+", revision) if part.strip()]
             if not revision or len(revision) > 400 or len(sentences) > 2 or revision.casefold() == source.casefold():
                 return _result(False, f"Example revision for {item['criterion']} is not short and local")
             unsupported = [text for text in case.get("unsupportedExampleText", []) if text.casefold() in revision.casefold()]
             if unsupported:
                 return _result(False, f"Example revision for {item['criterion']} contains unsupported case facts: {unsupported}")
-        return _result(True, "Every returned example revision is short and differs from the source excerpt")
+        return _result(True, "Any returned example revision is short and differs from the source excerpt")
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         return _result(False, f"Could not verify example revisions: {error}")
 

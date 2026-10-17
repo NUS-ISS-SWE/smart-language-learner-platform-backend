@@ -117,7 +117,7 @@ class SuggestionServiceTest(unittest.TestCase):
         self.assertEqual(30, result.usage.total_tokens)
         self.assertEqual(30, result.token_usage)
 
-    def test_drops_ungrounded_example_and_tries_next_ranked_criterion(self):
+    def test_keeps_grounded_advice_without_forcing_an_example(self):
         class SelectiveGenerator:
             def __init__(self):
                 self.prompts = []
@@ -142,9 +142,10 @@ class SuggestionServiceTest(unittest.TestCase):
 
         result = service.generate(SuggestionRequest.model_validate(payload))
 
-        self.assertEqual(["Elaboration", "Description", "Personal Experience"], [item.criterion for item in result.suggestions])
+        self.assertEqual(["Emotion", "Elaboration", "Description"], [item.criterion for item in result.suggestions])
         self.assertEqual(["HIGH", "MEDIUM", "LOW"], [item.priority for item in result.suggestions])
-        self.assertEqual(2, len(generator.prompts))
+        self.assertIsNone(result.suggestions[0].example_revision)
+        self.assertEqual(1, len(generator.prompts))
 
     def test_priorities_do_not_depend_on_model_output_order(self):
         generator = FakeGenerator({"suggestions": [

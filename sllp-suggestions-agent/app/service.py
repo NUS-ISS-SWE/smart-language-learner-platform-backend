@@ -158,16 +158,20 @@ class SuggestionService:
                 "Keep the writer's stated facts and meaning. Do not turn clues into asserted facts: "
                 "a result, cause, motive, feeling, or event that the writer has not stated must remain unknown. "
                 "Do not add a new thought, emotion, intention, sensation, sound, person, or event to the "
-                "exampleRevision. For criteria asking for more reflection or emotion, use the recommendation "
-                "to ask the learner what they actually thought or felt; keep the exampleRevision to a safe "
-                "wording or sentence-structure improvement of the cited excerpt. If an example would require "
-                "an unknown fact, demonstrate a different improvement instead. Example: when the excerpt "
-                "only says 'I practised for weeks' and gives no feelings or result, an acceptable revision is "
-                "'For weeks, I practised.' A revision such as 'I hoped to win' invents a motive. "
-                "The recommendation may ask the learner to add their real feeling or result, but the example "
-                "must not supply it for them. Use content words already present in the composition, "
-                "mainly changing their order or sentence structure. Do not add new descriptive or emotional "
-                "words to the example. Apply this rule even when the grading rationale mentions a missing detail."
+                "exampleRevision. Make each recommendation specific to the cited sentence and criterion; "
+                "name the phrase or missing detail to work on rather than giving generic advice. "
+                "An exampleRevision is optional: give one only when a short edit actually demonstrates the "
+                "recommended improvement. You may remove redundancy or improve grammar using words "
+                "already present in the composition; a word-order change alone is not a word-choice or ideas fix. "
+                "For missing personal details or feelings, you may give a short editable template with "
+                "one bracketed blank such as [your feeling], [your thought], or [what happened]. Keep all "
+                "other statements grounded in the composition. For example, 'I had practised for weeks.' "
+                "may become 'I had practised for weeks. When the match ended, I felt [your feeling].' if "
+                "the composition says the match ended. Tell the learner in learningTip to replace the "
+                "bracketed blank with their own experience. If no useful direct edit or template is possible, "
+                "set exampleRevision to null. A concrete hypothetical such as 'If you felt nervous, you "
+                "could say so' belongs in the learningTip, not in text added to the learner's draft. "
+                "Never present a hypothetical feeling or event as something the writer experienced."
             ),
             "candidates": [
                 {
@@ -181,7 +185,7 @@ class SuggestionService:
             ],
             "responseSchema": {
                 "suggestions": [
-                    {"criterion": "exact candidate criterion", "recommendation": "actionable coaching", "exampleRevision": "required one- or two-sentence illustrative revision of sourceExcerpt; it must improve that text, preserve the writer's meaning, and not merely repeat it", "learningTip": "optional practice tip"}
+                    {"criterion": "exact candidate criterion", "recommendation": "specific actionable coaching", "exampleRevision": "short relevant edit or editable [your feeling] template; null if neither is possible", "learningTip": "specific practice tip; explain any bracketed blank"}
                 ]
             },
         }
@@ -204,13 +208,12 @@ class SuggestionService:
             recommendation = output.recommendation.strip()
             example_revision = output.example_revision.strip() if output.example_revision else None
             learning_tip = output.learning_tip.strip() if output.learning_tip else None
-            if not example_revision:
-                continue
             try:
                 _validate_coaching_text(recommendation, "recommendation")
                 if learning_tip:
                     _validate_coaching_text(learning_tip, "learning tip")
-                _validate_example_revision(example_revision, candidate.evidence.excerpt)
+                if example_revision:
+                    _validate_example_revision(example_revision, candidate.evidence.excerpt)
             except SuggestionServiceError:
                 LOGGER.warning("Omitting suggestion whose coaching or example failed validation")
                 continue

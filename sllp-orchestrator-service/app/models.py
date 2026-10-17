@@ -292,7 +292,7 @@ class Suggestion(BaseModel):
     criterion: str = Field(min_length=1)
     priority: Literal["HIGH", "MEDIUM", "LOW"]
     recommendation: str = Field(min_length=1)
-    example_revision: str = Field(min_length=1, validation_alias=AliasChoices("exampleRevision", "example_revision"))
+    example_revision: str | None = Field(default=None, min_length=1, validation_alias=AliasChoices("exampleRevision", "example_revision"))
     learning_tip: str | None = Field(default=None, validation_alias=AliasChoices("learningTip", "learning_tip"))
     supporting_evidence: Evidence = Field(validation_alias=AliasChoices("supportingEvidence", "supporting_evidence"))
 

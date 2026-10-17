@@ -194,6 +194,34 @@ def test_approved_assessment_publishes_structured_report_and_compatible_feedback
     }
 
 
+def test_approved_assessment_keeps_actionable_advice_without_an_example_revision():
+    class AdviceOnlyAgents(FakeAgents):
+        def suggest(self, payload, parser):
+            self.suggest_calls += 1
+            return self._invocation(parser.model_validate({
+                "suggestions": [{
+                    "criterion": "Emotion",
+                    "priority": "HIGH",
+                    "recommendation": "Explain how the scene made you feel.",
+                    "exampleRevision": None,
+                    "learningTip": "Name your own feeling and connect it to a detail.",
+                    "supportingEvidence": {"excerpt": "blue sea"},
+                }],
+                "usage": usage(),
+            }))
+
+    repository = MemoryRepository()
+    record = workflow_record()
+    repository.add(record)
+
+    completed = OrchestrationWorkflow(settings(), repository, AdviceOnlyAgents(["APPROVE"])).run(record)
+
+    assert completed.status is WorkflowStatus.COMPLETED
+    assert completed.completion_event["suggestionStatus"] == "AVAILABLE"
+    assert completed.completion_event["suggestions"][0]["exampleRevision"] is None
+    assert "Explain how the scene made you feel." in completed.completion_event["feedback"]
+
+
 def test_review_receives_deterministic_locations_for_verified_evidence():
     repository = MemoryRepository()
     record = workflow_record()

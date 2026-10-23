@@ -32,8 +32,8 @@ public class JwtProvider {
                 .build()
                 .parseSignedClaims(token);
             return true;
-        } catch (SecurityException | MalformedJwtException | ExpiredJwtException | 
-                 UnsupportedJwtException | IllegalArgumentException e) {
+        } catch (JwtException | IllegalArgumentException e) {
+            // JwtException covers a bad signature, malformed, expired and unsupported tokens.
             log.error("JWT validation failed", e);
         }
         return false;

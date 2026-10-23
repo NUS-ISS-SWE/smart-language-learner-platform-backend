@@ -62,3 +62,9 @@ playwright/.cache/
 *.tfstate.*
 crash.log
 crash.*.log
+
+### Python coverage ###
+.coverage
+coverage.xml
+htmlcov/
+coverage-reports/

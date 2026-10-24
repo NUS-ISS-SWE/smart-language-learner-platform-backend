@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: SLLP Evidence agent model comparison (ceiling / production / floor)
+
+# Same production prompt and output schema for every model. Three tiers:
+#   ceiling    gpt-6-luna    - the stronger model Grading already uses: does paying more buy quality?
+#   production gpt-4o-mini   - the current Evidence model
+#   floor      gpt-4.1-nano  - cheaper candidate: does saving money cost quality?
+# Selection rule: the cheapest model that is not worse than the ceiling by more than run-to-run variation.
+prompts:
+  - file://prompts/evidence.yaml
+
+providers:
+  # Reasoning model: does not accept temperature, so it runs with its own standard setting
+  # (low reasoning effort, as in the Grading comparison). promptfoo 0.120.19 does not recognise
+  # gpt-6-luna as a reasoning model and would send max_tokens/temperature (400), so it goes
+  # through a small custom provider that calls the same Chat Completions API.
+  - id: file://providers/openai-reasoning.js
+    label: gpt-6-luna (ceiling)
+    config:
+      model: gpt-6-luna
+      reasoning_effort: low
+      max_completion_tokens: 4000
+      schema: schemas/evidence-output.json
+      # Same prices as sllp-evaluation-service application.yaml (ai-usage), USD per million tokens
+      input_price_per_million: 0.10
+      output_price_per_million: 0.50
+  - id: openai:chat:gpt-4o-mini
+    label: gpt-4o-mini (production)
+    config:
+      temperature: 0.3
+      max_tokens: 2000
+      response_format: file://schemas/evidence-output.json
+  - id: openai:chat:gpt-4.1-nano
+    label: gpt-4.1-nano (floor)
+    config:
+      temperature: 0.3
+      max_tokens: 2000
+      response_format: file://schemas/evidence-output.json
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://assertions/evidence-quality.js
+
+# Same 8 essays as the Jenkins AI eval: strong / average / weak English, Chinese,
+# two prompt-injection attacks and their attack-free copies.
+tests: file://tests/cases.yaml
+
+evaluateOptions:
+  # Each essay five times per model, so run-to-run variation can be measured and a
+  # difference between models is only claimed when it is larger than that variation.
+  repeat: 5
+  cache: false
+  maxConcurrency: 4
+  timeoutMs: 120000
+
+commandLineOptions:
+  share: false

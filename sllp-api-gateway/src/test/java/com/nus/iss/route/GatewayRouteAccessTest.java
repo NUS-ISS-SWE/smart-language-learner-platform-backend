@@ -74,8 +74,14 @@ class GatewayRouteAccessTest {
         Function<SllpProperties, String> subscription = SllpProperties::getSubscriptionService;
         Function<SllpProperties, String> admin = SllpProperties::getAdminService;
         Function<SllpProperties, String> productGuide = SllpProperties::getProductGuideService;
+        Function<SllpProperties, String> learning = SllpProperties::getLearningService;
         return Stream.of(
                 arguments(HttpMethod.POST, "/api/v1/product-guide/conversations", "product_guide", productGuide, Access.ANY_USER),
+
+                arguments(HttpMethod.GET, "/api/v1/learning/challenges", "learning", learning, Access.ANY_USER),
+                arguments(HttpMethod.GET, "/api/v1/admin/learning/challenges", "admin_learning_challenges", learning, Access.ADMIN_ONLY),
+                arguments(HttpMethod.PUT, "/api/v1/admin/learning/challenges/3", "admin_learning_challenges", learning, Access.ADMIN_ONLY),
+                arguments(HttpMethod.GET, "/api/v1/admin/learning/achievements", "admin_learning_achievements", learning, Access.ADMIN_ONLY),
 
                 arguments(HttpMethod.POST, "/api/v1/auth/register", "user_register", user, Access.PUBLIC),
                 arguments(HttpMethod.GET, "/api/v1/auth/activate", "user_activate", user, Access.PUBLIC),
@@ -90,6 +96,7 @@ class GatewayRouteAccessTest {
                 arguments(HttpMethod.PUT, "/api/v1/composition/12", "composition_update", composition, Access.ANY_USER),
                 arguments(HttpMethod.DELETE, "/api/v1/composition/12", "composition_delete", composition, Access.ANY_USER),
                 arguments(HttpMethod.POST, "/api/v1/composition/12/grading", "composition_grading", composition, Access.ANY_USER),
+                arguments(HttpMethod.POST, "/api/v1/composition/12/suggestions/0/feedback", "composition_suggestion_feedback", composition, Access.ANY_USER),
                 arguments(HttpMethod.POST, "/api/v1/composition/generate", "composition_generate", composition, Access.ANY_USER),
 
                 arguments(HttpMethod.POST, "/api/documents/upload", "document_upload", document, Access.ANY_USER),
@@ -119,7 +126,9 @@ class GatewayRouteAccessTest {
                 arguments(HttpMethod.DELETE, "/api/v1/admin/users/7", "admin_user_delete", user, Access.ADMIN_ONLY),
 
                 arguments(HttpMethod.GET, "/api/v1/admin/compositions/12", "admin_composition_get", composition, Access.ADMIN_ONLY),
+                arguments(HttpMethod.PATCH, "/api/v1/admin/compositions/12/moderation", "admin_composition_moderation", composition, Access.ADMIN_ONLY),
                 arguments(HttpMethod.GET, "/api/v1/admin/compositions", "admin_compositions", composition, Access.ADMIN_ONLY),
+                arguments(HttpMethod.GET, "/api/v1/admin/moderation", "admin_moderation", admin, Access.ADMIN_ONLY),
 
                 arguments(HttpMethod.GET, "/api/documents/admin/5/content", "admin_document_content", document, Access.ADMIN_ONLY),
                 arguments(HttpMethod.GET, "/api/documents/admin/5", "admin_document_get", document, Access.ADMIN_ONLY),

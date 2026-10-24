@@ -1,0 +1,47 @@
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "sllp_evidence_output",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "properties": {
+        "plan": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": { "type": "string" }
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "criterion": { "type": "string" },
+              "evidence": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "excerpt": { "type": "string" },
+                    "polarity": { "type": "string", "enum": ["STRENGTH", "WEAKNESS"] },
+                    "note": { "type": "string" }
+                  },
+                  "required": ["excerpt", "polarity", "note"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["criterion", "evidence"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["plan", "criteria"],
+      "additionalProperties": false
+    }
+  }
+}

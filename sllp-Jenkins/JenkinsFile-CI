@@ -10,33 +10,15 @@ pipeline {
         DOCKER_CREDENTIALS_ID = 'docker-hub-credentials'
         GIT_CREDENTIALS_ID    = 'github-pat'
         DOCKER_HUB_USER       = 'maxin0525'
-        // Java services live in the Maven reactor and share the sllp-contracts module.
         ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service review-service product-guide-service evidence-service subscription-service admin-service'
-        // Python services (FastAPI + pytest), built/tested independently of the Maven reactor.
-        ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
-        // Real OpenAI key (Jenkins secret-text credential), used by every stage: the "llm" unit
-        // tests (EvidenceGoldenSetTest, only with RUN_LLM_EVA_UNIT), the compose stack and the load test.
-        // credentials() masks it in the console log.
+        ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'og.
         OPENAI_API_KEY        = credentials('openai-api-key')
-
-        // --- Test environment: full docker-compose stack used by the integration + load tests ---
-        // Isolates this build's containers/volumes/network from any other build or
-        // from a developer's own `docker compose up` on the same agent, and guarantees
-        // a brand-new Postgres volume every run (seed data's ON CONFLICT DO UPDATE only
-        // refreshes the password, not the role — a reused volume can leave the seeded
-        // admin account with a stale, non-ADMIN role).
         COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
-        // Jenkins itself listens on 8080 on this agent, so the gateway can't publish there.
         GATEWAY_HOST_PORT     = '18080'
-        // Services each test needs behind api-gateway (which is always started, see
-        // 'Start Test Environment'); unless KEEP_TEST_ENV is set, only these are started.
-        // subscription-service is in both because the gateway readiness check calls it.
-        // Integration tests (sllp-integration-tests/tests): auth -> user, admin -> admin,
-        // subscription -> subscription. Add a service here when a new spec needs one.
         INTEGRATION_TEST_SERVICES = 'postgres-db liquibase-service user-service admin-service subscription-service'
-        // Load test: composition -> Kafka -> orchestrator -> all four A2A agents (the orchestrator's
-        // /ready requires every agent; the agents call user-service and admin-service).
         LOAD_TEST_SERVICES        = 'postgres-db liquibase-service kafka-service user-service admin-service subscription-service composition-service orchestrator-service evidence-agent grading-agent review-agent suggestions-agent'
+        AI_EVAL_SERVICES          = 'postgres-db liquibase-service kafka-service user-service admin-service subscription-service composition-service orchestrator-service evidence-agent grading-agent review-agent suggestions-agent'
+        LAKERA_GUARD_API_KEY      = 'not-configured'
     }
 
     parameters {
@@ -63,6 +45,15 @@ pipeline {
                                   'costs money. Requires RUN_UNIT_TESTS.')
         booleanParam(name: 'RUN_INTEGRATION_TESTS', defaultValue: false,
                      description: 'Start the full docker-compose stack and run the API integration tests')
+        booleanParam(name: 'RUN_AI_EVAL',       defaultValue: false,
+                     description: 'AI eval: 8 test essays (normal, Chinese, prompt injection + attack-free controls) through all agents, scored for ' +
+                                  'integration, quality, security and drift against sllp-ai-eval/baseline.json ' +
+                                  '(uses the real OpenAI key — costs money)')
+        choice(name: 'SIMULATE_DRIFT', choices: ['none', 'evidence', 'grading', 'review', 'suggestions', 'all-agents'],
+               description: 'Demo only (requires RUN_AI_EVAL): run the chosen agent(s) on DRIFT_MODEL instead of their normal ' +
+                            'model, to show the drift check catching a silent model change. Cannot be combined with UPLOAD_DOCKER_HUB.')
+        string(name: 'DRIFT_MODEL', defaultValue: 'gpt-4.1-nano', trim: true,
+               description: 'OpenAI model used by SIMULATE_DRIFT')
         booleanParam(name: 'RUN_LOAD_TEST',     defaultValue: false,
                      description: 'Grading load test: 3 essays graded at once (uses the real OpenAI key — costs money)')
         booleanParam(name: 'KEEP_TEST_ENV',     defaultValue: false,
@@ -104,13 +95,27 @@ pipeline {
                         error 'RUN_LLM_EVA_UNIT runs as part of the unit tests: enable RUN_UNIT_TESTS as well.'
                     }
 
-                    // Checked up front so a bad or already-used tag fails the build before
-                    // the (slow) tests run rather than at the push.
+                    env.REVIEW_AUTO_APPROVE = params.RUN_AI_EVAL ? 'false' : 'true'
+
+                    env.DRIFT_LABEL = ''
+                    if (params.SIMULATE_DRIFT != 'none') {
+                        if (!params.RUN_AI_EVAL) {
+                            error 'SIMULATE_DRIFT only has an effect together with RUN_AI_EVAL'
+                        }
+                        if (params.UPLOAD_DOCKER_HUB) {
+                            error 'SIMULATE_DRIFT is a demo run and must not push images: untick UPLOAD_DOCKER_HUB'
+                        }
+                        if (!(params.DRIFT_MODEL ==~ /^[A-Za-z0-9._:-]+$/)) {
+                            error "DRIFT_MODEL '${params.DRIFT_MODEL}' is not a valid model name"
+                        }
+                        env.DRIFT_LABEL = "${params.SIMULATE_DRIFT} model swapped to ${params.DRIFT_MODEL}"
+                    }
+
+
                     if (params.UPLOAD_DOCKER_HUB) {
                         if (!(params.IMAGE_TAG ==~ /^v\d+\.\d+\.\d+$/)) {
                             error "IMAGE_TAG '${params.IMAGE_TAG}' is invalid: expected vX.Y.Z, e.g. v1.0.0"
                         }
-                        // Release tags are immutable: never overwrite one that is already pushed.
                         withCredentials([usernamePassword(
                             credentialsId: "${DOCKER_CREDENTIALS_ID}",
                             usernameVariable: 'DOCKER_USER',
@@ -150,8 +155,7 @@ pipeline {
             post {
                 always {
                     archiveArtifacts artifacts: 'semgrep-reports/semgrep-report.*', allowEmptyArchive: true
-                    // Warnings NG has no native Semgrep parser; SARIF is the supported route.
-                    // skipBlames: the git repo lives in source/, not the workspace root.
+
                     recordIssues(
                         enabledForFailure: true,
                         skipBlames: true,
@@ -169,10 +173,8 @@ pipeline {
                     script {
                         def modules = env.JAVA_TARGETS.split(',').collect { "sllp-${it}" }.join(',')
                         if (params.RUN_UNIT_TESTS) {
-                            // Tests tagged "llm" (real OpenAI calls) are excluded by the root pom unless
-                            // RUN_LLM_EVA_UNIT; OPENAI_API_KEY is always set here, so the tag is the only guard.
+
                             def excluded = params.RUN_LLM_EVA_UNIT ? '' : 'llm'
-                            // verify also runs jacoco:report -> target/site/jacoco/ in every tested module.
                             sh "mvn -pl ${modules} -am clean verify -Dtest.excludedGroups=${excluded} --no-transfer-progress"
                         } else {
                             sh "mvn -pl ${modules} -am clean package -DskipTests --no-transfer-progress"
@@ -184,8 +186,7 @@ pipeline {
                 always {
                     junit allowEmptyResults: true,
                           testResults: 'source/sllp-*/target/surefire-reports/*.xml'
-                    // Unit-test results collected under one clearly named folder so they're
-                    // easy to tell apart from integration-test-reports/ in the build artifacts.
+
                     sh '''
                         rm -rf unit-test-reports/java && mkdir -p unit-test-reports/java
                         for f in source/sllp-*/target/surefire-reports/TEST-*.xml; do
@@ -195,9 +196,7 @@ pipeline {
                     archiveArtifacts artifacts: 'unit-test-reports/java/*.xml', allowEmptyArchive: true
                     script {
                         if (params.RUN_UNIT_TESTS) {
-                            // Only this build's targets are copied, so a stale target/ left in the
-                            // workspace by an earlier build of another service is never reported.
-                            // Modules without tests (e.g. liquibase-service) have no report.
+
                             withEnv(["COVERAGE_TARGETS=${env.JAVA_TARGETS.replace(',', ' ')}"]) {
                                 sh '''
                                     rm -rf coverage-reports/java && mkdir -p coverage-reports/java
@@ -222,11 +221,7 @@ pipeline {
                     script {
                         env.PYTHON_TARGETS.split(',').each { svc ->
                             dir("sllp-${svc}") {
-                                // Runs directly on the agent, not via docker run --
-                                // same reason as the Semgrep stage (broken container networking).
-                                // Must be python3.12 specifically: the agent's system
-                                // python3 is 3.9, and this code uses StrEnum (3.11+)
-                                // and PEP 604 `X | None` unions (3.10+ to evaluate).
+
                                 sh '''
                                     rm -rf .venv
                                     python3.12 -m venv .venv
@@ -272,26 +267,35 @@ pipeline {
             }
         }
 
-        // Test environment = services started via docker compose, for the integration and
-        // load tests to call. They share this one environment: it is started once
-        // here, used by whichever of the two stages is enabled, and torn down afterwards.
-        // KEEP_TEST_ENV starts every service; otherwise only what the selected tests need
-        // (INTEGRATION_TEST_SERVICES / LOAD_TEST_SERVICES) + api-gateway, which is much faster.
+
         stage('Start Test Environment') {
-            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST || params.KEEP_TEST_ENV } }
+            when { expression { return params.RUN_INTEGRATION_TESTS || params.RUN_AI_EVAL || params.RUN_LOAD_TEST || params.KEEP_TEST_ENV } }
             environment {
-                // The load test runs the real assessment agents; the review step is
-                // auto-approved (the review agent is out of scope for the load test for now).
+
                 AGENT_PROVIDER      = 'a2a'
-                REVIEW_AUTO_APPROVE = 'true'
             }
             steps {
                 dir('source') {
                     script {
-                        // Shared secrets between the orchestrator and the four A2A agents
-                        // (orchestrator refuses to start in a2a mode without them). Both sides
-                        // read the same compose variable, so a fresh random value per build is
-                        // enough — nothing has to be stored in Jenkins.
+                        if (params.SIMULATE_DRIFT != 'none') {
+
+                            def modelEnv = [
+                                'evidence'   : ['evidence-agent',    ['SPRING_AI_OPENAI_CHAT_MODEL', 'SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL']],
+                                'grading'    : ['grading-agent',     ['OPENAI_CHAT_MODEL']],
+                                'review'     : ['review-agent',      ['REVIEW_OPENAI_MODEL']],
+                                'suggestions': ['suggestions-agent', ['SUGGESTIONS_OPENAI_MODEL']]
+                            ]
+                            def driftAgents = params.SIMULATE_DRIFT == 'all-agents' ? modelEnv.keySet() as List : [params.SIMULATE_DRIFT]
+                            def overlay = 'services:\n' + driftAgents.collect { agent ->
+                                def service = modelEnv[agent][0]
+                                def vars = modelEnv[agent][1]
+                                "  ${service}:\n    environment:\n" + vars.collect { "      ${it}: \"${params.DRIFT_MODEL}\"\n" }.join('')
+                            }.join('')
+                            writeFile file: '../drift-overlay.yaml', text: overlay
+                            env.COMPOSE_FILE = "docker-compose.yaml:docker-compose.override.yaml:${env.WORKSPACE}/drift-overlay.yaml"
+                            echo "SIMULATE_DRIFT: ${env.DRIFT_LABEL}\n${overlay}"
+                        }
+
                         def startStack = '''
                             # A KEEP_TEST_ENV build leaves its environment running; it holds the
                             # same fixed host ports, so remove any such leftover before starting.
@@ -301,7 +305,7 @@ pipeline {
                                 docker compose -p "$p" down -v --remove-orphans || true
                             done
 
-                            for v in EVIDENCE_AGENT_TOKEN GRADING_AGENT_TOKEN REVIEW_AGENT_TOKEN SUGGESTION_AGENT_TOKEN; do
+                            for v in EVIDENCE_AGENT_TOKEN GRADING_AGENT_TOKEN REVIEW_AGENT_TOKEN SUGGESTION_AGENT_TOKEN INTERNAL_SERVICE_TOKEN; do
                                 export "$v=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n')"
                             done
 
@@ -334,16 +338,31 @@ pipeline {
                         def services = [] as LinkedHashSet
                         if (!params.KEEP_TEST_ENV) {
                             if (params.RUN_INTEGRATION_TESTS) { services.addAll(INTEGRATION_TEST_SERVICES.split(' ') as List) }
+                            if (params.RUN_AI_EVAL)           { services.addAll(AI_EVAL_SERVICES.split(' ') as List) }
                             if (params.RUN_LOAD_TEST)         { services.addAll(LOAD_TEST_SERVICES.split(' ') as List) }
                         }
                         def targets = services.join(' ')
                         echo targets ? "Starting ${targets} api-gateway" : 'Starting every service'
-                        withEnv(["TEST_ENV_SERVICES=${targets}"]) {
-                            sh startStack
+
+                        def lakeraConfigured = true
+                        try {
+                            withCredentials([string(credentialsId: 'lakera-api-key', variable: 'LAKERA_PROBE')]) { }
+                        } catch (err) {
+                            lakeraConfigured = false
                         }
-                        if (params.RUN_LOAD_TEST) {
-                            // Grading requests sent before the orchestrator's workers and agents are
-                            // up would sit in the queue and inflate the measured time.
+                        env.LAKERA_CONFIGURED = lakeraConfigured ? 'true' : 'false'
+                        withEnv(["TEST_ENV_SERVICES=${targets}"]) {
+                            if (lakeraConfigured) {
+                                withCredentials([string(credentialsId: 'lakera-api-key', variable: 'LAKERA_GUARD_API_KEY')]) {
+                                    sh startStack
+                                }
+                            } else {
+                                echo "No 'lakera-api-key' credential: the grading agent runs without Lakera Guard screening."
+                                sh startStack
+                            }
+                        }
+                        if (params.RUN_LOAD_TEST || params.RUN_AI_EVAL) {
+
                             sh '''
                                 echo "Waiting for orchestrator and assessment agents..."
                                 for i in $(seq 1 60); do
@@ -367,12 +386,10 @@ pipeline {
         }
 
         stage('Integration Test - API') {
-            // Black-box tests hit the docker-compose stack through the real api-gateway.
             when { expression { return params.RUN_INTEGRATION_TESTS } }
             steps {
                 dir('source/sllp-integration-tests') {
-                    // Requires Node.js on the Jenkins agent (same constraint the Python
-                    // stage has for python3.12 — install/configure it on the node first).
+
                     sh '''
                         npm ci
                         GATEWAY_BASE_URL=http://localhost:$GATEWAY_HOST_PORT npx playwright test
@@ -383,7 +400,6 @@ pipeline {
                 always {
                     junit allowEmptyResults: true,
                           testResults: 'source/sllp-integration-tests/test-results/junit.xml'
-                    // Integration-test result artifacts: JUnit XML + Playwright HTML report.
                     sh '''
                         rm -rf integration-test-reports && mkdir -p integration-test-reports
                         cp source/sllp-integration-tests/test-results/junit.xml integration-test-reports/ || true
@@ -394,15 +410,62 @@ pipeline {
             }
         }
 
+        stage('AI Eval - Quality, Security & Drift') {
+
+            when { expression { return params.RUN_AI_EVAL } }
+            steps {
+                dir('source') {
+                    script {
+                        def rc = sh(returnStatus: true, script: '''
+                            rm -rf "$WORKSPACE/ai-eval-reports"
+                            python3.12 sllp-ai-eval/run_eval.py \
+                                --gateway "http://localhost:$GATEWAY_HOST_PORT" \
+                                --compose-dir . \
+                                --out "$WORKSPACE/ai-eval-reports" \
+                                --build "$BUILD_NUMBER" \
+                                --drift-simulation "$DRIFT_LABEL" \
+                                --lakera "$LAKERA_CONFIGURED"
+                        ''')
+                        if (rc == 2) {
+                            unstable('AI eval: quality drifted from the baseline (see AI Eval Report)')
+                        } else if (rc != 0) {
+                            error('AI eval: a release gate failed (see AI Eval Report)')
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    script {
+                        if (fileExists('ai-eval-reports/ai-eval-summary.txt')) {
+                            def summary = readFile('ai-eval-reports/ai-eval-summary.txt').trim()
+                            currentBuild.description = currentBuild.description
+                                ? "${currentBuild.description}<br>${summary}"
+                                : summary
+                        }
+                    }
+
+                    junit allowEmptyResults: true, testResults: 'ai-eval-reports/ai-eval-junit.xml'
+
+                    archiveArtifacts artifacts: 'ai-eval-reports/**', allowEmptyArchive: true
+                    publishHTML(target: [
+                        reportName           : 'AI Eval Report',
+                        reportDir            : 'ai-eval-reports',
+                        reportFiles          : 'ai-eval-report.html',
+                        keepAll              : true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing         : true
+                    ])
+                }
+            }
+        }
+
         stage('Load Test - Grading') {
-            // Submits three compositions for AI grading at the same moment and
-            // measures how long each takes to come back REVIEWED. Costs real OpenAI calls.
+
             when { expression { return params.RUN_LOAD_TEST } }
             steps {
-                // Missed targets (k6 thresholds) mark the build UNSTABLE rather than failing it:
-                // the report is what matters here, not a pass/fail gate.
+
                 catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    // k6 joins the stack's own network and talks to api-gateway directly.
                     sh '''
                         rm -rf load-test-reports && mkdir -p load-test-reports
                         docker run --rm \
@@ -413,7 +476,7 @@ pipeline {
                             -e GATEWAY_BASE_URL=http://api-gateway:8080 \
                             -e REPORT_DIR=/reports \
                             -e ESSAY_COUNT=3 \
-                            -e REVIEW_AUTO_APPROVE=true \
+                            -e REVIEW_AUTO_APPROVE="$REVIEW_AUTO_APPROVE" \
                             grafana/k6 run /scripts/grading-load.js
                     '''
                 }
@@ -421,7 +484,6 @@ pipeline {
             post {
                 always {
                     script {
-                        // Surface the one-line result on the build page itself.
                         if (fileExists('load-test-reports/load-test-summary.txt')) {
                             def summary = readFile('load-test-reports/load-test-summary.txt').trim()
                             currentBuild.description = currentBuild.description
@@ -445,38 +507,13 @@ pipeline {
         }
 
         stage('Stop Test Environment') {
-            when { expression { return (params.RUN_INTEGRATION_TESTS || params.RUN_LOAD_TEST) && !params.KEEP_TEST_ENV } }
+            when { expression { return (params.RUN_INTEGRATION_TESTS || params.RUN_AI_EVAL || params.RUN_LOAD_TEST) && !params.KEEP_TEST_ENV } }
             steps {
                 dir('source') {
                     sh 'docker compose down -v --remove-orphans || true'
                 }
             }
         }
-
-        // stage('OWASP Dependency-Check') {
-        //     when { expression { return env.JAVA_TARGETS } }
-        //     steps {
-        //         dir('source') {
-        //             script {
-        //                 def modules = env.JAVA_TARGETS.split(',').collect { "sllp-${it}" }.join(',')
-        //                 // First run downloads/updates the NVD vulnerability DB and is slow;
-        //                 // set an NVD_API_KEY credential on the Jenkins node to speed it up.
-        //                 sh """
-        //                     mvn -pl ${modules} -am org.owasp:dependency-check-maven:check \
-        //                         -DfailBuildOnCVSS=11 \
-        //                         -Dformats=HTML,XML \
-        //                         --no-transfer-progress
-        //                 """
-        //             }
-        //         }
-        //     }
-        //     post {
-        //         always {
-        //             archiveArtifacts artifacts: 'source/sllp-*/target/dependency-check-report.html',
-        //                               allowEmptyArchive: true
-        //         }
-        //     }
-        // }
 
         stage('Docker Build & Push') {
             when { expression { return params.UPLOAD_DOCKER_HUB } }
@@ -568,8 +605,6 @@ pipeline {
                     currentBuild.description = (currentBuild.description ? "${currentBuild.description}<br>" : '') +
                         "Test env kept running: ${COMPOSE_PROJECT_NAME}"
                 } else {
-                    // Safety net: 'Stop Test Environment' is skipped when an earlier stage fails, so make
-                    // sure this build's compose stack never outlives the build. No-op if none exists.
                     dir('source') {
                         sh 'docker compose down -v --remove-orphans || true'
                     }
@@ -585,9 +620,7 @@ pipeline {
     }
 }
 
-// Publishes coverage-reports/<lang>/<service>/ (filled by the calling stage, one folder per
-// service holding its <xmlName> and index.html): the Coverage plugin's summary and drill-down
-// page for the build, plus every service's own HTML report as a tab of one "<htmlName>" link.
+
 def publishCoverage(String lang, String title, String parser, String xmlName, String htmlName, String srcSubdir) {
     def services = sh(script: "ls coverage-reports/${lang} 2>/dev/null || true", returnStdout: true)
                        .trim().split('\\s+').findAll { it }

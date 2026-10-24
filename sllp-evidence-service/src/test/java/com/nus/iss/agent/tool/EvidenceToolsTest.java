@@ -95,7 +95,7 @@ class EvidenceToolsTest {
 
         String summary = new PriorEvidenceTool(memory).getPriorEvidence(toolContext);
 
-        assertEquals("Previous run found evidence for 0 criteria. Its plan was: Scan paragraphs; Quote evidence", summary);
+        assertEquals("Previous run plan: Scan paragraphs; Quote evidence\nPrevious findings:", summary);
     }
 
     @Test

@@ -11,7 +11,7 @@ pipeline {
         GIT_CREDENTIALS_ID    = 'github-pat'
         DOCKER_HUB_USER       = 'maxin0525'
         ALL_JAVA_SERVICES     = 'user-service liquibase-service document-service api-gateway composition-service evaluation-service review-service product-guide-service evidence-service subscription-service admin-service'
-        ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'og.
+        ALL_PYTHON_SERVICES   = 'orchestrator-service suggestions-agent'
         OPENAI_API_KEY        = credentials('openai-api-key')
         COMPOSE_PROJECT_NAME  = "sllp-test-${env.BUILD_NUMBER}"
         GATEWAY_HOST_PORT     = '18080'

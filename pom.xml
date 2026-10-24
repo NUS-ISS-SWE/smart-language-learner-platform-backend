@@ -48,8 +48,19 @@
     <properties>
         <java.version>25</java.version>
         <jjwt.version>0.13.0</jjwt.version>
-        <!-- Defines Surefire's late-substitution placeholder for every child module. -->
+        <!-- spring-boot-starter-parent 4.0.6 manages lombok 1.18.46, which doesn't
+             support JDK 25's changed javac internals (fails with
+             ExceptionInInitializerError: com.sun.tools.javac.tree.EndPosTable).
+             1.18.48 is the first release with JDK 25 support. -->
+        <lombok.version>1.18.48</lombok.version>
+        <!-- Default for surefire's @{argLine}; jacoco:prepare-agent overrides it whenever
+             tests run. Without this, a build that skips JaCoCo (e.g. -Djacoco.skip) passes
+             the literal "@{argLine}" to java and the test fork fails to start. -->
         <argLine></argLine>
+        <jacoco.version>0.8.15</jacoco.version>
+        <!-- JUnit 5 tags left out of a plain `mvn test`: "llm" calls the real OpenAI API and
+             costs money. Run them too with -Dtest.excludedGroups= (CI: RUN_LLM_EVA_UNIT). -->
+        <test.excludedGroups>llm</test.excludedGroups>
     </properties>
 
     <dependencyManagement>
@@ -151,6 +162,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <forkCount>1</forkCount>
+                    <excludedGroups>${test.excludedGroups}</excludedGroups>
                     <argLine>
                         @{argLine}
                         --enable-native-access=ALL-UNNAMED
@@ -159,6 +171,37 @@
                         --add-opens java.base/java.lang.reflect=ALL-UNNAMED
                     </argLine>
                 </configuration>
+            </plugin>
+            <!-- Unit-test coverage for every module: target/site/jacoco/ (index.html + jacoco.xml,
+                 the XML is what Jenkins' Coverage plugin reads). Modules without tests skip it. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <!-- Plain data holders and boot entry points; they would only dilute the numbers. -->
+                    <excludes>
+                        <exclude>**/*Application.class</exclude>
+                        <exclude>**/dto/**</exclude>
+                        <exclude>**/entity/**</exclude>
+                        <exclude>**/enums/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
